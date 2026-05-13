@@ -1,5 +1,6 @@
 package me.tbsten.capture.code
 
+import me.tbsten.capture.code.compat.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.compat.IrInjectorLoader
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
@@ -41,7 +42,10 @@ public class CaptureCodeIrExtension(
             // compat-kXXXX が config.dedent / config.includeAnnotationLines を消費する。
             injector.transform(moduleFragment, pluginContext, config)
         } finally {
+            // 同一 ClassLoader での連続 compile (kctfork) で前回コンパイルの marker / expression site が
+            // 次回に漏れないよう、 両 registry をクリアする (task-008, task-017)。
             CaptureCodeMarkerRegistry.reset()
+            CaptureCodeExpressionSiteRegistry.reset()
         }
     }
 }
