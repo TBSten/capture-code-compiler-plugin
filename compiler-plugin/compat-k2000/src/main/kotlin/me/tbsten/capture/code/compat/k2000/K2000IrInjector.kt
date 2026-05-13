@@ -1,18 +1,23 @@
 package me.tbsten.capture.code.compat.k2000
 
 import com.google.auto.service.AutoService
+import me.tbsten.capture.code.compat.CapturedSite
 import me.tbsten.capture.code.compat.IrInjector
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
+import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
 
 /**
- * Kotlin 2.0.0+ 向けの IR 変換実装の scaffold。
+ * Kotlin 2.0.0+ 向けの IR 変換実装。
  *
- * 本 scaffold では [K2000CapturedSourcesTransformer] を走らせるが、現状は何も書き換えない。
- * 後続 ticket (Phase 1 vertical slice) で hardcoded marker 認識・`capturedSources<T>()` の
- * 書き換えロジックを transformer 内に実装する。
+ * Phase 1 (task-005 / task-006) では hardcoded marker (`com.example.Snippets`) 付きの
+ * property を走査してソース文字列を収集し、後段で `capturedSources<Snippets>()` 呼び出しを
+ * `listOf(Snippets(source = Source(...)))` へ書き換える。
+ *
+ * 詳細な順序は `compiler-plugin-design.md` §6 Phase ordering 参照。
  */
 public class K2000IrInjector : IrInjector {
     override fun transform(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
@@ -28,16 +33,36 @@ public class K2000IrInjector : IrInjector {
 }
 
 /**
- * IR を走査して `@CaptureCode` 由来のキャプチャを構築する transformer の scaffold。
+ * IR を走査して `@CaptureCode` 由来のキャプチャを構築する transformer。
  *
- * Phase 1 の本 ticket では何も書き換えない空 visitor として置く。
- * 後続 ticket でこの transformer に以下のロジックを実装する想定:
+ * Phase 1 vertical slice の責務分担:
+ * - task-005 (本 ticket 範囲) … [K2000CapturedSourcesCollector] を `IrFile` ごとに走らせて
+ *   [capturedSites] に [CapturedSite] を蓄積する (Logic B / C 最小実装)
+ * - task-006 … `visitCall` などを追加し、`capturedSites` を参照して `capturedSources<Snippets>()`
+ *   の `IrCall` を list literal に置換する (Logic H)
  *
- * - hardcoded marker (`com.example.Snippets`) を付けた declaration を検出して source を収集 (task-005)
- * - `capturedSources<Snippets>()` の `IrCall` を `listOf(Snippets(source = Source(...)))` に置換 (task-006)
+ * `capturedSites` はモジュール 1 回の transform 内で蓄積される。task-006 では同じ transformer
+ * 内に書き換えロジックを追加する想定。Phase 2 で marker 多型化に伴い `Map<MarkerFqn, List<CapturedSite>>`
+ * への昇格を予定。
  *
  * 詳細は `compiler-plugin-design.md` §5 Logic B/C/D/H、§6 Phase ordering 参照。
  */
 internal class K2000CapturedSourcesTransformer(
     @Suppress("unused") private val pluginContext: IrPluginContext,
-) : IrElementTransformerVoid()
+) : IrElementTransformerVoid() {
+
+    /**
+     * task-005 で収集した capture サイトの一覧。task-006 の書き換え step が参照する。
+     *
+     * Phase 1 では marker FqN が `com.example.Snippets` 1 種類のみで、すべて property。
+     * Phase 2 で marker 多型化と種別拡張に伴い構造を見直す。
+     */
+    val capturedSites: MutableList<CapturedSite> = mutableListOf()
+
+    override fun visitFile(declaration: IrFile): IrFile {
+        val collector = K2000CapturedSourcesCollector(declaration)
+        declaration.acceptChildrenVoid(collector)
+        capturedSites += collector.capturedSites
+        return super.visitFile(declaration)
+    }
+}
