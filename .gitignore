@@ -15,3 +15,6 @@ Pods/
 *.jks
 *.gpg
 *yarn.lock
+
+.local/
+.claude/*.local.*

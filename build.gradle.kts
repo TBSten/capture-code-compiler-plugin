@@ -1,5 +1,7 @@
+// Kotlin Gradle plugin は buildSrc 経由で classpath に提供されるため、
+// ここでは KGP 以外のサブプロジェクトプラグインのみを apply(false) で宣言する。
 plugins {
-    alias(libs.plugins.kotlin.multiplatform).apply(false)
-    alias(libs.plugins.android.kmp.library).apply(false)
     alias(libs.plugins.maven.publish).apply(false)
+    alias(libs.plugins.ksp).apply(false)
+    alias(libs.plugins.shadow).apply(false)
 }

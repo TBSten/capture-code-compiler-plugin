@@ -1,24 +1,18 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
-    alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.android.kmp.library)
+    kotlin("multiplatform")
     alias(libs.plugins.maven.publish)
 }
 
 kotlin {
-    androidTarget {
-        compilerOptions { jvmTarget = JvmTarget.JVM_17 }
-    }
+    jvmToolchain(17)
 
-    jvm {
-        compilerOptions { jvmTarget = JvmTarget.JVM_17 }
-    }
-    js { browser() }
-    wasmJs { browser() }
+    jvm()
+    js { browser(); nodejs() }
     iosArm64()
     iosSimulatorArm64()
+    iosX64()
     macosArm64()
+    macosX64()
     linuxX64()
     mingwX64()
 
@@ -29,32 +23,19 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
-
     }
 }
 
-android {
-    namespace = "me.tbsten.capture.code.annotation"
-    compileSdk = 36
-    defaultConfig {
-        minSdk = 23
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-}
-
-//Publishing your Kotlin Multiplatform library to Maven Central
-//https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-publish-libraries.html
+// Publishing to Maven Central
+// https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-publish-libraries.html
 mavenPublishing {
     publishToMavenCentral()
-    coordinates("me.tbsten.capture.code", "annotation", "1.0.0")
+    coordinates("me.tbsten.capture.code", "annotation", "0.1.0-SNAPSHOT")
 
     pom {
-        name = "Capture Code compiler plugin"
-        description = "Kotlin Multiplatform library"
-        url = "github url" //todo
+        name = "Capture Code annotation"
+        description = "Runtime API declarations for Capture Code compiler plugin"
+        url = "https://github.com/tbsten/Capture-Code-compiler-plugin"
 
         licenses {
             license {
@@ -65,14 +46,14 @@ mavenPublishing {
 
         developers {
             developer {
-                id = "" //todo github nickname
-                name = "" //todo full name
-                email = "" //todo email
+                id = "tbsten"
+                name = "tbsten"
+                email = "programmingcafeteria@gmail.com"
             }
         }
 
         scm {
-            url = "github url" //todo
+            url = "https://github.com/tbsten/Capture-Code-compiler-plugin"
         }
     }
     if (project.hasProperty("signing.keyId")) signAllPublications()
