@@ -58,8 +58,10 @@ public data class CapturedSite(
      * - [FILE] — task-016 で追加。`@file:Marker` でファイル全体をキャプチャしたサイト
      *   (`IrFile.annotations` 起源)。`SourceLocation.startLine` は常に 1、`endLine` は
      *   ファイル末尾の行 (`IrFileEntry.lineCount`) を入れる。
-     *
-     * EXPRESSION (task-017) は後続で追加する。
+     * - [EXPRESSION] — task-017 で追加。`@Marker (expr)` で式に annotation を付けたサイト
+     *   (FIR session storage 起源)。Kotlin 2.0 では IR phase で式 annotation が残らないため、
+     *   FIR phase で offset を session storage に push → IR phase で読み出す bridge 経路で
+     *   site を構築する (`compiler-plugin-design.md` §5 B-fir / task-009 spike)。
      */
     public enum class CaptureKind {
         PROPERTY,
@@ -68,5 +70,6 @@ public data class CapturedSite(
         FUNCTION,
         TYPEALIAS,
         FILE,
+        EXPRESSION,
     }
 }
