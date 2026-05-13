@@ -51,8 +51,9 @@ class CaptureCodeCompilerPluginTest : FunSpec({
                 import me.tbsten.capture.code.Source
 
                 @CaptureCode
+                @Target(AnnotationTarget.PROPERTY)
                 @Retention(AnnotationRetention.SOURCE)
-                annotation class Snippets(val source: Source = Source())
+                internal annotation class Snippets(val source: Source = Source())
                 """.trimIndent(),
             ),
             SourceFile.kotlin(
@@ -63,9 +64,9 @@ class CaptureCodeCompilerPluginTest : FunSpec({
                 import me.tbsten.capture.code.capturedSources
 
                 @Snippets
-                val greeting = "hello"
+                internal val greeting = "hello"
 
-                object Main {
+                internal object Main {
                     fun captured(): List<Snippets> = capturedSources<Snippets>()
                 }
                 """.trimIndent(),
@@ -83,7 +84,7 @@ class CaptureCodeCompilerPluginTest : FunSpec({
         val sourceAnnotation = sourceMethod.invoke(snippetsAnnotation) as Annotation
         val valueMethod = sourceAnnotation.annotationClass.java.getMethod("value")
         val sourceValue = valueMethod.invoke(sourceAnnotation) as String
-        sourceValue shouldBe "val greeting = \"hello\""
+        sourceValue shouldBe "internal val greeting = \"hello\""
     }
 
     // ----------------------------------------------------------------
@@ -126,6 +127,7 @@ class CaptureCodeCompilerPluginTest : FunSpec({
                 import me.tbsten.capture.code.capturedSources
 
                 @CaptureCode
+                @Target(AnnotationTarget.PROPERTY)
                 @Retention(AnnotationRetention.SOURCE)
                 internal annotation class InternalSnippets(val source: Source = Source())
 
@@ -160,6 +162,7 @@ class CaptureCodeCompilerPluginTest : FunSpec({
                 import me.tbsten.capture.code.capturedSources
 
                 @CaptureCode
+                @Target(AnnotationTarget.PROPERTY)
                 @Retention(AnnotationRetention.SOURCE)
                 private annotation class PrivateSnippets(val source: Source = Source())
 
@@ -201,23 +204,25 @@ class CaptureCodeCompilerPluginTest : FunSpec({
                 import me.tbsten.capture.code.capturedSources
 
                 @CaptureCode
+                @Target(AnnotationTarget.PROPERTY)
                 @Retention(AnnotationRetention.SOURCE)
-                annotation class Alpha(val source: Source = Source())
+                internal annotation class Alpha(val source: Source = Source())
 
                 @CaptureCode
+                @Target(AnnotationTarget.PROPERTY)
                 @Retention(AnnotationRetention.SOURCE)
-                annotation class Beta(val source: Source = Source())
+                internal annotation class Beta(val source: Source = Source())
 
                 @Alpha
-                val a = "value-a"
+                internal val a = "value-a"
 
                 @Beta
-                val b = "value-b"
+                internal val b = "value-b"
 
                 @Alpha
-                val a2 = "value-a2"
+                internal val a2 = "value-a2"
 
-                object Main {
+                internal object Main {
                     fun alphas(): List<Alpha> = capturedSources<Alpha>()
                     fun betas(): List<Beta> = capturedSources<Beta>()
                 }
@@ -251,12 +256,13 @@ class CaptureCodeCompilerPluginTest : FunSpec({
                 import me.tbsten.capture.code.capturedSources
 
                 @CaptureCode
+                @Target(AnnotationTarget.PROPERTY)
                 @Retention(AnnotationRetention.SOURCE)
-                annotation class Unused(val source: Source = Source())
+                internal annotation class Unused(val source: Source = Source())
 
                 val plain = "no marker here"
 
-                object Main {
+                internal object Main {
                     fun captured(): List<Unused> = capturedSources<Unused>()
                 }
                 """.trimIndent(),

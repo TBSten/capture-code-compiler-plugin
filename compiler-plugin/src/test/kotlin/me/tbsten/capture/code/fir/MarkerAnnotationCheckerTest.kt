@@ -53,7 +53,6 @@ class MarkerAnnotationCheckerTest : FunSpec({
             ),
         )
         result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "MARKER_NOT_INTERNAL_OR_PRIVATE"
         result.messages shouldContain "must be 'internal' or 'private'"
     }
 
@@ -78,7 +77,6 @@ class MarkerAnnotationCheckerTest : FunSpec({
             ),
         )
         result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "MARKER_RETENTION_NOT_SOURCE"
         result.messages shouldContain "@Retention(AnnotationRetention.SOURCE)"
     }
 
@@ -102,7 +100,7 @@ class MarkerAnnotationCheckerTest : FunSpec({
             ),
         )
         result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "MARKER_RETENTION_NOT_SOURCE"
+        result.messages shouldContain "@Retention(AnnotationRetention.SOURCE)"
     }
 
     // ----------------------------------------------------------------
@@ -126,7 +124,6 @@ class MarkerAnnotationCheckerTest : FunSpec({
             ),
         )
         result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "MARKER_TARGET_EMPTY"
         result.messages shouldContain "@Target site"
     }
 
@@ -150,7 +147,7 @@ class MarkerAnnotationCheckerTest : FunSpec({
             ),
         )
         result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "MARKER_TARGET_EMPTY"
+        result.messages shouldContain "@Target site"
     }
 
     // ----------------------------------------------------------------
@@ -180,7 +177,7 @@ class MarkerAnnotationCheckerTest : FunSpec({
             ),
         )
         result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "MARKER_PARAMETER_TYPE_INVALID"
+        result.messages shouldContain "has an unsupported type"
         // パラメータ名がメッセージに含まれる
         result.messages shouldContain "'item'"
     }
@@ -206,7 +203,7 @@ class MarkerAnnotationCheckerTest : FunSpec({
             ),
         )
         result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "MARKER_FILLER_REQUIRES_DEFAULT"
+        result.messages shouldContain "must have a default value"
         result.messages shouldContain "'source'"
     }
 
@@ -231,7 +228,7 @@ class MarkerAnnotationCheckerTest : FunSpec({
             ),
         )
         result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "MARKER_IS_EXPECT_ANNOTATION"
+        result.messages shouldContain "cannot be declared as 'expect'"
     }
 
     // ----------------------------------------------------------------
@@ -273,19 +270,20 @@ class MarkerAnnotationCheckerTest : FunSpec({
             ),
         )
         result.exitCode shouldBe KotlinCompilation.ExitCode.OK
-        // checker 由来の error message が出ていないことを確認
+        // checker 由来の error message (rendered text) が出ていないことを確認
         val msgs = result.messages
         // CaptureCode plugin の Marker 系 diagnostic は 1 つも出てはいけない
         listOf(
-            "MARKER_NOT_INTERNAL_OR_PRIVATE",
-            "MARKER_RETENTION_NOT_SOURCE",
-            "MARKER_TARGET_EMPTY",
-            "MARKER_PARAMETER_TYPE_INVALID",
-            "MARKER_FILLER_REQUIRES_DEFAULT",
-            "MARKER_IS_EXPECT_ANNOTATION",
-        ).forEach { token ->
-            // shouldContain の逆を作る — 含まれないこと
-            check(token !in msgs) { "Unexpected diagnostic '$token' in messages:\n$msgs" }
+            "must be 'internal' or 'private'",
+            "@Retention(AnnotationRetention.SOURCE)",
+            "@Target site",
+            "has an unsupported type",
+            "must have a default value",
+            "cannot be declared as 'expect'",
+        ).forEach { phrase ->
+            check(phrase !in msgs) {
+                "Unexpected diagnostic phrase '$phrase' in messages:\n$msgs"
+            }
         }
     }
 })
