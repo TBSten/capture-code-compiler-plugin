@@ -22,21 +22,21 @@ import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 
 /**
- * Phase 1 vertical slice の Logic H (`capturedSources<T>()` 書き換え) 最小実装。
+ * Logic H (`capturedSources<T>()` 書き換え) の Kotlin 2.0.0 向け実装。
  *
  * 入力された [IrCall] (= `me.tbsten.capture.code.capturedSources<Marker>()`、`Marker` は
- * [HARDCODED_MARKER_FQNS] のいずれか) を、task-005 で収集された [CapturedSite] のリストから
- * 組み立てた `listOf(Marker(source = Source(value = "...")))` 相当の [IrCall]
- * (`kotlin.collections.listOf`) に書き換える。
+ * [me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry] に登録された marker のいずれか) を、
+ * [K2000CapturedSourcesCollector] が収集した [CapturedSite] のリストから組み立てた
+ * `listOf(Marker(source = Source(value = "...")))` 相当の [IrCall] (`kotlin.collections.listOf`) に
+ * 書き換える。
  *
- * Phase 1 制約:
- * - marker FqN は [HARDCODED_MARKER_FQNS] に列挙された FqN 限定。primary constructor は
- *   `source: Source = Source()` を持つ前提
+ * task-008 (Logic A) で hardcoded marker FqN list は撤廃された。marker 集合は FIR phase が
+ * `@CaptureCode` メタアノテーションから動的に検出するようになっている。
+ *
+ * Phase 1 制約 (未対応):
  * - filler は `Source(value: String)` のみ。`SourceLocation` / `CaptureKind` / ユーザ定義パラメータは未対応
- * - type argument が hardcoded marker 以外の場合は変換せず元の [IrCall] を返す
- *
- * TODO: Phase 2 task 2.1 で Logic A (メタアノテーション動的検出) と組み合わせ、hardcoded
- *       marker / Source 参照を撤廃する
+ *   (Phase 2 task 2.4 / 2.5 で実装)
+ * - marker の primary constructor は `source: Source = Source()` を持つ前提
  *
  * 詳細は `compiler-plugin-design.md` §5 Logic H / §7.9 Marker annotation instance の構築 を参照。
  */
@@ -44,16 +44,6 @@ internal object K2000CapturedSourcesRewriter {
 
     /** 書き換え対象となる `capturedSources<T>()` の完全修飾名。 */
     const val CAPTURED_SOURCES_FQN: String = "me.tbsten.capture.code.capturedSources"
-
-    /**
-     * Phase 1 で対応する marker (= `T`) の FqN リスト。
-     *
-     * SSOT は [K2000CapturedSourcesCollector.HARDCODED_MARKER_FQNS]。collect 側と rewrite 側で
-     * 同じ marker を扱う必要があるため、collector 側の定数を single source of truth として参照する。
-     * Phase 2 で Logic A 化したら collector 側と一緒に撤廃される。
-     */
-    val HARDCODED_MARKER_FQNS: List<String>
-        get() = K2000CapturedSourcesCollector.HARDCODED_MARKER_FQNS
 
     /** filler 型 `Source(value: String)` の FqN。 */
     private const val SOURCE_FQN: String = "me.tbsten.capture.code.Source"
@@ -83,6 +73,12 @@ internal object K2000CapturedSourcesRewriter {
         val sourceConstructor = sourceSymbol.primaryConstructorOrNull() ?: return null
         val sourceValueIndex = sourceConstructor.indexOfValueParameterByName("value") ?: return null
         val snippetsSourceIndex = snippetsConstructor.indexOfValueParameterByName("source") ?: return null
+
+        // Phase 1 制約: filler `Source` 以外で必須 (no-default) のパラメータが marker constructor に
+        // 残っている場合、ユーザ定義パラメータの値を IR 化する logic がまだ無い (task-014 の責務)
+        // ため書き換えできない。書き換えをスキップし元の IrCall を返させる。
+        // 本制約は Phase 2 task 2.4 / 2.5 (filler 自動値埋め + ユーザ定義パラメータ保持) で解消する。
+        if (snippetsConstructor.hasNonFillerRequiredParameters(snippetsSourceIndex)) return null
 
         val listOfSymbol = pluginContext.findListOfVararg() ?: return null
 
@@ -171,6 +167,27 @@ internal object K2000CapturedSourcesRewriter {
         val index = parameters.indexOfFirst { it.name.asString() == name }
         return index.takeIf { it >= 0 }
     }
+
+    /**
+     * marker の primary constructor が、`source: Source` 以外で **必須 (no-default)** のパラメータを
+     * 1 つでも持っていれば `true`。
+     *
+     * Phase 1 では `source` filler のみ自動で埋められるため、それ以外の必須パラメータがある場合は
+     * `IrConstructorCall` 構築時に値を渡せず compile error になる。書き換えを skip させるために使う。
+     *
+     * デフォルト値あり (`hasDefaultValue = true`) は無視 — compiler 自体が default を埋めるので
+     * 書き換え対象外でも constructor を組み立てられる。
+     *
+     * @param sourceParameterIndex `source: Source` パラメータの index
+     */
+    private fun IrConstructorSymbol.hasNonFillerRequiredParameters(sourceParameterIndex: Int): Boolean {
+        return owner.valueParameters.withIndex().any { (index, parameter) ->
+            index != sourceParameterIndex && !parameter.hasDefaultValue()
+        }
+    }
+
+    private fun org.jetbrains.kotlin.ir.declarations.IrValueParameter.hasDefaultValue(): Boolean =
+        defaultValue != null
 
     private fun IrClassSymbol.defaultTypeProjection(): IrType = typeWith()
 

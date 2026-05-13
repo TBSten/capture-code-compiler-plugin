@@ -17,6 +17,9 @@ class CaptureCodeCompilerPluginTest : FunSpec({
             messageOutputStream = System.out
         }.compile()
 
+    // ----------------------------------------------------------------
+    // 基本: plugin enabled でも通常のコードは普通にコンパイルできる
+    // ----------------------------------------------------------------
     test("simple source compiles successfully with plugin enabled") {
         val result = compile(
             SourceFile.kotlin(
@@ -33,91 +36,29 @@ class CaptureCodeCompilerPluginTest : FunSpec({
         result.exitCode shouldBe KotlinCompilation.ExitCode.OK
     }
 
-    test("source with hardcoded marker (@com.example.Snippets) on a property compiles successfully") {
+    // ----------------------------------------------------------------
+    // Logic A (task-008): @CaptureCode メタ付き annotation class が登録され、
+    // それを付けた property をキャプチャできる (動的検出 + Logic H 連携の最小ケース)
+    // ----------------------------------------------------------------
+    test("dynamically discovered marker (@CaptureCode meta) on a property captures source") {
         val result = compile(
             SourceFile.kotlin(
                 "Snippets.kt",
                 """
-                package com.example
+                package example
 
-                annotation class Snippets
+                import me.tbsten.capture.code.CaptureCode
+                import me.tbsten.capture.code.Source
+
+                @CaptureCode
+                @Retention(AnnotationRetention.SOURCE)
+                annotation class Snippets(val source: Source = Source())
                 """.trimIndent(),
             ),
             SourceFile.kotlin(
                 "Usage.kt",
                 """
-                package com.example
-
-                @Snippets
-                val greeting = "hello"
-                """.trimIndent(),
-            ),
-        )
-        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
-    }
-
-    test("property without the hardcoded marker still compiles successfully (marker absent path)") {
-        val result = compile(
-            SourceFile.kotlin(
-                "Snippets.kt",
-                """
-                package com.example
-
-                annotation class Snippets
-                """.trimIndent(),
-            ),
-            SourceFile.kotlin(
-                "Usage.kt",
-                """
-                package com.example
-
-                val plain = "hello"
-                """.trimIndent(),
-            ),
-        )
-        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
-    }
-
-    test("annotation with different FqN does not break compilation (FqN mismatch path)") {
-        val result = compile(
-            SourceFile.kotlin(
-                "OtherSnippets.kt",
-                """
-                package com.other
-
-                annotation class Snippets
-                """.trimIndent(),
-            ),
-            SourceFile.kotlin(
-                "Usage.kt",
-                """
-                package com.other
-
-                @Snippets
-                val skipped = "ignored"
-                """.trimIndent(),
-            ),
-        )
-        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
-    }
-
-    // task-006: capturedSources<Snippets>() の書き換え結果を runtime 実行で確認する。
-    // hardcoded marker (`com.example.Snippets`) の付いた property 1 件があるソースをコンパイルし、
-    // 生成された Main.captured() を反射で呼んで戻り値が listOf(Snippets(Source(value = "..."))) になることを確認する。
-    test("capturedSources<Snippets>() is rewritten to a list literal at IR phase") {
-        val result = compile(
-            SourceFile.kotlin(
-                "Snippets.kt",
-                """
-                package com.example
-
-                annotation class Snippets(val source: me.tbsten.capture.code.Source = me.tbsten.capture.code.Source())
-                """.trimIndent(),
-            ),
-            SourceFile.kotlin(
-                "Usage.kt",
-                """
-                package com.example
+                package example
 
                 import me.tbsten.capture.code.capturedSources
 
@@ -132,7 +73,7 @@ class CaptureCodeCompilerPluginTest : FunSpec({
         )
         result.exitCode shouldBe KotlinCompilation.ExitCode.OK
 
-        val mainClass = result.classLoader.loadClass("com.example.Main")
+        val mainClass = result.classLoader.loadClass("example.Main")
         val mainInstance = mainClass.getField("INSTANCE").get(null)
         val captured = mainClass.getMethod("captured").invoke(mainInstance) as List<*>
 
@@ -145,74 +86,187 @@ class CaptureCodeCompilerPluginTest : FunSpec({
         sourceValue shouldBe "val greeting = \"hello\""
     }
 
-    // R7 検証: SOURCE retention でも annotation class 自体は class file に残るので、
-    // `Snippets` の constructor symbol は通常通り解決でき、`Snippets(...)` の IR 構築が成立する。
-    test("capturedSources<Snippets>() works even when Snippets has @Retention(SOURCE)") {
+    // ----------------------------------------------------------------
+    // Logic A: @CaptureCode メタが付いていない annotation class は marker として認識されない
+    // → 付与された property はキャプチャ対象外。`capturedSources<T>()` の書き換えも起きないので
+    //   plugin 未適用時と同じ `error("CaptureCode compiler plugin is not applied")` が runtime に投げられる前提
+    //   ここでは compile が通る (warning/error 無し) ことだけを確認する
+    // ----------------------------------------------------------------
+    test("plain annotation class without @CaptureCode is not treated as marker") {
         val result = compile(
             SourceFile.kotlin(
-                "Snippets.kt",
+                "PlainAnnotation.kt",
                 """
-                package com.example
+                package example
 
-                @Retention(AnnotationRetention.SOURCE)
-                annotation class Snippets(val source: me.tbsten.capture.code.Source = me.tbsten.capture.code.Source())
+                // @CaptureCode を付けない通常の annotation class
+                annotation class NotAMarker
+
+                @NotAMarker
+                val ignored = "this should not be captured"
                 """.trimIndent(),
             ),
-            SourceFile.kotlin(
-                "Usage.kt",
-                """
-                package com.example
+        )
+        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+    }
 
+    // ----------------------------------------------------------------
+    // Logic A: visibility は registry の登録条件ではない (Logic F の責務)。
+    // internal / private いずれの marker でも動的検出されることを確認する。
+    // ----------------------------------------------------------------
+    test("internal marker is discovered") {
+        val result = compile(
+            SourceFile.kotlin(
+                "InternalMarker.kt",
+                """
+                package example
+
+                import me.tbsten.capture.code.CaptureCode
+                import me.tbsten.capture.code.Source
                 import me.tbsten.capture.code.capturedSources
 
-                @Snippets
-                val sourceRetained = "kept"
+                @CaptureCode
+                @Retention(AnnotationRetention.SOURCE)
+                internal annotation class InternalSnippets(val source: Source = Source())
 
-                object Main {
-                    fun captured(): List<Snippets> = capturedSources<Snippets>()
+                @InternalSnippets
+                internal val internalProp = "internal"
+
+                internal object InternalMain {
+                    fun captured(): List<InternalSnippets> = capturedSources<InternalSnippets>()
                 }
                 """.trimIndent(),
             ),
         )
         result.exitCode shouldBe KotlinCompilation.ExitCode.OK
 
-        val mainClass = result.classLoader.loadClass("com.example.Main")
+        val mainClass = result.classLoader.loadClass("example.InternalMain")
         val mainInstance = mainClass.getField("INSTANCE").get(null)
         val captured = mainClass.getMethod("captured").invoke(mainInstance) as List<*>
         captured.size shouldBe 1
     }
 
-    test("capturedSources<Snippets>() is rewritten to an empty list when no marker is present") {
+    test("private marker is also discovered") {
+        // private な top-level annotation class は同 file 内からのみ参照可能。
+        // marker / use-site / `capturedSources<T>()` 呼び出しを 1 file にまとめる。
         val result = compile(
             SourceFile.kotlin(
-                "Snippets.kt",
+                "PrivateMarker.kt",
                 """
-                package com.example
+                package example
 
-                annotation class Snippets(val source: me.tbsten.capture.code.Source = me.tbsten.capture.code.Source())
-                """.trimIndent(),
-            ),
-            SourceFile.kotlin(
-                "Usage.kt",
-                """
-                package com.example
-
+                import me.tbsten.capture.code.CaptureCode
+                import me.tbsten.capture.code.Source
                 import me.tbsten.capture.code.capturedSources
 
-                val plain = "no marker here"
+                @CaptureCode
+                @Retention(AnnotationRetention.SOURCE)
+                private annotation class PrivateSnippets(val source: Source = Source())
 
-                object Main {
-                    fun captured(): List<Snippets> = capturedSources<Snippets>()
+                @PrivateSnippets
+                private val privateProp = "private"
+
+                private object PrivateMain {
+                    fun captured(): List<PrivateSnippets> = capturedSources<PrivateSnippets>()
+                }
+
+                // file-private なので外から呼ぶ public bridge
+                object PrivateBridge {
+                    fun size(): Int = PrivateMain.captured().size
                 }
                 """.trimIndent(),
             ),
         )
         result.exitCode shouldBe KotlinCompilation.ExitCode.OK
 
-        val mainClass = result.classLoader.loadClass("com.example.Main")
+        val bridgeClass = result.classLoader.loadClass("example.PrivateBridge")
+        val bridge = bridgeClass.getField("INSTANCE").get(null)
+        val size = bridgeClass.getMethod("size").invoke(bridge) as Int
+        size shouldBe 1
+    }
+
+    // ----------------------------------------------------------------
+    // Logic A: 複数の @CaptureCode marker が同一モジュールで定義されている場合、
+    // それぞれが独立に検出される (registry に複数 ClassId が登録される)
+    // ----------------------------------------------------------------
+    test("multiple markers are discovered and captured independently") {
+        val result = compile(
+            SourceFile.kotlin(
+                "MultiMarkers.kt",
+                """
+                package example
+
+                import me.tbsten.capture.code.CaptureCode
+                import me.tbsten.capture.code.Source
+                import me.tbsten.capture.code.capturedSources
+
+                @CaptureCode
+                @Retention(AnnotationRetention.SOURCE)
+                annotation class Alpha(val source: Source = Source())
+
+                @CaptureCode
+                @Retention(AnnotationRetention.SOURCE)
+                annotation class Beta(val source: Source = Source())
+
+                @Alpha
+                val a = "value-a"
+
+                @Beta
+                val b = "value-b"
+
+                @Alpha
+                val a2 = "value-a2"
+
+                object Main {
+                    fun alphas(): List<Alpha> = capturedSources<Alpha>()
+                    fun betas(): List<Beta> = capturedSources<Beta>()
+                }
+                """.trimIndent(),
+            ),
+        )
+        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+
+        val mainClass = result.classLoader.loadClass("example.Main")
+        val mainInstance = mainClass.getField("INSTANCE").get(null)
+
+        val alphas = mainClass.getMethod("alphas").invoke(mainInstance) as List<*>
+        val betas = mainClass.getMethod("betas").invoke(mainInstance) as List<*>
+
+        alphas.size shouldBe 2
+        betas.size shouldBe 1
+    }
+
+    // ----------------------------------------------------------------
+    // Logic H: capture 対象が 0 件の marker でも `listOf<T>()` (空) に書き換わる
+    // ----------------------------------------------------------------
+    test("capturedSources<T>() returns empty list when no marker is applied") {
+        val result = compile(
+            SourceFile.kotlin(
+                "EmptyCase.kt",
+                """
+                package example
+
+                import me.tbsten.capture.code.CaptureCode
+                import me.tbsten.capture.code.Source
+                import me.tbsten.capture.code.capturedSources
+
+                @CaptureCode
+                @Retention(AnnotationRetention.SOURCE)
+                annotation class Unused(val source: Source = Source())
+
+                val plain = "no marker here"
+
+                object Main {
+                    fun captured(): List<Unused> = capturedSources<Unused>()
+                }
+                """.trimIndent(),
+            ),
+        )
+        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+
+        val mainClass = result.classLoader.loadClass("example.Main")
         val mainInstance = mainClass.getField("INSTANCE").get(null)
         val captured = mainClass.getMethod("captured").invoke(mainInstance) as List<*>
-
         captured.size shouldBe 0
     }
 })

@@ -1,5 +1,6 @@
 package me.tbsten.capture.code.compat.k2000
 
+import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.compat.CapturedSite
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.PsiIrFileEntry
@@ -12,19 +13,23 @@ import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import java.io.File
 
 /**
- * hardcoded marker (`com.example.Snippets` ほか [HARDCODED_MARKER_FQNS]) 付き property 宣言を
- * IR 走査で収集する visitor。
+ * `@CaptureCode` メタ付き marker annotation (= [CaptureCodeMarkerRegistry] に登録された FqN) を
+ * 持つ property 宣言を IR 走査で収集する visitor。
  *
- * Phase 1 vertical slice (task-005) の Logic B / C 最小実装:
- * - Logic B (ターゲットノード収集) … `visitProperty` で annotation の FqN match を検査
+ * task-008 (Logic A) で hardcoded marker FqN list が撤廃され、本 collector は
+ * [CaptureCodeMarkerRegistry] (FIR phase で動的検出された marker FqN の集合) を参照するようになった。
+ *
+ * Phase 1 vertical slice からの責務:
+ * - Logic B (ターゲットノード収集) … `visitProperty` で annotation の FqN が registry に
+ *   含まれているかを検査
  * - Logic C (ソーステキスト取得) … property の `startOffset..endOffset` を抽出し、
  *   [PsiIrFileEntry] (PSI 経由) または file system path (PSI 無し) からソース文字列を取り出す
  *
- * 収集結果は [capturedSites] に積まれ、後続 task-006 で `capturedSources<T>()` 呼び出しの
- * 書き換えに利用される。
+ * 収集結果は [capturedSites] に積まれ、後続 [K2000CapturedSourcesRewriter] が
+ * `capturedSources<T>()` 呼び出しの書き換えに利用する。
  *
- * Phase 2 で Logic A (メタアノテーション動的検出) に置き換えられた時点で [HARDCODED_MARKER_FQNS] と
- * 本 collector の hardcoded path は撤廃される予定。
+ * Phase 2 で property 以外の declaration (class / object / function / typealias / file / expression)
+ * 対応が task-012/016/017 で追加される予定。
  */
 internal class K2000CapturedSourcesCollector(
     private val currentFile: IrFile,
@@ -40,7 +45,7 @@ internal class K2000CapturedSourcesCollector(
     }
 
     override fun visitProperty(declaration: IrProperty) {
-        val markerFqn = declaration.annotations.firstHardcodedMarkerFqnOrNull()
+        val markerFqn = declaration.annotations.firstMarkerFqnOrNull()
         if (markerFqn != null) {
             val source = extractPropertySource(declaration)
             if (source != null) {
@@ -53,10 +58,18 @@ internal class K2000CapturedSourcesCollector(
         super.visitProperty(declaration)
     }
 
-    private fun List<IrConstructorCall>.firstHardcodedMarkerFqnOrNull(): String? {
+    /**
+     * annotation list から、[CaptureCodeMarkerRegistry] に登録済みの marker FqN を 1 つ返す。
+     *
+     * 同じ宣言に複数の marker が付いている場合 (例: `@Foo @Bar val x`) でも、property 本体は
+     * 1 件しか存在しないため、本メソッドは **最初に見つかった** marker FqN のみを返す。
+     * Phase 2 で複数 marker 同時 capture (task-012/021) が必要になったら、複数 marker 対応の
+     * collector に拡張する。
+     */
+    private fun List<IrConstructorCall>.firstMarkerFqnOrNull(): String? {
         for (annotation in this) {
             val fqn = annotation.type.classFqName?.asString() ?: continue
-            if (fqn in HARDCODED_MARKER_FQNS) return fqn
+            if (CaptureCodeMarkerRegistry.isMarker(fqn)) return fqn
         }
         return null
     }
@@ -127,16 +140,5 @@ internal class K2000CapturedSourcesCollector(
             }
         }
         return cursor
-    }
-
-    internal companion object {
-        // TODO: Phase 2 task 2.1 で Logic A (メタアノテーション動的検出) に置換し、本 List は撤廃する。
-        // 現在は Phase 1 同期ポイント (task-007) のため、ケース #1 enable 用の marker を追加した。
-        // - `com.example.Snippets` : `:compiler-plugin:test` 内の kctfork ベース unit test (task-005/006)
-        // - `me.tbsten.capture.code.testapp.Snippets_Case1` : `:integration-test:test-jvm` BasicCasesTest ケース #1
-        val HARDCODED_MARKER_FQNS: List<String> = listOf(
-            "com.example.Snippets",
-            "me.tbsten.capture.code.testapp.Snippets_Case1",
-        )
     }
 }

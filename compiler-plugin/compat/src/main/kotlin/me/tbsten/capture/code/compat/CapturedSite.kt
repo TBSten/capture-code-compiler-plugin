@@ -10,7 +10,7 @@ package me.tbsten.capture.code.compat
  * Phase 2 で `SourceLocation` / ユーザ定義パラメータの保持を追加し、`kind` の網羅も増やす想定。
  *
  * @property markerFqn キャプチャ対象に付与された marker annotation の完全修飾名
- *                     (例: `com.example.Snippets`)
+ *                     (例: `me.tbsten.capture.code.testapp.Snippets_Case1`)
  * @property source 抽出されたソースコード文字列 (annotation 行は除外、dedent は未実施)
  * @property kind サイトの種別。Phase 1 では [CaptureKind.PROPERTY] のみサポート
  */
