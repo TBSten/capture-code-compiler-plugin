@@ -1,5 +1,6 @@
 package me.tbsten.capture.code
 
+import me.tbsten.capture.code.fir.checker.CaptureCodeFirAdditionalCheckersExtension
 import me.tbsten.capture.code.fir.marker.CaptureCodeFirMarkerService
 import me.tbsten.capture.code.fir.marker.CaptureCodeMarkerCheckersExtension
 import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrar
@@ -14,8 +15,13 @@ import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrar
  * - [CaptureCodeMarkerCheckersExtension]: FIR check phase で全 annotation class を訪問し、
  *   meta-annotation の有無を判定して service に登録する `FirAdditionalCheckersExtension`
  *
+ * Phase 2 task 2.2 (Logic F, task-010) で追加:
+ *
+ * - [CaptureCodeFirAdditionalCheckersExtension]: marker annotation の制約違反 (visibility /
+ *   @Retention / @Target / parameter 型 / filler default / expect annotation) を診断する
+ *   `FirAdditionalCheckersExtension`
+ *
  * 後続 ticket で追加予定の extension:
- * - marker annotation 診断 (Logic F: task-010): visibility / @Retention / @Target / parameter 型
  * - `capturedSources<T>()` 診断 (Logic G: task-011): T が `@CaptureCode` メタ修飾されているか
  * - ターゲットノード位置の事前収集 (Logic B-fir): 式 annotation の offset 確保 (task-017)
  *
@@ -25,5 +31,6 @@ public class CaptureCodeFirExtensionRegistrar : FirExtensionRegistrar() {
     override fun ExtensionRegistrarContext.configurePlugin() {
         +::CaptureCodeFirMarkerService
         +::CaptureCodeMarkerCheckersExtension
+        +::CaptureCodeFirAdditionalCheckersExtension
     }
 }
