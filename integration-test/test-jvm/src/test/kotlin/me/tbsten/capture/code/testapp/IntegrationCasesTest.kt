@@ -214,7 +214,7 @@ class IntegrationCasesTest : StringSpec({
         case63_consumer2() shouldBe expected
     }
 
-    "ケース69: 内部 enum 型を使った Id (Sealed-like パターン)".config(enabled = false) {
+    "ケース69: 内部 enum 型を使った Id (Sealed-like パターン)" {
         capturedSources<HttpMethod_Case69>() shouldBe listOf(
             HttpMethod_Case69(
                 verb = HttpMethod_Case69.Verb.GET,
@@ -229,7 +229,7 @@ class IntegrationCasesTest : StringSpec({
         )
     }
 
-    "ケース70: ネストした annotation パラメータ".config(enabled = false) {
+    "ケース70: ネストした annotation パラメータ" {
         capturedSources<Doc_Case70>() shouldBe listOf(
             Doc_Case70(
                 author = Case70_Author(name = "Tsubasa", email = "tsubasa@example.com"),

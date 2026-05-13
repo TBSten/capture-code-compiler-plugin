@@ -441,7 +441,7 @@ val case100_pi = 3.14159
 
 class ScenarioCasesTest : StringSpec({
 
-    "ケース78: マイグレーション宣言の収集".config(enabled = false) {
+    "ケース78: マイグレーション宣言の収集" {
         capturedSources<Migration_Case78>() shouldBe listOf(
             Migration_Case78(
                 version = 1,
@@ -460,7 +460,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース79: テストフィクスチャの収集".config(enabled = false) {
+    "ケース79: テストフィクスチャの収集" {
         capturedSources<Fixture_Case79>() shouldBe listOf(
             Fixture_Case79(
                 name = "minimal-user",
@@ -475,7 +475,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース80: ベンチマーク対象の収集".config(enabled = false) {
+    "ケース80: ベンチマーク対象の収集" {
         capturedSources<Benchmark_Case80>() shouldBe listOf(
             Benchmark_Case80(
                 name = "sum-1000",
@@ -490,7 +490,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース81: GraphQL resolver の収集".config(enabled = false) {
+    "ケース81: GraphQL resolver の収集" {
         capturedSources<GraphQLResolver_Case81>() shouldBe listOf(
             GraphQLResolver_Case81(
                 type = "User",
@@ -505,7 +505,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース82: CLI コマンドのカタログ".config(enabled = false) {
+    "ケース82: CLI コマンドのカタログ" {
         capturedSources<Command_Case82>() shouldBe listOf(
             Command_Case82(
                 name = "build",
@@ -567,7 +567,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース86: feature flag のカタログ".config(enabled = false) {
+    "ケース86: feature flag のカタログ" {
         capturedSources<Flag_Case86>() shouldBe listOf(
             Flag_Case86(
                 key = "new-search",
@@ -599,7 +599,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース88: tutorial step (順序付き) のキャプチャ".config(enabled = false) {
+    "ケース88: tutorial step (順序付き) のキャプチャ" {
         capturedSources<TutorialStep_Case88>() shouldBe listOf(
             TutorialStep_Case88(
                 order = 1,
@@ -628,7 +628,7 @@ class ScenarioCasesTest : StringSpec({
         captured[1].path shouldBe "/users"
     }
 
-    "ケース90: validator rule のカタログ".config(enabled = false) {
+    "ケース90: validator rule のカタログ" {
         capturedSources<Rule_Case90>() shouldBe listOf(
             Rule_Case90(
                 message = "name must not be blank",
@@ -645,7 +645,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース91: DI binding のカタログ".config(enabled = false) {
+    "ケース91: DI binding のカタログ" {
         capturedSources<Bind_Case91>() shouldBe listOf(
             Bind_Case91(
                 to = Case91_Logger::class,
@@ -658,7 +658,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース92: 設定キー (config keys) の収集".config(enabled = false) {
+    "ケース92: 設定キー (config keys) の収集" {
         capturedSources<ConfigKey_Case92>() shouldBe listOf(
             ConfigKey_Case92(
                 key = "db.url",
@@ -697,7 +697,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース94: コード補完用のテンプレート (live template 風) 収集".config(enabled = false) {
+    "ケース94: コード補完用のテンプレート (live template 風) 収集" {
         capturedSources<Template_Case94>() shouldBe listOf(
             Template_Case94(
                 abbrev = "fori",
@@ -758,7 +758,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース100: 複数の filler 同時 + 複数 marker + 複数ファイルの統合シナリオ".config(enabled = false) {
+    "ケース100: 複数の filler 同時 + 複数 marker + 複数ファイルの統合シナリオ" {
         // fileA: case100_add, case100_pi (こちらのファイル) — tag="math"
         // fileB: case100_greet — tag="default" (case100/FileB.kt)
         val captured = capturedSources<Snippets_Case100>()

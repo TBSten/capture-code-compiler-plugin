@@ -468,7 +468,7 @@ class BasicCasesTest : StringSpec({
         captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp"
     }
 
-    "ケース13: Id 付きマーカー (enum パラメータ)".config(enabled = false) {
+    "ケース13: Id 付きマーカー (enum パラメータ)" {
         capturedSources<CaptureSample_Case13>() shouldBe listOf(
             CaptureSample_Case13(
                 id = CaptureSample_Case13.Id.Sample1,
@@ -481,27 +481,27 @@ class BasicCasesTest : StringSpec({
         )
     }
 
-    "ケース14: String パラメータを持つ marker (label)".config(enabled = false) {
+    "ケース14: String パラメータを持つ marker (label)" {
         capturedSources<Labeled_Case14>() shouldBe listOf(
             Labeled_Case14(
                 label = "primary",
-                source = Source(value = "fun case14_handlePrimary() {}"),
+                source = Source(value = "fun case14_handlePrimary() {\n}"),
             ),
             Labeled_Case14(
                 label = "secondary",
-                source = Source(value = "fun case14_handleSecondary() {}"),
+                source = Source(value = "fun case14_handleSecondary() {\n}"),
             ),
         )
     }
 
-    "ケース15: Int パラメータ (priority)".config(enabled = false) {
+    "ケース15: Int パラメータ (priority)" {
         capturedSources<Prioritized_Case15>() shouldBe listOf(
-            Prioritized_Case15(priority = 100, source = Source(value = "fun case15_first() {}")),
-            Prioritized_Case15(priority = 50, source = Source(value = "fun case15_second() {}")),
+            Prioritized_Case15(priority = 100, source = Source(value = "fun case15_first() {\n}")),
+            Prioritized_Case15(priority = 50, source = Source(value = "fun case15_second() {\n}")),
         )
     }
 
-    "ケース16: Boolean パラメータ (experimental flag)".config(enabled = false) {
+    "ケース16: Boolean パラメータ (experimental flag)" {
         capturedSources<FeatureFlag_Case16>() shouldBe listOf(
             FeatureFlag_Case16(
                 experimental = true,
@@ -514,7 +514,7 @@ class BasicCasesTest : StringSpec({
         )
     }
 
-    "ケース17: KClass パラメータ".config(enabled = false) {
+    "ケース17: KClass パラメータ" {
         capturedSources<BoundTo_Case17>() shouldBe listOf(
             BoundTo_Case17(
                 target = Case17_Service::class,
@@ -523,42 +523,42 @@ class BasicCasesTest : StringSpec({
         )
     }
 
-    "ケース18: 配列パラメータ (tags)".config(enabled = false) {
+    "ケース18: 配列パラメータ (tags)" {
         // Array は equals が reference 比較になるため、要素ごとに検証
         val captured = capturedSources<Tagged_Case18>()
         captured.size shouldBe 2
         captured[0].tags.toList() shouldBe listOf("fast", "unit")
-        captured[0].source shouldBe Source(value = "fun case18_unitTest() {}")
+        captured[0].source shouldBe Source(value = "fun case18_unitTest() {\n}")
         captured[1].tags.toList() shouldBe listOf("slow", "integration", "db")
-        captured[1].source shouldBe Source(value = "fun case18_integrationTest() {}")
+        captured[1].source shouldBe Source(value = "fun case18_integrationTest() {\n}")
     }
 
-    "ケース19: enum 配列パラメータ".config(enabled = false) {
+    "ケース19: enum 配列パラメータ" {
         val captured = capturedSources<Permissions_Case19>()
         captured.size shouldBe 1
         captured[0].roles.toList() shouldBe listOf(
             Permissions_Case19.Role.Admin,
             Permissions_Case19.Role.User,
         )
-        captured[0].source shouldBe Source(value = "fun case19_adminAndUserEndpoint() {}")
+        captured[0].source shouldBe Source(value = "fun case19_adminAndUserEndpoint() {\n}")
     }
 
-    "ケース20: Default 値が使われるパラメータ".config(enabled = false) {
+    "ケース20: Default 値が使われるパラメータ" {
         capturedSources<WithDefaults_Case20>() shouldBe listOf(
             WithDefaults_Case20(
                 label = "untitled",
                 priority = 0,
-                source = Source(value = "fun case20_noOverrides() {}"),
+                source = Source(value = "fun case20_noOverrides() {\n}"),
             ),
             WithDefaults_Case20(
                 label = "custom",
                 priority = 0,
-                source = Source(value = "fun case20_onlyLabel() {}"),
+                source = Source(value = "fun case20_onlyLabel() {\n}"),
             ),
             WithDefaults_Case20(
                 label = "untitled",
                 priority = 9,
-                source = Source(value = "fun case20_onlyPriority() {}"),
+                source = Source(value = "fun case20_onlyPriority() {\n}"),
             ),
         )
     }
