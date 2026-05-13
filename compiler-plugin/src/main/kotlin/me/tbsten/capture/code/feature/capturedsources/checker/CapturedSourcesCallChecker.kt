@@ -2,51 +2,61 @@ package me.tbsten.capture.code.feature.capturedsources.checker
 
 import me.tbsten.capture.code.error.CapturedSourcesCheckerDiagnostics
 import me.tbsten.capture.code.feature.capturedsources.CaptureCodeCallableIds
-import me.tbsten.capture.code.fir.marker.captureCodeMarkerService
+import me.tbsten.capture.code.fir.marker.CaptureCodeMetaAnnotation
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
+import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirExpressionChecker
+import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
 import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
 import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
-import org.jetbrains.kotlin.fir.types.classId
 import org.jetbrains.kotlin.fir.types.coneTypeOrNull
+import org.jetbrains.kotlin.fir.types.toRegularClassSymbol
 
 /**
  * Logic G: `capturedSources<T>()` 呼び出しに対する FIR checker。
  *
- * `T` が `@CaptureCode` メタ付き annotation 型 (= Logic A で
- * [me.tbsten.capture.code.fir.marker.CaptureCodeFirMarkerService] に登録された marker class) で
- * **ない** 場合に [CapturedSourcesCheckerDiagnostics.CAPTURED_SOURCES_T_NOT_CAPTURE_CODE_MARKER]
- * error を報告する。
+ * `T` が `@CaptureCode` メタ付き annotation 型でない場合に
+ * [CapturedSourcesCheckerDiagnostics.CAPTURED_SOURCES_T_NOT_CAPTURE_CODE_MARKER] error を報告する。
  *
  * これがないと、ユーザは `T : Annotation` の generic bound だけを満たす一般 annotation を
  * 渡せてしまい、plugin は何も書き換えないため `capturedSources<T>()` は runtime に
  * `error("CaptureCode compiler plugin is not applied")` を投げる stub 呼び出しのまま残る。
- * 「呼んだのに空リストが返ってきた」ではなく「呼んだら例外」になるが、いずれにせよ
- * compile time に防げる方が断然親切。
  *
- * ## 実装ノート
+ * ## 実装ノート: 「registry 経由」ではなく「直接 annotations を見る」設計
  *
- * - 対象判定: `FirFunctionCall.calleeReference` → `FirResolvedNamedReference.resolvedSymbol` の
- *   [FirCallableSymbol.callableId] が [CaptureCodeCallableIds.capturedSources] と一致するか
- * - `T` の取得: `typeArguments[0]` を [FirTypeProjectionWithVariance] に cast し
- *   `typeRef.coneTypeOrNull` から `ClassId` を取り出す
- * - marker 判定: `session.captureCodeMarkerService.markerClassIds` に当該 `ClassId` が
- *   含まれているか
- * - 解決できない型引数 (例: スター投影や型推論失敗) はスキップ。これは他の checker が
- *   報告する診断と重複させないため
+ * 初期実装では `session.captureCodeMarkerService.markerClassIds` (= Logic A の declaration checker
+ * が蓄積する集合) を参照していた。しかし K2 の FIR check phase は
+ * **ファイル単位で interleaved に declaration checker → expression checker が呼ばれる** ため、
+ * 別ファイルで定義された marker の `@CaptureCode` 検出が、本 checker の expression check よりも
+ * 後になる可能性がある (deepwiki Q&A で確認済み)。
+ *
+ * そこで、registry の race condition を回避するため、本 checker では:
+ *
+ * - `T` の `ConeKotlinType` → [FirRegularClassSymbol] を `toRegularClassSymbol(session)` で解決
+ * - その class symbol の `annotations` から `@CaptureCode` の `ClassId` が直接見つかるかを確認
+ *
+ * という戦略を取る。これは declaration の visit 順に依存しない確実な方法。
+ *
+ * registry の方は IR phase (Logic H = `K2000CapturedSourcesTransformer`) で「書き換え対象 marker
+ * かどうか」を判定する用途で引き続き利用される (IR phase は FIR 完了後なので race-free)。
+ *
+ * ## 対象判定
+ *
+ * `FirFunctionCall.calleeReference` → `FirResolvedNamedReference.resolvedSymbol` の
+ * [FirCallableSymbol.callableId] が [CaptureCodeCallableIds.capturedSources] と一致する呼び出しのみ
+ * を対象にする。
  *
  * ## 並列 checker 構成
  *
- * task-008 で既に `CaptureCodeMarkerCheckersExtension` (declaration checker only) があるが、
- * 本 checker は expression checker なので別 extension に分離する。これは task-010 (Logic F) が
- * 同じ declaration checker extension を拡張する想定で、ファイル干渉を避けるため。
- * 詳細は [CapturedSourcesCallCheckersExtension] を参照。
+ * task-008 / task-010 の declaration checker extension とは別の expression checker 専用 extension
+ * ([CapturedSourcesCallCheckersExtension]) で登録する。並列開発時の merge conflict 回避目的。
  *
  * 詳細は `compiler-plugin-design.md` §5 Logic G、§6 Phase ordering 参照。
  */
@@ -65,13 +75,20 @@ internal object CapturedSourcesCallChecker : FirExpressionChecker<FirFunctionCal
 
         // 3) `T` の ConeKotlinType を取得
         val typeArgument = expression.firstTypeArgumentOrNull() ?: return
-        val classId = typeArgument.classId ?: return
 
-        // 4) `T` が marker registry にあるかチェック
-        val markerClassIds = context.session.captureCodeMarkerService.markerClassIds
-        if (classId in markerClassIds) return
+        // 4) `T` の class symbol を解決 (annotation を読むため)
+        val classSymbol = typeArgument.toRegularClassSymbol(context.session)
+        if (classSymbol == null) {
+            // ClassId は取れるが class symbol を解決できない (= 型推論失敗 / star projection など) ケース。
+            // 他の checker が型エラーを報告する前提でここはスキップ。
+            return
+        }
 
-        // 5) 違反: error を報告
+        // 5) `T` の class が `@CaptureCode` メタアノテーションを持っているかチェック
+        if (classSymbol.hasCaptureCodeMeta(context.session)) return
+
+        // 6) 違反: error を報告
+        val classId = classSymbol.classId
         reporter.reportOn(
             source = expression.source,
             factory = CapturedSourcesCheckerDiagnostics.CAPTURED_SOURCES_T_NOT_CAPTURE_CODE_MARKER,
@@ -90,4 +107,14 @@ internal object CapturedSourcesCallChecker : FirExpressionChecker<FirFunctionCal
         val projection = typeArguments.firstOrNull() as? FirTypeProjectionWithVariance ?: return null
         return projection.typeRef.coneTypeOrNull
     }
+
+    /**
+     * `T` の class が `@CaptureCode` メタアノテーション (
+     * [CaptureCodeMetaAnnotation.classId]) を持っているか判定する。
+     *
+     * `toAnnotationClassId(session)` は `FirAnnotation` 1 つにつき annotation class の
+     * 完全修飾識別子 (`ClassId`) を返してくれるので、`@CaptureCode` 1 つで照合できる。
+     */
+    private fun FirRegularClassSymbol.hasCaptureCodeMeta(session: FirSession): Boolean =
+        annotations.any { it.toAnnotationClassId(session) == CaptureCodeMetaAnnotation.classId }
 }

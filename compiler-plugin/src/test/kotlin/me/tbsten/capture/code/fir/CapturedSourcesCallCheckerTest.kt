@@ -69,6 +69,7 @@ class CapturedSourcesCallCheckerTest : FunSpec({
 
     // ----------------------------------------------------------------
     // 正常系: `@CaptureCode` 付き marker を T として渡すと error なし
+    // (Logic F の他制約 (internal / @Target / @Retention SOURCE) もすべて満たすことに注意)
     // ----------------------------------------------------------------
     test("T with @CaptureCode meta-annotation compiles without error") {
         val result = compile(
@@ -82,13 +83,14 @@ class CapturedSourcesCallCheckerTest : FunSpec({
                 import me.tbsten.capture.code.capturedSources
 
                 @CaptureCode
+                @Target(AnnotationTarget.PROPERTY)
                 @Retention(AnnotationRetention.SOURCE)
-                annotation class Snippets(val source: Source = Source())
+                internal annotation class Snippets(val source: Source = Source())
 
                 @Snippets
-                val captured = "value"
+                internal val captured = "value"
 
-                object Main {
+                internal object Main {
                     fun captured(): List<Snippets> = capturedSources<Snippets>()
                 }
                 """.trimIndent(),
