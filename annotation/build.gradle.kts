@@ -1,13 +1,17 @@
+import org.jetbrains.kotlin.gradle.targets.js.dsl.ExperimentalWasmDsl
+
 plugins {
     kotlin("multiplatform")
     alias(libs.plugins.maven.publish)
 }
 
+@OptIn(ExperimentalWasmDsl::class)
 kotlin {
     jvmToolchain(17)
 
     jvm()
     js { browser(); nodejs() }
+    wasmJs { browser(); nodejs() }
     iosArm64()
     iosSimulatorArm64()
     iosX64()
