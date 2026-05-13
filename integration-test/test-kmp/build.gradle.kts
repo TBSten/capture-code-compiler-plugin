@@ -74,6 +74,28 @@ kotlin {
             implementation(libs.kotest.runner.junit5)
             implementation(libs.kotest.assertions.core)
         }
+
+        // ----------------------------------------------------------------
+        // task-024: intermediate source set `jvmLinuxMain`.
+        // jvmAndroidMain (jvm + android の親) を本プロジェクトには android
+        // target が無いため `jvmLinuxMain` (jvm + linuxX64 の親) で代替する。
+        // ケース #105 (source set hierarchy) の挙動検証用。
+        //
+        //   commonMain → jvmLinuxMain → { jvmMain, linuxX64Main }
+        //   commonMain → { jsMain, wasmJsMain, mingwX64Main, appleMain* }
+        //
+        // linuxX64Main は applyDefaultHierarchyTemplate() により `nativeMain`
+        // の子でもあり、ここで `jvmLinuxMain` も親として追加する (多重継承)。
+        // ----------------------------------------------------------------
+        val jvmLinuxMain by creating {
+            dependsOn(commonMain.get())
+        }
+        jvmMain {
+            dependsOn(jvmLinuxMain)
+        }
+        named("linuxX64Main") {
+            dependsOn(jvmLinuxMain)
+        }
     }
 }
 
