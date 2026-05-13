@@ -8,6 +8,24 @@ import me.tbsten.capture.code.SourceLocation
 import me.tbsten.capture.code.capturedSources
 
 // ============================================================================
+// KMP 検証テストのカタログ。
+//
+// task-019 で sample project skeleton (jvm / js / wasmJs / linuxX64 / mingwX64
+// および opt-in な ios / macos) は整備済。本ファイルは依然 jvmTest 内で marker /
+// 使用箇所を **simulate** している暫定形であり、各シナリオの **enable** と
+// commonMain / 各 target source set への **実配置** は後続 ticket で実施する:
+//
+//   - ケース #101 → task-020 (commonMain marker + commonMain use site)
+//   - ケース #102 → task-021 (target ごとの結果)
+//   - ケース #103 → task-022 (expect + actual 両方 annotated)
+//   - ケース #104 → task-023 (actual のみ annotated)
+//   - ケース #105 → task-024 (source set hierarchy / intermediate source set)
+//
+// 各 ticket では (a) simulate marker を削除して commonMain (or 該当 source set)
+// に移動、(b) `.config(enabled = false)` を外す、(c) 期待値を確認する。
+// ============================================================================
+
+// ============================================================================
 // ケース101: commonMain で marker 定義 + commonMain の use site (KMP 基本)
 // 本テストでは jvmTest 内でローカルに marker / site を宣言して挙動を検証する。
 // 実環境では commonMain に置く想定 (.local/test-cases.md 参照)
