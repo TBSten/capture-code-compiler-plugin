@@ -3,10 +3,8 @@ package me.tbsten.capture.code.compat.k2000
 import com.google.auto.service.AutoService
 import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
-import me.tbsten.capture.code.compat.CapturedSite
 import me.tbsten.capture.code.compat.IrInjector
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
-import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
@@ -49,11 +47,12 @@ public class K2000IrInjector : IrInjector {
         // なっていることが保証される。
         val transformer = K2000CapturedSourcesTransformer(pluginContext, config)
 
-        // パス 1: 全 file を visit して capturedSites を埋める (rewrite はしない)。
+        // パス 1: 全 file を visit して capturedSiteData を埋める (rewrite はしない)。
+        // task-014 で `K2000CapturedSiteData` (CapturedSite + marker IrConstructorCall) を扱うように変更。
         for (file in moduleFragment.files) {
             val collector = K2000CapturedSourcesCollector(file, config)
             file.acceptChildrenVoid(collector)
-            transformer.capturedSites += collector.capturedSites
+            transformer.capturedSiteData += collector.capturedSiteData
         }
 
         // パス 2: 全 file を transform して capturedSources<T>() を書き換える。
@@ -97,10 +96,14 @@ internal class K2000CapturedSourcesTransformer(
      * されるスナップショット** として運用する。1 パス目で全 file 分が populate された状態で
      * 2 パス目の rewrite が始まる契約。
      *
+     * task-014 で `CapturedSite` だけでなく marker annotation の `IrConstructorCall` を含む
+     * [K2000CapturedSiteData] を保持するようになった。これにより rewriter はユーザ定義
+     * パラメータ (filler 以外の constructor 引数) の IR 式を直接利用できる。
+     *
      * task-012 で declaration 全 5 種別 (property / class / object / function / typealias) に拡張済。
      * task-016 (file annotation) / task-017 (expression annotation) で残りの 2 種を追加予定。
      */
-    val capturedSites: MutableList<CapturedSite> = mutableListOf()
+    val capturedSiteData: MutableList<K2000CapturedSiteData> = mutableListOf()
 
     override fun visitCall(expression: IrCall): IrExpression {
         // 子要素を先に処理 (nested capturedSources<T>() 呼び出しに備える)
@@ -113,7 +116,7 @@ internal class K2000CapturedSourcesTransformer(
         val rewritten = K2000CapturedSourcesRewriter.rewriteCapturedSourcesCall(
             original = transformed,
             markerFqn = markerFqn,
-            sites = capturedSites.filter { it.markerFqn == markerFqn },
+            siteData = capturedSiteData.filter { it.site.markerFqn == markerFqn },
             pluginContext = pluginContext,
             config = config,
         )

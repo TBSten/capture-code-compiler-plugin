@@ -20,6 +20,30 @@ import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 
 /**
+ * collector が収集する 1 件分のキャプチャ情報。
+ *
+ * 公開 API である [CapturedSite] に加えて、marker annotation 自身の [IrConstructorCall] を
+ * 保持する。これにより rewriter (task-014) は call site でユーザが渡した argument
+ * (例: `@Foo(id = X, label = "y")` の `X` / `"y"`) を IR 上の式として直接取り出して
+ * 新しい marker instance に詰め直すことができる。
+ *
+ * `:compat` の `CapturedSite` 自体に IR types を晒すと API surface が広くなるため、
+ * compat-k2000 内部だけで使う internal な data class として切り出している (SSOT は CapturedSite、
+ * markerCall はあくまで collector → rewriter のローカル受け渡し情報)。
+ */
+internal data class K2000CapturedSiteData(
+    val site: CapturedSite,
+    /**
+     * `@Marker(...)` 自身に対応する IR コンストラクタ呼び出し。
+     *
+     * これを通じてユーザが call site で渡した argument (filler 以外) を `getValueArgument(i)` で
+     * 取り出す。call site で省略 (default 利用) されている場合は `null` が返るので、その時は
+     * marker class の primary constructor の `valueParameters[i].defaultValue` を見る。
+     */
+    val markerCall: IrConstructorCall,
+)
+
+/**
  * `@CaptureCode` メタ付き marker annotation (= [CaptureCodeMarkerRegistry] に登録された FqN) を
  * 持つ宣言を IR 走査で収集する visitor。
  *
@@ -75,7 +99,25 @@ internal class K2000CapturedSourcesCollector(
     private val config: CaptureCodePluginConfig,
 ) : IrElementVisitorVoid {
 
-    val capturedSites: MutableList<CapturedSite> = mutableListOf()
+    /**
+     * 収集された capture site データ (CapturedSite + marker IrConstructorCall) のリスト。
+     *
+     * task-014 で公開 API `CapturedSite` に加えて marker annotation の `IrConstructorCall` も
+     * 保持するようになった。後段の rewriter がユーザ定義パラメータの値を IR 上の式として
+     * 取り出すために使う。
+     *
+     * 公開モデル ([CapturedSite]) のみを参照したい場合は [capturedSites] (compatibility view)。
+     */
+    val capturedSiteData: MutableList<K2000CapturedSiteData> = mutableListOf()
+
+    /**
+     * 既存 API 互換のため、[capturedSiteData] から [CapturedSite] のみを抜き出したリスト。
+     *
+     * 既存テストや 旧コード経路が `capturedSites` を期待していた場合に備えて残しているが、
+     * 新規呼び出し側は [capturedSiteData] を直接使うこと。
+     */
+    val capturedSites: List<CapturedSite>
+        get() = capturedSiteData.map { it.site }
 
     /** 同一 [IrFile] に対する複数の declaration を処理する際に file テキストをキャッシュする。 */
     private val cachedFileText: String? by lazy { SourceTextExtractor.loadFileText(currentFile) }
@@ -132,8 +174,10 @@ internal class K2000CapturedSourcesCollector(
         declaration: IrDeclarationBase,
         kind: CapturedSite.CaptureKind,
     ) {
-        val markers = declaration.annotations.markerFqns()
-        if (markers.isEmpty()) return
+        // task-014 で marker annotation の `IrConstructorCall` も合わせて取り出すように変更。
+        // 1 宣言に複数 marker が付いている場合 (`@Foo @Bar`) は marker ごとに 1 件ずつ collect する。
+        val markerAnnotations = declaration.annotations.markerAnnotations()
+        if (markerAnnotations.isEmpty()) return
 
         val source = extractDeclarationSource(declaration) ?: return
         val packageFqn = currentFile.packageFqName.asString()
@@ -141,31 +185,36 @@ internal class K2000CapturedSourcesCollector(
         // IrFileEntry.getLineNumber は 0-based なので +1 で 1-based に揃える (filler の design 値域)。
         val startLine = currentFile.fileEntry.getLineNumber(declaration.startOffset) + 1
         val endLine = currentFile.fileEntry.getLineNumber(declaration.endOffset) + 1
-        for (markerFqn in markers) {
-            capturedSites += CapturedSite(
-                markerFqn = markerFqn,
-                source = source,
-                kind = kind,
-                packageFqn = packageFqn,
-                filePath = filePath,
-                startLine = startLine,
-                endLine = endLine,
+        for ((markerFqn, markerCall) in markerAnnotations) {
+            capturedSiteData += K2000CapturedSiteData(
+                site = CapturedSite(
+                    markerFqn = markerFqn,
+                    source = source,
+                    kind = kind,
+                    packageFqn = packageFqn,
+                    filePath = filePath,
+                    startLine = startLine,
+                    endLine = endLine,
+                ),
+                markerCall = markerCall,
             )
         }
     }
 
     /**
-     * annotation list から、[CaptureCodeMarkerRegistry] に登録済みの marker FqN を返す。
+     * annotation list から、[CaptureCodeMarkerRegistry] に登録済みの marker FqN と、対応する
+     * `IrConstructorCall` をペアで返す。
      *
-     * 同じ宣言に複数 marker (`@Foo @Bar`) が付いている場合は **すべての** marker FqN を返す。
+     * 同じ宣言に複数 marker (`@Foo @Bar`) が付いている場合は **すべての** marker を返す。
      * task-005 では「最初に見つかった 1 つだけ」を返す実装だったが、task-012 で複数 marker
-     * 同時 capture (ケース #21 / #22) を可能にするため列挙に変更。
+     * 同時 capture (ケース #21 / #22) を可能にするため列挙に変更。task-014 で `IrConstructorCall`
+     * 自体も保持する形に拡張 (ユーザ定義 parameter の IR 化に必要)。
      */
-    private fun List<IrConstructorCall>.markerFqns(): List<String> {
-        val result = mutableListOf<String>()
+    private fun List<IrConstructorCall>.markerAnnotations(): List<Pair<String, IrConstructorCall>> {
+        val result = mutableListOf<Pair<String, IrConstructorCall>>()
         for (annotation in this) {
             val fqn = annotation.type.classFqName?.asString() ?: continue
-            if (CaptureCodeMarkerRegistry.isMarker(fqn)) result += fqn
+            if (CaptureCodeMarkerRegistry.isMarker(fqn)) result += fqn to annotation
         }
         return result
     }

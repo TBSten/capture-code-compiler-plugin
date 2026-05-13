@@ -1,15 +1,14 @@
 package me.tbsten.capture.code.compat.k2000
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
-import me.tbsten.capture.code.compat.CapturedSite
 import me.tbsten.capture.code.compat.k2000.filler.CaptureKindFillerBuilder
 import me.tbsten.capture.code.compat.k2000.filler.FillerBuilder
 import me.tbsten.capture.code.compat.k2000.filler.SourceFillerBuilder
 import me.tbsten.capture.code.compat.k2000.filler.SourceLocationFillerBuilder
+import me.tbsten.capture.code.compat.k2000.userargs.UserArgIrBuilder
 import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
-import org.jetbrains.kotlin.ir.declarations.IrValueParameter
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrVarargElement
@@ -33,7 +32,7 @@ import org.jetbrains.kotlin.name.Name
  *
  * 入力された [IrCall] (= `me.tbsten.capture.code.capturedSources<Marker>()`、`Marker` は
  * [me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry] に登録された marker のいずれか) を、
- * [K2000CapturedSourcesCollector] が収集した [CapturedSite] のリストから組み立てた
+ * [K2000CapturedSourcesCollector] が収集した [K2000CapturedSiteData] のリストから組み立てた
  * `listOf(Marker(...))` 相当の [IrCall] (`kotlin.collections.listOf`) に書き換える。
  *
  * ## task-013 で対応した変更点
@@ -50,12 +49,13 @@ import org.jetbrains.kotlin.name.Name
  *   [me.tbsten.capture.code.feature.captured_sources.normalize.normalize] を経由するようになった
  *   (task-015 ↔ task-013 の合流地点)。本 rewriter は normalize 済の `site.source` をそのまま使う。
  *
- * ## task-014 (ユーザ定義パラメータ) への引き継ぎ点
+ * ## task-014 で追加されたユーザ定義パラメータの保持
  *
- * 現状 [hasNonFillerRequiredParameters] が `true` を返す marker (= filler 以外の必須パラメータが
- * ある marker、例: `id: Id` 等) は書き換えをスキップする。task-014 はここで FIR 経由で得た
- * ユーザ定義パラメータ値を IR 化して `putValueArgument` する path を追加する想定。本 file 内
- * `buildSnippetsCall` の `// task-014:` コメント箇所が拡張ポイント。
+ * filler ではない parameter (= ユーザが call site で値を指定する parameter、例 `id: Id` /
+ * `label: String` / `target: KClass<*>` 等) について、collector が保持した marker `IrConstructorCall`
+ * から `getValueArgument(i)` で IR 式を取り出し、[UserArgIrBuilder] が deepCopy して新 marker
+ * instance に再投入する。call site で省略されている場合は marker class の primary constructor の
+ * `IrValueParameter.defaultValue` を使う。design §5 Logic H / §7.9 / 開発タスク順序 #4。
  */
 internal object K2000CapturedSourcesRewriter {
 
@@ -63,10 +63,10 @@ internal object K2000CapturedSourcesRewriter {
     const val CAPTURED_SOURCES_FQN: String = "me.tbsten.capture.code.capturedSources"
 
     /**
-     * 与えられた [original] を [sites] から組み立てた `listOf<Marker>(...)` の [IrCall] に書き換える。
+     * 与えられた [original] を [siteData] から組み立てた `listOf<Marker>(...)` の [IrCall] に書き換える。
      *
      * [markerFqn] は `capturedSources<T>()` の type argument T (= 書き換え結果の list 要素型)。
-     * `sites` は当該 marker でフィルタ済みの [CapturedSite] であることを呼び出し側が保証する。
+     * `siteData` は当該 marker でフィルタ済みであることを呼び出し側が保証する。
      *
      * marker class が解決できない場合 (= runtime 依存が不足) は `null` を返し、
      * 呼び出し側は元の [IrCall] をそのまま返すこと。
@@ -74,7 +74,7 @@ internal object K2000CapturedSourcesRewriter {
     fun rewriteCapturedSourcesCall(
         original: IrCall,
         markerFqn: String,
-        sites: List<CapturedSite>,
+        siteData: List<K2000CapturedSiteData>,
         pluginContext: IrPluginContext,
         config: CaptureCodePluginConfig,
     ): IrCall? {
@@ -86,16 +86,11 @@ internal object K2000CapturedSourcesRewriter {
         // を識別し、対応する builder を resolve する。filler 型が使われていなければ resolve しない。
         val fillerPlan = buildFillerPlan(markerConstructor, pluginContext) ?: return null
 
-        // task-014 で解消される制約:
-        // filler 以外の必須 (no-default) パラメータがある marker は、ユーザ定義パラメータ値を IR 化する
-        // logic がまだ無いため書き換えできない。書き換えをスキップし元の IrCall を返させる。
-        if (markerConstructor.hasNonFillerRequiredParameters(fillerPlan)) return null
-
         val listOfSymbol = pluginContext.findListOfVararg() ?: return null
         val markerType = markerSymbol.defaultTypeProjection()
-        val listElements = sites.map { site ->
+        val listElements = siteData.map { data ->
             buildMarkerInstance(
-                site = site,
+                data = data,
                 markerType = markerType,
                 markerConstructor = markerConstructor,
                 fillerPlan = fillerPlan,
@@ -183,7 +178,9 @@ internal object K2000CapturedSourcesRewriter {
                     kindBuilder = builder
                     bindings[index] = builder
                 }
-                else -> { /* ユーザ定義パラメータ。task-014 で対応予定 */ }
+                else -> {
+                    // ユーザ定義パラメータ。`UserArgIrBuilder` で別経路で値を埋める (task-014)。
+                }
             }
         }
 
@@ -191,48 +188,56 @@ internal object K2000CapturedSourcesRewriter {
     }
 
     /**
-     * `Marker(...)` annotation instance を構築する。filler 型の parameter には対応する
-     * [FillerBuilder] で生成した値を、それ以外はデフォルト値に委ねる (= putValueArgument しない)。
+     * `Marker(...)` annotation instance を構築する。
+     *
+     * marker constructor の各 parameter について:
+     * - filler 型 (= [FillerPlan.bindings] に含まれる index) → [FillerBuilder] で値を生成
+     * - それ以外 (ユーザ定義) → [UserArgIrBuilder] で call site 値 or default 値を deepCopy
+     *
+     * task-014 でユーザ定義 parameter サポートを追加。それ以前は filler 以外を default 値に任せる
+     * (`putValueArgument` しない) 形だったが、Kotlin の primary constructor は **value argument を
+     * 全部 explicit に指定しなければ instance を生成できない** ことが分かったため、
+     * 全 parameter を埋めるよう変更。
      */
     private fun buildMarkerInstance(
-        site: CapturedSite,
+        data: K2000CapturedSiteData,
         markerType: IrType,
         markerConstructor: IrConstructorSymbol,
         fillerPlan: FillerPlan,
         config: CaptureCodePluginConfig,
     ): IrExpression {
+        val markerCall = data.markerCall
+        val site = data.site
+        val parameters = markerConstructor.owner.valueParameters
+
         return IrConstructorCallImpl.fromSymbolOwner(
             startOffset = UNDEFINED_OFFSET,
             endOffset = UNDEFINED_OFFSET,
             type = markerType,
             constructorSymbol = markerConstructor,
         ).apply {
-            fillerPlan.bindings.forEach { (index, builder) ->
-                putValueArgument(index, builder.build(site, config))
+            parameters.forEachIndexed { index, parameter ->
+                val fillerBuilder = fillerPlan.bindings[index]
+                if (fillerBuilder != null) {
+                    // filler: plugin が自動で値を埋める (ユーザの call site 指定があっても上書き)
+                    putValueArgument(index, fillerBuilder.build(site, config))
+                } else {
+                    // ユーザ定義 parameter: call site の指定値 or default 値を deepCopy で詰める
+                    val userExpr = UserArgIrBuilder.buildOrDefault(markerCall, index, parameter)
+                    if (userExpr != null) {
+                        putValueArgument(index, userExpr)
+                    }
+                    // userExpr が null = required parameter が省略されているケース (本来 compile
+                    // error)。`putValueArgument(index, null)` のまま進む。FIR checker が事前に
+                    // 弾く想定だが、念のため例外を投げず null pass する。
+                }
             }
-            // task-014: ここで filler 以外のユーザ定義パラメータ値を putValueArgument する path を追加する。
         }
     }
 
     private fun IrClassSymbol.primaryConstructorOrNull(): IrConstructorSymbol? =
         owner.constructors.firstOrNull { it.isPrimary }?.symbol
             ?: owner.constructors.firstOrNull()?.symbol
-
-    /**
-     * marker の primary constructor が、filler 以外で **必須 (no-default)** のパラメータを
-     * 1 つでも持っていれば `true`。
-     *
-     * filler 型 (= [FillerPlan.bindings] に含まれる index) は plugin が値を自動で埋めるので、
-     * default 値の有無に関わらず除外する。それ以外のパラメータが default 値を持たない場合のみ
-     * `true` を返し、書き換えをスキップさせる (task-014 解消)。
-     */
-    private fun IrConstructorSymbol.hasNonFillerRequiredParameters(fillerPlan: FillerPlan): Boolean {
-        return owner.valueParameters.withIndex().any { (index, parameter) ->
-            index !in fillerPlan.bindings && !parameter.hasDefaultValue()
-        }
-    }
-
-    private fun IrValueParameter.hasDefaultValue(): Boolean = defaultValue != null
 
     private fun IrClassSymbol.defaultTypeProjection(): IrType = typeWith()
 
