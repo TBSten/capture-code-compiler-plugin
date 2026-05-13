@@ -6,7 +6,7 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  *
  * すべての行が blank の場合は空のリストを返す。
  */
-internal fun trimBlankEdgeLines(lines: List<String>): List<String> {
+public fun trimBlankEdgeLines(lines: List<String>): List<String> {
     if (lines.isEmpty()) return lines
 
     val firstNonBlank = lines.indexOfFirst { it.isNotBlank() }

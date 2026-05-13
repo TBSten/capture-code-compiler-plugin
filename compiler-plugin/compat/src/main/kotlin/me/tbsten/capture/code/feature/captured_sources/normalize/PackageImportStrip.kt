@@ -12,7 +12,7 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  * KtFile の整形を意識しているため、Kotlin の `package` と `import` を厳格に検出する。
  * package / import の **継続行** (Kotlin 文法では存在しないが将来形式変更に備える) は考慮しない。
  */
-internal fun stripPackageAndImportLines(lines: List<String>): List<String> {
+public fun stripPackageAndImportLines(lines: List<String>): List<String> {
     var i = 0
     while (i < lines.size) {
         val trimmed = lines[i].trimStart()

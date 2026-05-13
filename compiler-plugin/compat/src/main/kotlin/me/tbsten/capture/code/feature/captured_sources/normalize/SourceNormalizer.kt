@@ -18,11 +18,19 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  * **idempotent**: 既に正規化済みのテキストを通しても出力は変わらない (= 二度正規化しても OK)。
  * これは「1 行宣言は dedent しても変わらない」ことを保証するための重要な性質。
  *
+ * ## 配置 (task-013 で `:compiler-plugin` から `:compiler-plugin:compat` へ移動)
+ *
+ * task-015 では本 module は `:compiler-plugin/main` 配下にあり `internal` だったが、
+ * task-013 で `:compat-k2000` の IR transformer から wire up する必要が出たため、
+ * `:compat` (compat module) へ物理移動し `public` 化した。`:compat` は kotlin-compiler-embeddable
+ * への compileOnly のみで pure Kotlin 関数を内包でき、`:compat-k2000` と `:compiler-plugin` の
+ * 両方から共有できる SSOT になる。
+ *
  * @param rawText 生のソーステキスト。`IrFileEntry.getSourceRangeInfo(...).text` のような形式。
  * @param options 正規化設定 ([NormalizeOptions.DECLARATION_DEFAULT] / [NormalizeOptions.FILE_DEFAULT] / [NormalizeOptions.EXPRESSION_DEFAULT] 等)。
  * @return 正規化されたソーステキスト。改行は LF (`'\n'`) で正規化される。
  */
-internal fun normalize(rawText: String, options: NormalizeOptions): String {
+public fun normalize(rawText: String, options: NormalizeOptions): String {
     if (rawText.isEmpty()) return ""
 
     // CRLF / CR を LF に正規化してから処理することで、後段の split / join を単純化する。

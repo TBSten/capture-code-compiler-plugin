@@ -13,6 +13,13 @@ import org.jetbrains.kotlin.config.CompilerConfigurationKey
  *
  * design `compiler-plugin-design.md` §5 Logic I / §8.5 を参照。
  *
+ * ## 配置 (task-013 で `:compiler-plugin` から `:compiler-plugin:compat` へ移動)
+ *
+ * task-018 では本 module は `:compiler-plugin/main` 配下にあったが、task-013 で `:compat-k2000`
+ * の IR transformer が config を消費する必要が出たため、`:compat` モジュールへ物理移動した。
+ * package は `me.tbsten.capture.code` のまま維持しているので、`:compiler-plugin` から
+ * 参照する import path は変更不要 (`me.tbsten.capture.code.CaptureCodePluginConfig`)。
+ *
  * @property includeKdoc キャプチャしたソースに KDoc コメントを残すかどうか。
  *                       デフォルト `true`。実消費は task-015 (Logic D) 以降で行う。
  * @property includeImports file 起源 (`@file:Marker`) のキャプチャで `import` 宣言行を含めるか。

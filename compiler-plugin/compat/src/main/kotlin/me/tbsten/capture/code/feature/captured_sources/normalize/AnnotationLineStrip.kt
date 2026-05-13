@@ -21,7 +21,7 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  * 注意: この関数はあくまで保険であり、通常は IR offset 計算側で annotation を含まないよう
  * 制御することが望ましい (`includeAnnotationLines` DSL option は task-018 で導入予定)。
  */
-internal fun stripLeadingAnnotationLines(lines: List<String>): List<String> {
+public fun stripLeadingAnnotationLines(lines: List<String>): List<String> {
     var i = 0
     while (i < lines.size) {
         val trimmed = lines[i].trimStart()

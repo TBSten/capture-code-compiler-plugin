@@ -17,7 +17,7 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  * @param lines `splitToSequence("\n")` などで分割した行のリスト (改行文字は含まない)。
  * @return 各行から共通インデントを取り除いた新しい行リスト。
  */
-internal fun dedentLines(lines: List<String>): List<String> {
+public fun dedentLines(lines: List<String>): List<String> {
     val minIndent = lines
         .filter { it.isNotBlank() }
         .minOfOrNull { it.leadingWhitespaceWidth() }
