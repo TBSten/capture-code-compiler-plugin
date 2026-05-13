@@ -8,6 +8,7 @@ import me.tbsten.capture.code.SourceLocation
 import me.tbsten.capture.code.capturedSources
 import me.tbsten.capture.code.testapp.case101.Snippets_KmpCase101
 import me.tbsten.capture.code.testapp.case102.Snippets_KmpCase102
+import me.tbsten.capture.code.testapp.case104.Platform_KmpCase104
 import me.tbsten.capture.code.testapp.case105.Snippets_KmpCase105
 import me.tbsten.capture.code.testapp.kmp103.Platform_KmpCase103
 
@@ -22,7 +23,7 @@ import me.tbsten.capture.code.testapp.kmp103.Platform_KmpCase103
 //   - ケース #101 → task-020 (commonMain marker + commonMain use site) ✅ 実配置済
 //   - ケース #102 → task-021 (target ごとの結果) ✅ 実配置済
 //   - ケース #103 → task-022 (expect + actual 両方 annotated) ✅ 実配置済
-//   - ケース #104 → task-023 (actual のみ annotated)
+//   - ケース #104 → task-023 (actual のみ annotated) ✅ 実配置済
 //   - ケース #105 → task-024 (source set hierarchy / intermediate source set)
 //
 // 各 ticket では (a) simulate marker を削除して commonMain (or 該当 source set)
@@ -54,16 +55,15 @@ import me.tbsten.capture.code.testapp.kmp103.Platform_KmpCase103
 // ============================================================================
 
 // ============================================================================
-// ケース104: actual のみに annotation
-// jvmTest 内で simulate
+// ケース104: actual のみに annotation (expect は無印)
+// marker / expect は commonMain (case104/Markers.kt + case104/Expect.kt) に、
+// 各 target の annotated actual は {jvm/js/linuxX64/mingwX64/wasmJs}Main
+// (case104/Actual.kt) に配置されている。task-023 でこの形に移行した。
+// jvm target compile では jvmMain の actual 1 件のみがキャプチャされる
+// (expect は annotation 無しなので対象外)。他 target でも同様に、対応する
+// platform-specific actual のみがキャプチャされる (target 別の独立性検証は
+// task-025 で行う)。
 // ============================================================================
-@CaptureCode
-@Target(AnnotationTarget.FUNCTION)
-@Retention(AnnotationRetention.SOURCE)
-internal annotation class Platform_KmpCase104(val source: Source = Source())
-
-@Platform_KmpCase104
-fun kmpCase104_platformNameJvm(): String = "JVM"
 
 // ============================================================================
 // ケース105: source set hierarchy (intermediate な jvmAndroidMain)
@@ -123,9 +123,14 @@ class KmpCasesTest : StringSpec({
         }
     }
 
-    "ケース104: actual のみに annotation (expect は無印)".config(enabled = false) {
+    "ケース104: actual のみに annotation (expect は無印)" {
+        // 期待: jvm target で jvmMain の actual 1 件のみがキャプチャされる。
+        // expect は annotation 無しなので Logic B の収集対象外。
+        // compiler-plugin-design.md §7.6 「actual 側を 1 件キャプチャ」シナリオの実機検証。
         capturedSources<Platform_KmpCase104>() shouldBe listOf(
-            Platform_KmpCase104(source = Source(value = "fun kmpCase104_platformNameJvm(): String = \"JVM\"")),
+            Platform_KmpCase104(
+                source = Source(value = "internal actual fun kmpCase104_platformName(): String = \"JVM\""),
+            ),
         )
     }
 
