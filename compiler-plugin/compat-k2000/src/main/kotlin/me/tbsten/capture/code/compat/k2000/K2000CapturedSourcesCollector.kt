@@ -1,10 +1,13 @@
 package me.tbsten.capture.code.compat.k2000
 
+import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.compat.CapturedSite
+import me.tbsten.capture.code.feature.captured_sources.normalize.NormalizeOptions
+import me.tbsten.capture.code.feature.captured_sources.normalize.normalize
+import me.tbsten.capture.code.feature.captured_sources.normalize.toDeclarationNormalizeOptions
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.ir.IrElement
-import org.jetbrains.kotlin.ir.PsiIrFileEntry
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationBase
 import org.jetbrains.kotlin.ir.declarations.IrFile
@@ -15,7 +18,6 @@ import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
-import java.io.File
 
 /**
  * `@CaptureCode` メタ付き marker annotation (= [CaptureCodeMarkerRegistry] に登録された FqN) を
@@ -70,12 +72,16 @@ import java.io.File
  */
 internal class K2000CapturedSourcesCollector(
     private val currentFile: IrFile,
+    private val config: CaptureCodePluginConfig,
 ) : IrElementVisitorVoid {
 
     val capturedSites: MutableList<CapturedSite> = mutableListOf()
 
     /** 同一 [IrFile] に対する複数の declaration を処理する際に file テキストをキャッシュする。 */
-    private val cachedFileText: String? by lazy { loadFileText(currentFile) }
+    private val cachedFileText: String? by lazy { SourceTextExtractor.loadFileText(currentFile) }
+
+    /** declaration 起源の正規化 option (task-013 で `config` の `dedent` 等を投影)。 */
+    private val normalizeOptions: NormalizeOptions by lazy { config.toDeclarationNormalizeOptions() }
 
     override fun visitElement(element: IrElement) {
         element.acceptChildrenVoid(this)
@@ -117,6 +123,10 @@ internal class K2000CapturedSourcesCollector(
      * **複数 marker 同時付与** (`@Foo @Bar fun x()`) に対応するため、annotation 列を **すべて**
      * 走査して [CaptureCodeMarkerRegistry] に登録されている FqN ごとに 1 件ずつ [CapturedSite] を
      * 生成する (design §7.7 「重複 marker」: エラーにせず両方の `capturedSources<T>()` に出る)。
+     *
+     * task-013 でこの method は **location 情報** (`packageFqn` / `filePath` / `startLine` /
+     * `endLine`) も合わせて埋めるようになった。後段 ([K2000CapturedSourcesRewriter]) で
+     * `SourceLocation` filler に注入される。
      */
     private fun collectIfMarked(
         declaration: IrDeclarationBase,
@@ -126,11 +136,20 @@ internal class K2000CapturedSourcesCollector(
         if (markers.isEmpty()) return
 
         val source = extractDeclarationSource(declaration) ?: return
+        val packageFqn = currentFile.packageFqName.asString()
+        val filePath = currentFile.fileEntry.name
+        // IrFileEntry.getLineNumber は 0-based なので +1 で 1-based に揃える (filler の design 値域)。
+        val startLine = currentFile.fileEntry.getLineNumber(declaration.startOffset) + 1
+        val endLine = currentFile.fileEntry.getLineNumber(declaration.endOffset) + 1
         for (markerFqn in markers) {
             capturedSites += CapturedSite(
                 markerFqn = markerFqn,
                 source = source,
                 kind = kind,
+                packageFqn = packageFqn,
+                filePath = filePath,
+                startLine = startLine,
+                endLine = endLine,
             )
         }
     }
@@ -152,10 +171,16 @@ internal class K2000CapturedSourcesCollector(
     }
 
     /**
-     * 宣言のソース文字列を抽出する。Logic C (design §5.C / §7.3) の最小実装。
+     * 宣言のソース文字列を抽出する。Logic C (design §5.C / §7.3) + Logic D (task-015) の wire up。
      *
-     * declaration の `startOffset..endOffset` を使い、先頭のアノテーション行 (任意個) を
-     * [skipLeadingAnnotationLines] でスキップした上で substring する。
+     * 処理ステップ:
+     * 1. file text を [SourceTextExtractor.loadFileText] で取得 (PSI 経由 → file system fallback)。
+     * 2. declaration の `startOffset..endOffset` から先頭の `@Marker` 行 (任意個) を
+     *    [skipLeadingAnnotationLines] (offset レベル) でスキップ。Kotlin 2.0.0 の IR は
+     *    declaration の startOffset に annotation 行を含む仕様への対処 (design §7.2)。
+     * 3. raw substring を [normalize] に通して dedent / blank trim を適用 (task-013 で wire up)。
+     *    [NormalizeOptions] は [CaptureCodePluginConfig.toDeclarationNormalizeOptions] で
+     *    config から派生する。
      *
      * 失敗条件 (`null` 返却):
      * - file text が読めない
@@ -171,17 +196,8 @@ internal class K2000CapturedSourcesCollector(
         if (endOffset > fullText.length) return null
 
         val rawStart = skipLeadingAnnotationLines(fullText, startOffset, endOffset)
-        return fullText.substring(rawStart, endOffset)
-    }
-
-    private fun loadFileText(file: IrFile): String? {
-        // 第一選択: PSI が利用可能ならその text を使う (offset 整合が確実)
-        (file.fileEntry as? PsiIrFileEntry)?.psiFile?.text?.let { return it }
-        // フォールバック: file entry の name が file system 上のパスを指す場合はそれを読む
-        val path = file.fileEntry.name
-        val candidate = File(path)
-        if (!candidate.isFile) return null
-        return runCatching { candidate.readText(Charsets.UTF_8) }.getOrNull()
+        val rawText = SourceTextExtractor.substringOrNull(fullText, rawStart, endOffset) ?: return null
+        return normalize(rawText, normalizeOptions)
     }
 
     /**

@@ -35,13 +35,11 @@ public class CaptureCodeIrExtension(
     private val config: CaptureCodePluginConfig = CaptureCodePluginConfig.DEFAULT,
 ) : IrGenerationExtension {
     override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
-        // config の参照を持つことで、本 extension 経由で各 logic が `config` を取得できる入口になる。
-        // 実消費は task-013 / task-015 / task-016 で IrInjector に渡す path を追加する。
-        @Suppress("UNUSED_VARIABLE")
-        val pluginConfig = config
         try {
             val injector = IrInjectorLoader.load(KotlinCompilerVersion.VERSION)
-            injector.transform(moduleFragment, pluginContext)
+            // task-013 で IrInjector.transform は config を受け取るよう signature 拡張済。
+            // compat-kXXXX が config.dedent / config.includeAnnotationLines を消費する。
+            injector.transform(moduleFragment, pluginContext, config)
         } finally {
             CaptureCodeMarkerRegistry.reset()
         }

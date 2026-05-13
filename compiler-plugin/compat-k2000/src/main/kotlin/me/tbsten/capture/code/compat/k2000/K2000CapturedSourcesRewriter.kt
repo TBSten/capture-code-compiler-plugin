@@ -1,19 +1,26 @@
 package me.tbsten.capture.code.compat.k2000
 
+import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.compat.CapturedSite
+import me.tbsten.capture.code.compat.k2000.filler.CaptureKindFillerBuilder
+import me.tbsten.capture.code.compat.k2000.filler.FillerBuilder
+import me.tbsten.capture.code.compat.k2000.filler.SourceFillerBuilder
+import me.tbsten.capture.code.compat.k2000.filler.SourceLocationFillerBuilder
+import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
+import org.jetbrains.kotlin.ir.declarations.IrValueParameter
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrVarargElement
 import org.jetbrains.kotlin.ir.expressions.impl.IrCallImpl
-import org.jetbrains.kotlin.ir.expressions.impl.IrConstImpl
 import org.jetbrains.kotlin.ir.expressions.impl.IrConstructorCallImpl
 import org.jetbrains.kotlin.ir.expressions.impl.IrVarargImpl
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.types.typeWith
 import org.jetbrains.kotlin.ir.util.constructors
 import org.jetbrains.kotlin.name.CallableId
@@ -27,36 +34,33 @@ import org.jetbrains.kotlin.name.Name
  * 入力された [IrCall] (= `me.tbsten.capture.code.capturedSources<Marker>()`、`Marker` は
  * [me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry] に登録された marker のいずれか) を、
  * [K2000CapturedSourcesCollector] が収集した [CapturedSite] のリストから組み立てた
- * `listOf(Marker(source = Source(value = "...")))` 相当の [IrCall] (`kotlin.collections.listOf`) に
- * 書き換える。
+ * `listOf(Marker(...))` 相当の [IrCall] (`kotlin.collections.listOf`) に書き換える。
  *
- * task-008 (Logic A) で hardcoded marker FqN list は撤廃された。marker 集合は FIR phase が
- * `@CaptureCode` メタアノテーションから動的に検出するようになっている。
+ * ## task-013 で対応した変更点
  *
- * ## task-012 で対応した変更点
+ * - **filler 3 種すべての自動値埋め**: 旧版は `source: Source` のみ inline で構築していたが、
+ *   `source` / `location: SourceLocation` / `kind: CaptureKind` の filler 3 種を統一的に扱う
+ *   ように `filler/` パッケージ配下の builder クラス群に切り出した。`buildSnippetsCall` は
+ *   marker constructor の各 parameter を順に走査し、その type が filler 型に該当すれば対応する
+ *   [FillerBuilder] に dispatch する。
+ * - **filler 識別は型ベース**: ユーザ定義パラメータ (task-014) との境界はここで明確にしている。
+ *   parameter の `type` が `me.tbsten.capture.code.{Source, SourceLocation, CaptureKind}` の
+ *   いずれかと **等しい** 場合のみ filler、それ以外はユーザ定義扱い。design §3.2 / §3.3。
+ * - **SourceNormalizer の wire up**: 生 source 取得は [K2000CapturedSourcesCollector] 内で
+ *   [me.tbsten.capture.code.feature.captured_sources.normalize.normalize] を経由するようになった
+ *   (task-015 ↔ task-013 の合流地点)。本 rewriter は normalize 済の `site.source` をそのまま使う。
  *
- * - **filler 未指定 marker** (ケース #8 の `internal annotation class Bench` のように `source: Source`
- *   等を一切持たない 0-arg marker) を許容するため、`source` パラメータが marker constructor に
- *   無い場合は `Source(...)` を構築せずに 0-arg `Marker()` をそのまま組み立てる。
- * - `kind` フィルタは現状適用なし。task-013 で `kind: CaptureKind` filler が宣言されている場合に
- *   [CapturedSite.kind] を入れる予定。
+ * ## task-014 (ユーザ定義パラメータ) への引き継ぎ点
  *
- * ## Phase 1/2 残課題
- *
- * - `SourceLocation` / `CaptureKind` filler の自動値埋めは未対応 (task-013)
- * - ユーザ定義パラメータ保持は未対応 (task-014)
- *   - これらの **必須 (no-default) 残りパラメータ** がある marker は依然 [rewriteCapturedSourcesCall]
- *     が `null` を返してスキップする
- *
- * 詳細は `compiler-plugin-design.md` §5 Logic H / §7.9 Marker annotation instance の構築 を参照。
+ * 現状 [hasNonFillerRequiredParameters] が `true` を返す marker (= filler 以外の必須パラメータが
+ * ある marker、例: `id: Id` 等) は書き換えをスキップする。task-014 はここで FIR 経由で得た
+ * ユーザ定義パラメータ値を IR 化して `putValueArgument` する path を追加する想定。本 file 内
+ * `buildSnippetsCall` の `// task-014:` コメント箇所が拡張ポイント。
  */
 internal object K2000CapturedSourcesRewriter {
 
     /** 書き換え対象となる `capturedSources<T>()` の完全修飾名。 */
     const val CAPTURED_SOURCES_FQN: String = "me.tbsten.capture.code.capturedSources"
-
-    /** filler 型 `Source(value: String)` の FqN。 */
-    private const val SOURCE_FQN: String = "me.tbsten.capture.code.Source"
 
     /**
      * 与えられた [original] を [sites] から組み立てた `listOf<Marker>(...)` の [IrCall] に書き換える。
@@ -66,58 +70,41 @@ internal object K2000CapturedSourcesRewriter {
      *
      * marker class が解決できない場合 (= runtime 依存が不足) は `null` を返し、
      * 呼び出し側は元の [IrCall] をそのまま返すこと。
-     *
-     * marker constructor に `source: Source` パラメータがある場合のみ、`Source(value = site.source)`
-     * を埋める。それ以外 (filler 未指定 marker; ケース #8 等) は `Marker()` (0-arg) として組み立てる。
      */
     fun rewriteCapturedSourcesCall(
         original: IrCall,
         markerFqn: String,
         sites: List<CapturedSite>,
         pluginContext: IrPluginContext,
+        config: CaptureCodePluginConfig,
     ): IrCall? {
-        val snippetsClassId = ClassId.topLevel(FqName(markerFqn))
-        val snippetsSymbol = pluginContext.referenceClass(snippetsClassId) ?: return null
-        val snippetsConstructor = snippetsSymbol.primaryConstructorOrNull() ?: return null
-        val snippetsSourceIndex = snippetsConstructor.indexOfValueParameterByName("source")
+        val markerClassId = ClassId.topLevel(FqName(markerFqn))
+        val markerSymbol = pluginContext.referenceClass(markerClassId) ?: return null
+        val markerConstructor = markerSymbol.primaryConstructorOrNull() ?: return null
 
-        // Source filler を使う場合のみ Source class symbol を解決する。
-        val sourceFiller: SourceFillerSymbols? = if (snippetsSourceIndex != null) {
-            val sourceClassId = ClassId.topLevel(FqName(SOURCE_FQN))
-            val sourceSymbol = pluginContext.referenceClass(sourceClassId) ?: return null
-            val sourceConstructor = sourceSymbol.primaryConstructorOrNull() ?: return null
-            val sourceValueIndex = sourceConstructor.indexOfValueParameterByName("value") ?: return null
-            SourceFillerSymbols(
-                sourceType = sourceSymbol.defaultTypeProjection(),
-                sourceConstructor = sourceConstructor,
-                sourceValueIndex = sourceValueIndex,
-            )
-        } else {
-            null
-        }
+        // marker constructor の各 parameter について filler 型 (Source / SourceLocation / CaptureKind)
+        // を識別し、対応する builder を resolve する。filler 型が使われていなければ resolve しない。
+        val fillerPlan = buildFillerPlan(markerConstructor, pluginContext) ?: return null
 
-        // Phase 1 制約: filler `source: Source` 以外で必須 (no-default) のパラメータが marker constructor に
-        // 残っている場合、ユーザ定義パラメータの値を IR 化する logic がまだ無い (task-014 の責務)
-        // ため書き換えできない。書き換えをスキップし元の IrCall を返させる。
-        // 本制約は Phase 2 task 2.4 / 2.5 (filler 自動値埋め + ユーザ定義パラメータ保持) で解消する。
-        if (snippetsConstructor.hasNonFillerRequiredParameters(snippetsSourceIndex)) return null
+        // task-014 で解消される制約:
+        // filler 以外の必須 (no-default) パラメータがある marker は、ユーザ定義パラメータ値を IR 化する
+        // logic がまだ無いため書き換えできない。書き換えをスキップし元の IrCall を返させる。
+        if (markerConstructor.hasNonFillerRequiredParameters(fillerPlan)) return null
 
         val listOfSymbol = pluginContext.findListOfVararg() ?: return null
-
-        val snippetsType = snippetsSymbol.defaultTypeProjection()
+        val markerType = markerSymbol.defaultTypeProjection()
         val listElements = sites.map { site ->
-            buildSnippetsCall(
+            buildMarkerInstance(
                 site = site,
-                snippetsType = snippetsType,
-                snippetsConstructor = snippetsConstructor,
-                snippetsSourceIndex = snippetsSourceIndex,
-                sourceFiller = sourceFiller,
-                stringType = pluginContext.irBuiltIns.stringType,
+                markerType = markerType,
+                markerConstructor = markerConstructor,
+                fillerPlan = fillerPlan,
+                config = config,
             )
         }
 
-        val listType = pluginContext.irBuiltIns.listClass.typeWith(snippetsType)
-        val varargType = pluginContext.irBuiltIns.arrayClass.typeWith(snippetsType)
+        val listType = pluginContext.irBuiltIns.listClass.typeWith(markerType)
+        val varargType = pluginContext.irBuiltIns.arrayClass.typeWith(markerType)
 
         return IrCallImpl(
             startOffset = original.startOffset,
@@ -127,14 +114,14 @@ internal object K2000CapturedSourcesRewriter {
             typeArgumentsCount = 1,
             valueArgumentsCount = 1,
         ).apply {
-            putTypeArgument(0, snippetsType)
+            putTypeArgument(0, markerType)
             putValueArgument(
                 0,
                 IrVarargImpl(
                     startOffset = original.startOffset,
                     endOffset = original.endOffset,
                     type = varargType,
-                    varargElementType = snippetsType,
+                    varargElementType = markerType,
                     elements = listElements.toList<IrVarargElement>(),
                 ),
             )
@@ -142,50 +129,88 @@ internal object K2000CapturedSourcesRewriter {
     }
 
     /**
-     * `source: Source` filler に必要な IR symbol 群。
+     * marker constructor の各 parameter index と filler builder の対応表 + 必要な builder の resolve 結果。
      *
-     * marker constructor に `source` パラメータが無い (= filler 未指定 marker / ケース #8) 場合は
-     * `null` で表現する。
+     * filler 型ではない parameter は本 map に含まれない (= 後段でユーザ定義 / no-default 検査の対象)。
      */
-    private data class SourceFillerSymbols(
-        val sourceType: IrType,
-        val sourceConstructor: IrConstructorSymbol,
-        val sourceValueIndex: Int,
+    private class FillerPlan(
+        val bindings: Map<Int, FillerBuilder>,
     )
 
-    private fun buildSnippetsCall(
+    /**
+     * marker constructor の value parameter を走査し、filler 型に該当するものに対する
+     * [FillerBuilder] を resolve した [FillerPlan] を返す。
+     *
+     * いずれかの builder の resolve が失敗 (runtime 依存不足) した場合は `null`。
+     * filler が 1 つも無い marker (= ケース #8 の Bench) は空 map を持つ [FillerPlan] を返す。
+     */
+    private fun buildFillerPlan(
+        markerConstructor: IrConstructorSymbol,
+        pluginContext: IrPluginContext,
+    ): FillerPlan? {
+        // filler 型を FqName 文字列レベルで識別する (IrClass.classId は安定 API ではないため、
+        // classFqName 経由で文字列化して [CaptureCodeFillerClassIds] と比較する形を取る)。
+        val sourceFqn = CaptureCodeFillerClassIds.Source.asFqNameString()
+        val locationFqn = CaptureCodeFillerClassIds.SourceLocation.asFqNameString()
+        val captureKindFqn = CaptureCodeFillerClassIds.CaptureKind.asFqNameString()
+
+        val parameters = markerConstructor.owner.valueParameters
+        val bindings = mutableMapOf<Int, FillerBuilder>()
+
+        // 1 種類でも該当 parameter があれば builder を resolve する (lazy 化)。
+        var sourceBuilder: SourceFillerBuilder? = null
+        var locationBuilder: SourceLocationFillerBuilder? = null
+        var kindBuilder: CaptureKindFillerBuilder? = null
+
+        parameters.forEachIndexed { index, param ->
+            val paramTypeFqn = param.type.classFqName?.asString()
+            when (paramTypeFqn) {
+                sourceFqn -> {
+                    val builder = sourceBuilder ?: SourceFillerBuilder.resolve(pluginContext)
+                        ?: return null
+                    sourceBuilder = builder
+                    bindings[index] = builder
+                }
+                locationFqn -> {
+                    val builder = locationBuilder ?: SourceLocationFillerBuilder.resolve(pluginContext)
+                        ?: return null
+                    locationBuilder = builder
+                    bindings[index] = builder
+                }
+                captureKindFqn -> {
+                    val builder = kindBuilder ?: CaptureKindFillerBuilder.resolve(pluginContext)
+                        ?: return null
+                    kindBuilder = builder
+                    bindings[index] = builder
+                }
+                else -> { /* ユーザ定義パラメータ。task-014 で対応予定 */ }
+            }
+        }
+
+        return FillerPlan(bindings)
+    }
+
+    /**
+     * `Marker(...)` annotation instance を構築する。filler 型の parameter には対応する
+     * [FillerBuilder] で生成した値を、それ以外はデフォルト値に委ねる (= putValueArgument しない)。
+     */
+    private fun buildMarkerInstance(
         site: CapturedSite,
-        snippetsType: IrType,
-        snippetsConstructor: IrConstructorSymbol,
-        snippetsSourceIndex: Int?,
-        sourceFiller: SourceFillerSymbols?,
-        stringType: IrType,
+        markerType: IrType,
+        markerConstructor: IrConstructorSymbol,
+        fillerPlan: FillerPlan,
+        config: CaptureCodePluginConfig,
     ): IrExpression {
         return IrConstructorCallImpl.fromSymbolOwner(
             startOffset = UNDEFINED_OFFSET,
             endOffset = UNDEFINED_OFFSET,
-            type = snippetsType,
-            constructorSymbol = snippetsConstructor,
+            type = markerType,
+            constructorSymbol = markerConstructor,
         ).apply {
-            if (snippetsSourceIndex != null && sourceFiller != null) {
-                val sourceCall = IrConstructorCallImpl.fromSymbolOwner(
-                    startOffset = UNDEFINED_OFFSET,
-                    endOffset = UNDEFINED_OFFSET,
-                    type = sourceFiller.sourceType,
-                    constructorSymbol = sourceFiller.sourceConstructor,
-                ).apply {
-                    putValueArgument(
-                        sourceFiller.sourceValueIndex,
-                        IrConstImpl.string(
-                            startOffset = UNDEFINED_OFFSET,
-                            endOffset = UNDEFINED_OFFSET,
-                            type = stringType,
-                            value = site.source,
-                        ),
-                    )
-                }
-                putValueArgument(snippetsSourceIndex, sourceCall)
+            fillerPlan.bindings.forEach { (index, builder) ->
+                putValueArgument(index, builder.build(site, config))
             }
+            // task-014: ここで filler 以外のユーザ定義パラメータ値を putValueArgument する path を追加する。
         }
     }
 
@@ -193,33 +218,21 @@ internal object K2000CapturedSourcesRewriter {
         owner.constructors.firstOrNull { it.isPrimary }?.symbol
             ?: owner.constructors.firstOrNull()?.symbol
 
-    private fun IrConstructorSymbol.indexOfValueParameterByName(name: String): Int? {
-        val parameters = owner.valueParameters
-        val index = parameters.indexOfFirst { it.name.asString() == name }
-        return index.takeIf { it >= 0 }
-    }
-
     /**
-     * marker の primary constructor が、`source: Source` (filler) 以外で **必須 (no-default)** の
-     * パラメータを 1 つでも持っていれば `true`。
+     * marker の primary constructor が、filler 以外で **必須 (no-default)** のパラメータを
+     * 1 つでも持っていれば `true`。
      *
-     * Phase 1 では `source` filler のみ自動で埋められるため、それ以外の必須パラメータがある場合は
-     * `IrConstructorCall` 構築時に値を渡せず compile error になる。書き換えを skip させるために使う。
-     *
-     * デフォルト値あり (`hasDefaultValue = true`) は無視 — compiler 自体が default を埋めるので
-     * 書き換え対象外でも constructor を組み立てられる。
-     *
-     * @param sourceParameterIndex `source: Source` パラメータの index。`null` の場合は filler 未指定
-     *                             marker (ケース #8) として、`source` での除外を行わない。
+     * filler 型 (= [FillerPlan.bindings] に含まれる index) は plugin が値を自動で埋めるので、
+     * default 値の有無に関わらず除外する。それ以外のパラメータが default 値を持たない場合のみ
+     * `true` を返し、書き換えをスキップさせる (task-014 解消)。
      */
-    private fun IrConstructorSymbol.hasNonFillerRequiredParameters(sourceParameterIndex: Int?): Boolean {
+    private fun IrConstructorSymbol.hasNonFillerRequiredParameters(fillerPlan: FillerPlan): Boolean {
         return owner.valueParameters.withIndex().any { (index, parameter) ->
-            index != sourceParameterIndex && !parameter.hasDefaultValue()
+            index !in fillerPlan.bindings && !parameter.hasDefaultValue()
         }
     }
 
-    private fun org.jetbrains.kotlin.ir.declarations.IrValueParameter.hasDefaultValue(): Boolean =
-        defaultValue != null
+    private fun IrValueParameter.hasDefaultValue(): Boolean = defaultValue != null
 
     private fun IrClassSymbol.defaultTypeProjection(): IrType = typeWith()
 
