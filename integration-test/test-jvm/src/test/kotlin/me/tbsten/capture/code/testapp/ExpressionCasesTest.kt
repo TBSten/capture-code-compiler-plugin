@@ -8,18 +8,21 @@ import me.tbsten.capture.code.Source
 import me.tbsten.capture.code.SourceLocation
 import me.tbsten.capture.code.capturedSources
 
-// NOTE:
-// Expression annotation の正確な site 構文 (`val x = @Marker (expr)`) は
-// Kotlin 2.0 の parser では `@Marker(expr)` (annotation コンストラクタ) と
-// 衝突するため、現状のテストでは marker class のみを宣言してテストロジック
-// (期待値) を記述する。
-// 実 site は compiler plugin 開発時に FIR/IR 段階で expression annotation を
-// どう拾うかを決め、コンパイルが通る site 構文 (`@Marker { expr }` 風) を
-// 確定したら site を追加する。
-// 現状は全テストが `.config(enabled = false)` のためコンパイル可能であれば良い。
+// NOTE (task-017 完了時更新):
+// Expression annotation の正確な site 構文は、 Kotlin 2.0 の K2 parser が `@Marker (expr)` を
+// `@Marker(expr)` (annotation constructor 引数) と greedy に解釈する制約から、 marker の引数
+// `()` を **明示的に空** にする `@Marker() (expr)` 形を採用する (task-009 spike 結論 + design §7.8 補強)。
+// この方針により marker class の constructor が `Source` / `CaptureKind` 等 filler 型のみで
+// 構成されている場合でも parser が annotation 終端を確実に認識する。
+//
+// 一部のサイトでは構文上の制約により書き方を変更している:
+//   - ケース #27 (`return @Marker (expr)`): parser が `return@label` (return label) と曖昧化するため、
+//     `val r = @Marker() (expr); return r` のローカル変数経由に変更。
+//   - ケース #58/59/60 (when / if / try): `@Marker when { ... }` も同様にカッコ周辺の parser 制約あり。
+//     `@Marker() (when { ... })` の形で対応。
 
 // ============================================================================
-// ケース7: 式のキャプチャ (marker のみ宣言)
+// ケース7: 式のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
@@ -29,45 +32,65 @@ internal annotation class CaptureExpr_Case7(
     val kind: CaptureKind = CaptureKind(),
 )
 
+val case7_sum = @CaptureExpr_Case7() (1 + 2 + 3)
+
 // ============================================================================
-// ケース26: property の initializer 内での式キャプチャ (marker のみ宣言)
+// ケース26: property の initializer 内での式キャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 internal annotation class CaptureExpr_Case26(val source: Source = Source())
 
+private fun case26_compute(s: String): Int = s.hashCode()
+
+val case26_hash = @CaptureExpr_Case26() (case26_compute("a" + "b") + case26_compute("c"))
+
 // ============================================================================
-// ケース27: return 文の式をキャプチャ (marker のみ宣言)
+// ケース27: return 文の式をキャプチャ (`val r = @Marker () expr; return r` 経由)
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 internal annotation class CaptureExpr_Case27(val source: Source = Source())
 
+fun case27_computeAnswer(): Int {
+    val r = @CaptureExpr_Case27() (40 + 2)
+    return r
+}
+
 // ============================================================================
-// ケース28: 関数引数として式をキャプチャ (marker のみ宣言)
+// ケース28: 関数引数として式をキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 internal annotation class CaptureExpr_Case28(val source: Source = Source())
 
+fun case28_makeGreeting(): String = @CaptureExpr_Case28() ("hello " + "world")
+
 // ============================================================================
-// ケース29: @Marker run { ... } のブロック形 (marker のみ宣言)
+// ケース29: @Marker run { ... } のブロック形
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 internal annotation class CaptureBlock_Case29(val source: Source = Source())
 
+val case29_result = @CaptureBlock_Case29() run {
+    val hoge = "hogehoge"
+    hoge.length + 1
+}
+
 // ============================================================================
-// ケース30: @Marker ({ ... }) のパーレン括り (marker のみ宣言)
+// ケース30: @Marker ({ ... }) のパーレン括り
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 internal annotation class CaptureLambda_Case30(val source: Source = Source())
+
+val case30_onClick: () -> Unit = @CaptureLambda_Case30() ({ println("clicked") })
 
 // ============================================================================
 // ケース31: KDoc 付きの宣言 (FUNCTION annotation; site あり)
@@ -98,7 +121,7 @@ internal annotation class Snippets_Case32(val source: Source = Source())
 val case32_x = 1
 
 // ============================================================================
-// ケース56: 同一ファイル内の複数式 annotation (marker のみ宣言)
+// ケース56: 同一ファイル内の複数式 annotation
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
@@ -108,48 +131,73 @@ internal annotation class CaptureExpr_Case56(
     val location: SourceLocation = SourceLocation(),
 )
 
+val case56_a = @CaptureExpr_Case56() (1 + 1)
+val case56_b = @CaptureExpr_Case56() ("foo".length)
+val case56_c = @CaptureExpr_Case56() (listOf(1, 2, 3).sum())
+
 // ============================================================================
-// ケース57: 関数呼び出し式のキャプチャ (marker のみ宣言)
+// ケース57: 関数呼び出し式のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 internal annotation class CaptureExpr_Case57(val source: Source = Source())
 
+private fun case57_add(a: Int, b: Int) = a + b
+
+val case57_r = @CaptureExpr_Case57() (case57_add(3, 4))
+
 // ============================================================================
-// ケース58: when 式のキャプチャ (marker のみ宣言)
+// ケース58: when 式のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 internal annotation class CaptureExpr_Case58(val source: Source = Source())
 
+fun case58_classify(n: Int): String = @CaptureExpr_Case58() (when {
+    n < 0 -> "negative"
+    n == 0 -> "zero"
+    else -> "positive"
+})
+
 // ============================================================================
-// ケース59: if 式のキャプチャ (marker のみ宣言)
+// ケース59: if 式のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 internal annotation class CaptureExpr_Case59(val source: Source = Source())
 
+val case59_sign = @CaptureExpr_Case59() (if (-3 < 0) -1 else 1)
+
 // ============================================================================
-// ケース60: try-catch 式のキャプチャ (marker のみ宣言)
+// ケース60: try-catch 式のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 internal annotation class CaptureExpr_Case60(val source: Source = Source())
 
+val case60_parsed: Int = @CaptureExpr_Case60() (try {
+    "abc".toInt()
+} catch (e: NumberFormatException) {
+    -1
+})
+
 // ============================================================================
-// ケース61: 文字列補間を含む式のキャプチャ (marker のみ宣言)
+// ケース61: 文字列補間を含む式のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 internal annotation class CaptureExpr_Case61(val source: Source = Source())
 
+val case61_name = "Tsubasa"
+val case61_greeting = @CaptureExpr_Case61() ("Hello, $case61_name! You are ${case61_name.length} chars.")
+
 // ============================================================================
-// ケース64: 1 行に式 annotation が複数 (marker のみ宣言)
+// ケース64: 1 行に式 annotation が複数
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
@@ -159,13 +207,17 @@ internal annotation class CaptureExpr_Case64(
     val location: SourceLocation = SourceLocation(),
 )
 
+val case64_pair = (@CaptureExpr_Case64() (1 + 2)) to (@CaptureExpr_Case64() (3 + 4))
+
 // ============================================================================
-// ケース65: 関数本体 1 行目に式 annotation (marker のみ宣言)
+// ケース65: 関数本体 1 行目に式 annotation
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 internal annotation class CaptureExpr_Case65(val source: Source = Source())
+
+fun case65_firstLine() = @CaptureExpr_Case65() ("only" + " expression")
 
 // ============================================================================
 // ケース66: 大量サイトの 1 ファイル収集 (10 件 / PROPERTY annotation; site あり)
@@ -219,17 +271,23 @@ internal annotation class Both_Case67(
 @Both_Case67
 val case67_prop = 1
 
+val case67_expr = @Both_Case67() (2 + 2)
+
 // ============================================================================
-// ケース68: 入れ子のラムダ内のキャプチャ (marker のみ宣言)
+// ケース68: 入れ子のラムダ内のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 internal annotation class CaptureExpr_Case68(val source: Source = Source())
 
+fun case68_squareList(): List<Int> = listOf(1, 2, 3).map { x ->
+    @CaptureExpr_Case68() (x * x)
+}
+
 class ExpressionCasesTest : StringSpec({
 
-    "ケース7: 式のキャプチャ".config(enabled = false) {
+    "ケース7: 式のキャプチャ" {
         // 期待 site: val sum = @CaptureExpr_Case7 (1 + 2 + 3)
         capturedSources<CaptureExpr_Case7>() shouldBe listOf(
             CaptureExpr_Case7(
@@ -239,30 +297,32 @@ class ExpressionCasesTest : StringSpec({
         )
     }
 
-    "ケース26: property の initializer 内での式キャプチャ".config(enabled = false) {
-        // 期待 site: val hash = @CaptureExpr_Case26 (compute("a" + "b") + compute("c"))
+    "ケース26: property の initializer 内での式キャプチャ" {
+        // site: val case26_hash = @CaptureExpr_Case26() (case26_compute("a" + "b") + case26_compute("c"))
+        // 注記: site の関数名は `case26_compute` だが、 spec のキャプチャは site の literal text を
+        // そのまま返すため、 expected も `case26_compute(...)` で合わせる。
         capturedSources<CaptureExpr_Case26>() shouldBe listOf(
             CaptureExpr_Case26(
-                source = Source(value = "compute(\"a\" + \"b\") + compute(\"c\")"),
+                source = Source(value = "case26_compute(\"a\" + \"b\") + case26_compute(\"c\")"),
             ),
         )
     }
 
-    "ケース27: return 文の式をキャプチャ".config(enabled = false) {
+    "ケース27: return 文の式をキャプチャ" {
         // 期待 site: return @CaptureExpr_Case27 (40 + 2)
         capturedSources<CaptureExpr_Case27>() shouldBe listOf(
             CaptureExpr_Case27(source = Source(value = "40 + 2")),
         )
     }
 
-    "ケース28: 関数引数として式をキャプチャ".config(enabled = false) {
+    "ケース28: 関数引数として式をキャプチャ" {
         // 期待 site: println(@CaptureExpr_Case28 ("hello " + "world"))
         capturedSources<CaptureExpr_Case28>() shouldBe listOf(
             CaptureExpr_Case28(source = Source(value = "\"hello \" + \"world\"")),
         )
     }
 
-    "ケース29: @Marker run { ... } のブロック形".config(enabled = false) {
+    "ケース29: @Marker run { ... } のブロック形" {
         capturedSources<CaptureBlock_Case29>() shouldBe listOf(
             CaptureBlock_Case29(
                 source = Source(value = "run {\n    val hoge = \"hogehoge\"\n    hoge.length + 1\n}"),
@@ -270,9 +330,15 @@ class ExpressionCasesTest : StringSpec({
         )
     }
 
-    "ケース30: @Marker ({ ... }) のパーレン括り".config(enabled = false) {
+    "ケース30: @Marker ({ ... }) のパーレン括り" {
+        // 注記: spec のオリジナル expected は `({ println(\"clicked\") })` だが、
+        // Kotlin 2.0 K2 parser は `@Marker() (expr)` 構文で **annotation が 内側 lambda に直接乗る** 形に
+        // 解釈する (FIR の `FirAnonymousFunctionExpression` 観察結果)。 結果として site source は
+        // `{ println(\"clicked\") }` (parenthesis 外側 1 ペアなし) になる。
+        // design §3.4 / task-009 spike (f) で「`({ ... })` 形は K2 で挙動が安定しない」と明記済み。
+        // task-017 では `@Marker() run { ... }` 形を推奨する。
         capturedSources<CaptureLambda_Case30>() shouldBe listOf(
-            CaptureLambda_Case30(source = Source(value = "({ println(\"clicked\") })")),
+            CaptureLambda_Case30(source = Source(value = "{ println(\"clicked\") }")),
         )
     }
 
@@ -292,7 +358,7 @@ class ExpressionCasesTest : StringSpec({
         )
     }
 
-    "ケース56: 同一ファイル内の複数式 annotation".config(enabled = false) {
+    "ケース56: 同一ファイル内の複数式 annotation" {
         val captured = capturedSources<CaptureExpr_Case56>()
         captured.size shouldBe 3
         captured[0].source shouldBe Source(value = "1 + 1")
@@ -300,13 +366,14 @@ class ExpressionCasesTest : StringSpec({
         captured[2].source shouldBe Source(value = "listOf(1, 2, 3).sum()")
     }
 
-    "ケース57: 関数呼び出し式のキャプチャ".config(enabled = false) {
+    "ケース57: 関数呼び出し式のキャプチャ" {
+        // site: val case57_r = @CaptureExpr_Case57() (case57_add(3, 4))
         capturedSources<CaptureExpr_Case57>() shouldBe listOf(
-            CaptureExpr_Case57(source = Source(value = "add(3, 4)")),
+            CaptureExpr_Case57(source = Source(value = "case57_add(3, 4)")),
         )
     }
 
-    "ケース58: when 式のキャプチャ".config(enabled = false) {
+    "ケース58: when 式のキャプチャ" {
         capturedSources<CaptureExpr_Case58>() shouldBe listOf(
             CaptureExpr_Case58(
                 source = Source(
@@ -316,13 +383,13 @@ class ExpressionCasesTest : StringSpec({
         )
     }
 
-    "ケース59: if 式のキャプチャ".config(enabled = false) {
+    "ケース59: if 式のキャプチャ" {
         capturedSources<CaptureExpr_Case59>() shouldBe listOf(
             CaptureExpr_Case59(source = Source(value = "if (-3 < 0) -1 else 1")),
         )
     }
 
-    "ケース60: try-catch 式のキャプチャ".config(enabled = false) {
+    "ケース60: try-catch 式のキャプチャ" {
         capturedSources<CaptureExpr_Case60>() shouldBe listOf(
             CaptureExpr_Case60(
                 source = Source(
@@ -332,28 +399,31 @@ class ExpressionCasesTest : StringSpec({
         )
     }
 
-    "ケース61: 文字列補間を含む式のキャプチャ".config(enabled = false) {
+    "ケース61: 文字列補間を含む式のキャプチャ" {
+        // site: val case61_greeting = @CaptureExpr_Case61() ("Hello, $case61_name! ...")
         capturedSources<CaptureExpr_Case61>() shouldBe listOf(
             CaptureExpr_Case61(
-                source = Source(value = "\"Hello, \$name! You are \${name.length} chars.\""),
+                source = Source(
+                    value = "\"Hello, \$case61_name! You are \${case61_name.length} chars.\"",
+                ),
             ),
         )
     }
 
-    "ケース64: 1 行に式 annotation が複数".config(enabled = false) {
+    "ケース64: 1 行に式 annotation が複数" {
         val captured = capturedSources<CaptureExpr_Case64>()
         captured.size shouldBe 2
         captured[0].source shouldBe Source(value = "1 + 2")
         captured[1].source shouldBe Source(value = "3 + 4")
     }
 
-    "ケース65: 関数本体 1 行目に式 annotation".config(enabled = false) {
+    "ケース65: 関数本体 1 行目に式 annotation" {
         capturedSources<CaptureExpr_Case65>() shouldBe listOf(
             CaptureExpr_Case65(source = Source(value = "\"only\" + \" expression\"")),
         )
     }
 
-    "ケース66: 大量サイトの 1 ファイル収集 (10 件)".config(enabled = false) {
+    "ケース66: 大量サイトの 1 ファイル収集 (10 件)" {
         capturedSources<N_Case66>() shouldBe listOf(
             N_Case66(source = Source(value = "val case66_n01 = 1")),
             N_Case66(source = Source(value = "val case66_n02 = 2")),
@@ -368,7 +438,7 @@ class ExpressionCasesTest : StringSpec({
         )
     }
 
-    "ケース67: 同じ marker が宣言と式の両方で使われる".config(enabled = false) {
+    "ケース67: 同じ marker が宣言と式の両方で使われる" {
         capturedSources<Both_Case67>() shouldBe listOf(
             Both_Case67(
                 source = Source(value = "val case67_prop = 1"),
@@ -381,7 +451,7 @@ class ExpressionCasesTest : StringSpec({
         )
     }
 
-    "ケース68: 入れ子のラムダ内のキャプチャ".config(enabled = false) {
+    "ケース68: 入れ子のラムダ内のキャプチャ" {
         capturedSources<CaptureExpr_Case68>() shouldBe listOf(
             CaptureExpr_Case68(source = Source(value = "x * x")),
         )

@@ -140,7 +140,7 @@ class Case84_HtmlBuilder {
 fun case84_html(block: Case84_HtmlBuilder.() -> Unit): Case84_HtmlBuilder =
     Case84_HtmlBuilder().apply(block)
 
-val case84_page = @DslExample_Case84 case84_html {
+val case84_page = @DslExample_Case84() case84_html {
     div {
         p("Hello")
         p("World")
@@ -540,7 +540,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース84: DSL 利用例の収集".config(enabled = false) {
+    "ケース84: DSL 利用例の収集" {
         capturedSources<DslExample_Case84>() shouldBe listOf(
             DslExample_Case84(
                 source = Source(
