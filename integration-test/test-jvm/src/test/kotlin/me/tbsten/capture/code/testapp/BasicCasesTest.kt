@@ -392,7 +392,7 @@ class BasicCasesTest : StringSpec({
         )
     }
 
-    "ケース3: object 宣言のキャプチャ".config(enabled = false) {
+    "ケース3: object 宣言のキャプチャ" {
         capturedSources<Snippets_Case3>() shouldBe listOf(
             Snippets_Case3(
                 source = Source(value = "object Case3_Singleton {\n    val instanceId = 1\n}"),
@@ -401,7 +401,7 @@ class BasicCasesTest : StringSpec({
         )
     }
 
-    "ケース4: 関数宣言のキャプチャ".config(enabled = false) {
+    "ケース4: 関数宣言のキャプチャ" {
         capturedSources<Snippets_Case4>() shouldBe listOf(
             Snippets_Case4(
                 source = Source(value = "fun case4_greet(name: String): String = \"Hello, \$name!\""),
@@ -410,7 +410,7 @@ class BasicCasesTest : StringSpec({
         )
     }
 
-    "ケース5: typealias のキャプチャ".config(enabled = false) {
+    "ケース5: typealias のキャプチャ" {
         capturedSources<Snippets_Case5>() shouldBe listOf(
             Snippets_Case5(
                 source = Source(value = "typealias Case5_UserId = Long"),
@@ -438,13 +438,13 @@ class BasicCasesTest : StringSpec({
         )
     }
 
-    "ケース9: Source のみを持つ marker".config(enabled = false) {
+    "ケース9: Source のみを持つ marker" {
         capturedSources<JustSource_Case9>() shouldBe listOf(
             JustSource_Case9(source = Source(value = "fun case9_example() = 42")),
         )
     }
 
-    "ケース10: SourceLocation のみを持つ marker".config(enabled = false) {
+    "ケース10: SourceLocation のみを持つ marker" {
         // location の filePath / 行番号は実行時のファイルレイアウトに依存するので
         // 件数と packageName のみで検証する想定 (本実装が決まったら厳密化)
         val captured = capturedSources<WhereIs_Case10>()
@@ -452,7 +452,7 @@ class BasicCasesTest : StringSpec({
         captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp"
     }
 
-    "ケース11: CaptureKind のみを持つ marker".config(enabled = false) {
+    "ケース11: CaptureKind のみを持つ marker" {
         capturedSources<KindOnly_Case11>() shouldBe listOf(
             KindOnly_Case11(kind = CaptureKind(value = CaptureKind.Kind.PROPERTY)),
             KindOnly_Case11(kind = CaptureKind(value = CaptureKind.Kind.CLASS)),
@@ -460,7 +460,7 @@ class BasicCasesTest : StringSpec({
         )
     }
 
-    "ケース12: 全 filler を持つ marker".config(enabled = false) {
+    "ケース12: 全 filler を持つ marker" {
         val captured = capturedSources<FullCapture_Case12>()
         captured.size shouldBe 1
         captured[0].source shouldBe Source(value = "fun case12_answer() = 42")
@@ -592,7 +592,7 @@ class BasicCasesTest : StringSpec({
         )
     }
 
-    "ケース24: 複数ファイルにまたがるサイト".config(enabled = false) {
+    "ケース24: 複数ファイルにまたがるサイト" {
         // marker / sites は case24/FileA.kt / case24/FileB.kt に配置
         val captured = capturedSources<Snippets_Case24>()
         captured.size shouldBe 2

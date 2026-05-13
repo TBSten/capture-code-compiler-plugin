@@ -238,7 +238,7 @@ class IntegrationCasesTest : StringSpec({
         )
     }
 
-    "ケース71: 0 個の宣言 (filler 値だけが意味を持つ場合)".config(enabled = false) {
+    "ケース71: 0 個の宣言 (filler 値だけが意味を持つ場合)" {
         val captured = capturedSources<TrackPosition_Case71>()
         captured.size shouldBe 1
         captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp"

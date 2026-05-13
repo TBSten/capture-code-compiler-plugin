@@ -734,7 +734,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース97: marker annotation 自身を SourceLocation のみで使う (軽量 location 収集)".config(enabled = false) {
+    "ケース97: marker annotation 自身を SourceLocation のみで使う (軽量 location 収集)" {
         val captured = capturedSources<TrackOnly_Case97>()
         captured.size shouldBe 3
         captured.forEach { it.location.packageName shouldBe "me.tbsten.capture.code.testapp" }
