@@ -7,6 +7,9 @@ kotlin {
         mainRun {
             mainClass = "me.tbsten.capture.code.testapp.MainKt"
         }
+        testRuns["test"].executionTask.configure {
+            useJUnitPlatform()
+        }
     }
     js(IR) {
         nodejs()
@@ -16,6 +19,11 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":annotation"))
+        }
+
+        jvmTest.dependencies {
+            implementation(libs.kotest.runner.junit5)
+            implementation(libs.kotest.assertions.core)
         }
     }
 }

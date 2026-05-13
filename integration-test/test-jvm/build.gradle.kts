@@ -6,6 +6,9 @@ plugins {
 dependencies {
     implementation(project(":annotation"))
     kotlinCompilerPluginClasspath(project(":compiler-plugin"))
+
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
 }
 
 application {
