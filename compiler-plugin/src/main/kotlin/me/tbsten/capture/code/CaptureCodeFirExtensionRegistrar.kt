@@ -1,5 +1,6 @@
 package me.tbsten.capture.code
 
+import me.tbsten.capture.code.feature.capturedsources.checker.CapturedSourcesCallCheckersExtension
 import me.tbsten.capture.code.fir.checker.CaptureCodeFirAdditionalCheckersExtension
 import me.tbsten.capture.code.fir.marker.CaptureCodeFirMarkerService
 import me.tbsten.capture.code.fir.marker.CaptureCodeMarkerCheckersExtension
@@ -21,8 +22,12 @@ import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrar
  *   @Retention / @Target / parameter 型 / filler default / expect annotation) を診断する
  *   `FirAdditionalCheckersExtension`
  *
+ * Phase 2 task 2.6 (Logic G, task-011) で追加:
+ *
+ * - [CapturedSourcesCallCheckersExtension]: `capturedSources<T>()` 呼び出しの型引数 `T` が
+ *   `@CaptureCode` メタ付き marker class であることを検査する expression checker
+ *
  * 後続 ticket で追加予定の extension:
- * - `capturedSources<T>()` 診断 (Logic G: task-011): T が `@CaptureCode` メタ修飾されているか
  * - ターゲットノード位置の事前収集 (Logic B-fir): 式 annotation の offset 確保 (task-017)
  *
  * 詳細は `compiler-plugin-design.md` §5 / §6 を参照。
@@ -32,5 +37,6 @@ public class CaptureCodeFirExtensionRegistrar : FirExtensionRegistrar() {
         +::CaptureCodeFirMarkerService
         +::CaptureCodeMarkerCheckersExtension
         +::CaptureCodeFirAdditionalCheckersExtension
+        +::CapturedSourcesCallCheckersExtension
     }
 }
