@@ -419,7 +419,7 @@ class BasicCasesTest : StringSpec({
         )
     }
 
-    "ケース6: ファイル全体のキャプチャ (@file:)".config(enabled = false) {
+    "ケース6: ファイル全体のキャプチャ (@file:)" {
         // marker / file annotation は case6/FileSnippet.kt に配置
         capturedSources<SnippetFile_Case6>() shouldBe listOf(
             SnippetFile_Case6(

@@ -244,11 +244,17 @@ class IntegrationCasesTest : StringSpec({
         captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp"
     }
 
-    "ケース72: file annotation + 同モジュール内の declaration annotation 混在".config(enabled = false) {
+    "ケース72: file annotation + 同モジュール内の declaration annotation 混在" {
         // file annotation 側のサイトは case72/FileLevel.kt
         // 期待値: file キャプチャ + function キャプチャの両方
         val captured = capturedSources<Snippets_Case72>()
         captured.size shouldBe 2
+        // kind で識別: file 起源 (FILE) と declaration 起源 (FUNCTION) が混在する
+        val kinds = captured.map { it.kind.value }.toSet()
+        kinds shouldBe setOf(
+            me.tbsten.capture.code.CaptureKind.Kind.FILE,
+            me.tbsten.capture.code.CaptureKind.Kind.FUNCTION,
+        )
     }
 
     "ケース73: private marker をファイル内だけで使う".config(enabled = false) {
