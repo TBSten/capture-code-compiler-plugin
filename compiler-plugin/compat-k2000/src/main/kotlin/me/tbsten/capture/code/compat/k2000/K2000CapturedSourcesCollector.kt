@@ -2,10 +2,15 @@ package me.tbsten.capture.code.compat.k2000
 
 import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.compat.CapturedSite
+import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.PsiIrFileEntry
+import org.jetbrains.kotlin.ir.declarations.IrClass
+import org.jetbrains.kotlin.ir.declarations.IrDeclarationBase
 import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.IrProperty
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.declarations.IrTypeAlias
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
@@ -14,22 +19,54 @@ import java.io.File
 
 /**
  * `@CaptureCode` メタ付き marker annotation (= [CaptureCodeMarkerRegistry] に登録された FqN) を
- * 持つ property 宣言を IR 走査で収集する visitor。
+ * 持つ宣言を IR 走査で収集する visitor。
  *
  * task-008 (Logic A) で hardcoded marker FqN list が撤廃され、本 collector は
- * [CaptureCodeMarkerRegistry] (FIR phase で動的検出された marker FqN の集合) を参照するようになった。
+ * [CaptureCodeMarkerRegistry] (FIR phase で動的検出された marker FqN の集合) を参照する。
  *
- * Phase 1 vertical slice からの責務:
- * - Logic B (ターゲットノード収集) … `visitProperty` で annotation の FqN が registry に
- *   含まれているかを検査
- * - Logic C (ソーステキスト取得) … property の `startOffset..endOffset` を抽出し、
- *   [PsiIrFileEntry] (PSI 経由) または file system path (PSI 無し) からソース文字列を取り出す
+ * ## サポート対象 (Logic B-ir)
  *
- * 収集結果は [capturedSites] に積まれ、後続 [K2000CapturedSourcesRewriter] が
- * `capturedSources<T>()` 呼び出しの書き換えに利用する。
+ * task-005 では `visitProperty` のみだったが、task-012 で **宣言レベル 5 種類** に拡張した:
  *
- * Phase 2 で property 以外の declaration (class / object / function / typealias / file / expression)
- * 対応が task-012/016/017 で追加される予定。
+ * | 種別 | IR ノード | visitor | [CapturedSite.CaptureKind] |
+ * |------|----------|---------|----------------------------|
+ * | property | [IrProperty] | [visitProperty] | [CapturedSite.CaptureKind.PROPERTY] |
+ * | class / interface / annotation class | [IrClass] (`kind != OBJECT`) | [visitClass] | [CapturedSite.CaptureKind.CLASS] |
+ * | object / companion | [IrClass] (`kind == OBJECT`) | [visitClass] | [CapturedSite.CaptureKind.OBJECT] |
+ * | function | [IrSimpleFunction] (property accessor 除く) | [visitSimpleFunction] | [CapturedSite.CaptureKind.FUNCTION] |
+ * | typealias | [IrTypeAlias] | [visitTypeAlias] | [CapturedSite.CaptureKind.TYPEALIAS] |
+ *
+ * design §4 F2 「宣言レベル」/ §5 Logic B-ir 参照。
+ * EXPRESSION (task-017) / FILE (task-016) は後続 ticket。
+ *
+ * ## 走査と再帰
+ *
+ * `IrElementVisitorVoid` は default の [visitElement] で `acceptChildrenVoid(this)` を呼ぶことで
+ * 再帰するが、`visitClass` / `visitSimpleFunction` などを override すると default の再帰チェーンを
+ * 自分で繋ぐ必要がある (deepwiki/JetBrains/kotlin confirmed)。
+ * 本 collector は **各 visit メソッドの末尾で `acceptChildrenVoid(this)` を呼ぶ** ことで、
+ * nested declaration (例: class 内の property / member function) も漏れなく走査する。
+ *
+ * ## ソーステキスト取得 (Logic C 最小実装)
+ *
+ * `IrFileEntry.getSourceRangeInfo` は行列情報のみで生テキストを保持しないため、生テキストは
+ * 次の優先順位で取得する:
+ *
+ * 1. [PsiIrFileEntry] が利用可能ならその PSI file text から substring
+ * 2. PSI が無い (LightTree / `NaiveSourceBasedFileEntryImpl` など) 場合は
+ *    [IrFile.fileEntry] の `name` (絶対パス) から `File.readText()` する
+ *
+ * 同一 [IrFile] への複数 declaration 処理時のテキスト重複読み込みは [cachedFileText] で
+ * file 単位キャッシュする (design §5.C "file 単位でテキストをキャッシュ" の最小版)。
+ *
+ * ## アノテーション行の除外 (design §7.2)
+ *
+ * Kotlin 2.0.0 の IR では各 declaration の `startOffset` が先頭 `@Marker` 行を含む位置を指す
+ * (task-005 / task-009 spike で実機確認済み)。[skipLeadingAnnotationLines] で行頭 `@` 行を
+ * 改行までスキップする。複数 annotation や `@JvmInline` 等の Kotlin 標準 annotation 行も
+ * **すべて** スキップ (空行があれば残す) する Phase 1 ポリシー。
+ * 厳密な「marker annotation のみスキップ」モードは task-018 の DSL option (`includeAnnotationLines`)
+ * 配線後に検討する。
  */
 internal class K2000CapturedSourcesCollector(
     private val currentFile: IrFile,
@@ -45,51 +82,87 @@ internal class K2000CapturedSourcesCollector(
     }
 
     override fun visitProperty(declaration: IrProperty) {
-        val markerFqn = declaration.annotations.firstMarkerFqnOrNull()
-        if (markerFqn != null) {
-            val source = extractPropertySource(declaration)
-            if (source != null) {
-                capturedSites += CapturedSite(
-                    markerFqn = markerFqn,
-                    source = source,
-                )
-            }
-        }
+        collectIfMarked(declaration, CapturedSite.CaptureKind.PROPERTY)
+        // property の getter / setter は visitSimpleFunction 経由で走るが、accessor は
+        // correspondingPropertySymbol が non-null なのでそこで skip される (二重 capture 回避)。
         super.visitProperty(declaration)
     }
 
-    /**
-     * annotation list から、[CaptureCodeMarkerRegistry] に登録済みの marker FqN を 1 つ返す。
-     *
-     * 同じ宣言に複数の marker が付いている場合 (例: `@Foo @Bar val x`) でも、property 本体は
-     * 1 件しか存在しないため、本メソッドは **最初に見つかった** marker FqN のみを返す。
-     * Phase 2 で複数 marker 同時 capture (task-012/021) が必要になったら、複数 marker 対応の
-     * collector に拡張する。
-     */
-    private fun List<IrConstructorCall>.firstMarkerFqnOrNull(): String? {
-        for (annotation in this) {
-            val fqn = annotation.type.classFqName?.asString() ?: continue
-            if (CaptureCodeMarkerRegistry.isMarker(fqn)) return fqn
+    override fun visitClass(declaration: IrClass) {
+        val kind = when (declaration.kind) {
+            ClassKind.OBJECT -> CapturedSite.CaptureKind.OBJECT
+            // CLASS / INTERFACE / ANNOTATION_CLASS / ENUM_CLASS / ENUM_ENTRY は CLASS に集約
+            else -> CapturedSite.CaptureKind.CLASS
         }
-        return null
+        collectIfMarked(declaration, kind)
+        super.visitClass(declaration)
+    }
+
+    override fun visitSimpleFunction(declaration: IrSimpleFunction) {
+        // property accessor (getter / setter) は IrProperty 経由でキャプチャするので skip。
+        if (declaration.correspondingPropertySymbol == null) {
+            collectIfMarked(declaration, CapturedSite.CaptureKind.FUNCTION)
+        }
+        super.visitSimpleFunction(declaration)
+    }
+
+    override fun visitTypeAlias(declaration: IrTypeAlias) {
+        collectIfMarked(declaration, CapturedSite.CaptureKind.TYPEALIAS)
+        super.visitTypeAlias(declaration)
     }
 
     /**
-     * property 宣言のソース文字列を抽出する。
+     * 指定された宣言が marker annotation を持つ場合、ソースを抽出して [capturedSites] に追加する。
      *
-     * Logic C (design §5.C / §7.3) の最小実装。`IrFileEntry.getSourceRangeInfo` は行列情報のみで
-     * 生テキストを保持しないため、生テキストの取得は次の優先順位で行う:
-     *
-     * 1. [PsiIrFileEntry] が利用可能ならその PSI file text から substring
-     * 2. PSI が無い (LightTree / [org.jetbrains.kotlin.ir.util.NaiveSourceBasedFileEntryImpl] など)
-     *    場合は [IrFileEntry.name] が指す絶対パスからファイルを読み直す (kctfork test 経由でも
-     *    sources は一時 dir に書き出されるためアクセス可能)
-     *
-     * アノテーション行の除外は declaration の `startOffset` がアノテーション領域を含む場合に
-     * 行末改行までスキップする (design §7.2)。Kotlin 2.0.0 の挙動では IR `startOffset` は
-     * 先頭アノテーションを含む位置になることを実機で確認している。
+     * **複数 marker 同時付与** (`@Foo @Bar fun x()`) に対応するため、annotation 列を **すべて**
+     * 走査して [CaptureCodeMarkerRegistry] に登録されている FqN ごとに 1 件ずつ [CapturedSite] を
+     * 生成する (design §7.7 「重複 marker」: エラーにせず両方の `capturedSources<T>()` に出る)。
      */
-    private fun extractPropertySource(declaration: IrProperty): String? {
+    private fun collectIfMarked(
+        declaration: IrDeclarationBase,
+        kind: CapturedSite.CaptureKind,
+    ) {
+        val markers = declaration.annotations.markerFqns()
+        if (markers.isEmpty()) return
+
+        val source = extractDeclarationSource(declaration) ?: return
+        for (markerFqn in markers) {
+            capturedSites += CapturedSite(
+                markerFqn = markerFqn,
+                source = source,
+                kind = kind,
+            )
+        }
+    }
+
+    /**
+     * annotation list から、[CaptureCodeMarkerRegistry] に登録済みの marker FqN を返す。
+     *
+     * 同じ宣言に複数 marker (`@Foo @Bar`) が付いている場合は **すべての** marker FqN を返す。
+     * task-005 では「最初に見つかった 1 つだけ」を返す実装だったが、task-012 で複数 marker
+     * 同時 capture (ケース #21 / #22) を可能にするため列挙に変更。
+     */
+    private fun List<IrConstructorCall>.markerFqns(): List<String> {
+        val result = mutableListOf<String>()
+        for (annotation in this) {
+            val fqn = annotation.type.classFqName?.asString() ?: continue
+            if (CaptureCodeMarkerRegistry.isMarker(fqn)) result += fqn
+        }
+        return result
+    }
+
+    /**
+     * 宣言のソース文字列を抽出する。Logic C (design §5.C / §7.3) の最小実装。
+     *
+     * declaration の `startOffset..endOffset` を使い、先頭のアノテーション行 (任意個) を
+     * [skipLeadingAnnotationLines] でスキップした上で substring する。
+     *
+     * 失敗条件 (`null` 返却):
+     * - file text が読めない
+     * - declaration の offset が UNDEFINED (-1) または不正
+     * - offset が file text の範囲外
+     */
+    private fun extractDeclarationSource(declaration: IrDeclarationBase): String? {
         val fullText = cachedFileText ?: return null
 
         val startOffset = declaration.startOffset
@@ -115,8 +188,12 @@ internal class K2000CapturedSourcesCollector(
      * `startOffset` 〜 `endOffset` の範囲のうち、先頭の `@Foo` アノテーション行 (改行まで) を
      * スキップした offset を返す。
      *
-     * Phase 1 では実装をシンプルに保つため、行頭に `@` がある限り次の改行までスキップする
-     * 線形パスを採る。複数 annotation や複数行 annotation には未対応 (Phase 2 で対応)。
+     * Phase 1 / task-005 ではシンプルさのため行頭に `@` がある限り次の改行までスキップする
+     * 線形パスとしている。複数 annotation や複数行 annotation 引数には対応する
+     * (1 行ずつ判定する) が、annotation arguments 内に改行がある場合 (`@Foo(\n  ...\n)`) には
+     * 未対応 (現状のテストケースは 1 行 annotation 引数のみ)。
+     *
+     * 行頭の空白はスキップ前にカウントし、`@` で始まらない行ならその行頭 (空白含む) を返す。
      */
     private fun skipLeadingAnnotationLines(text: String, startOffset: Int, endOffset: Int): Int {
         var cursor = startOffset

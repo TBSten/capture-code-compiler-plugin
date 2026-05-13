@@ -20,9 +20,11 @@ import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
  *
  * task-008 (Logic A 動的検出) 後の責務:
  * - [CaptureCodeMarkerRegistry] (FIR phase で `@CaptureCode` メタ付き annotation class から動的に
- *   構築された marker FqN 集合) を読み、その marker が付いた property を IR 走査で発見する
+ *   構築された marker FqN 集合) を読み、その marker が付いた **宣言** を IR 走査で発見する
+ *   (task-012 で property / class / object / function / typealias の 5 種に拡張)
  * - 発見したサイトを [CapturedSite] にして [K2000CapturedSourcesTransformer.capturedSites] に蓄積
  * - `capturedSources<T>()` 呼び出しを `listOf(T(source = Source(...)))` へ書き換える
+ *   (filler 未指定 marker の場合は 0-arg `T()` の list literal)
  *
  * 詳細な順序は `compiler-plugin-design.md` §6 Phase ordering 参照。
  */
@@ -64,7 +66,8 @@ internal class K2000CapturedSourcesTransformer(
     /**
      * collector が収集した capture サイトの一覧。[visitCall] の書き換え step が参照する。
      *
-     * Phase 1 では種別はすべて property。Phase 2 task 2.3 (task-012) で declaration 全種別に拡張。
+     * task-012 で declaration 全 5 種別 (property / class / object / function / typealias) に拡張済。
+     * task-016 (file annotation) / task-017 (expression annotation) で残りの 2 種を追加予定。
      */
     val capturedSites: MutableList<CapturedSite> = mutableListOf()
 
