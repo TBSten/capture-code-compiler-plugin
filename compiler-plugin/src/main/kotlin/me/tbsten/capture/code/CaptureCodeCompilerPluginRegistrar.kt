@@ -11,7 +11,8 @@ public class CaptureCodeCompilerPluginRegistrar : CompilerPluginRegistrar() {
     override val supportsK2: Boolean = true
 
     override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
+        val config = configuration.captureCodePluginConfig
         FirExtensionRegistrarAdapter.registerExtension(CaptureCodeFirExtensionRegistrar())
-        IrGenerationExtension.registerExtension(CaptureCodeIrExtension())
+        IrGenerationExtension.registerExtension(CaptureCodeIrExtension(config))
     }
 }
