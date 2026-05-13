@@ -12,7 +12,8 @@ import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import java.io.File
 
 /**
- * hardcoded marker (`com.example.Snippets`) 付き property 宣言を IR 走査で収集する visitor。
+ * hardcoded marker (`com.example.Snippets` ほか [HARDCODED_MARKER_FQNS]) 付き property 宣言を
+ * IR 走査で収集する visitor。
  *
  * Phase 1 vertical slice (task-005) の Logic B / C 最小実装:
  * - Logic B (ターゲットノード収集) … `visitProperty` で annotation の FqN match を検査
@@ -22,7 +23,7 @@ import java.io.File
  * 収集結果は [capturedSites] に積まれ、後続 task-006 で `capturedSources<T>()` 呼び出しの
  * 書き換えに利用される。
  *
- * Phase 2 で Logic A (メタアノテーション動的検出) に置き換えられた時点で [HARDCODED_MARKER_FQN] と
+ * Phase 2 で Logic A (メタアノテーション動的検出) に置き換えられた時点で [HARDCODED_MARKER_FQNS] と
  * 本 collector の hardcoded path は撤廃される予定。
  */
 internal class K2000CapturedSourcesCollector(
@@ -39,12 +40,12 @@ internal class K2000CapturedSourcesCollector(
     }
 
     override fun visitProperty(declaration: IrProperty) {
-        val markerAnnotation = declaration.annotations.firstOrNull { it.isHardcodedMarker() }
-        if (markerAnnotation != null) {
+        val markerFqn = declaration.annotations.firstHardcodedMarkerFqnOrNull()
+        if (markerFqn != null) {
             val source = extractPropertySource(declaration)
             if (source != null) {
                 capturedSites += CapturedSite(
-                    markerFqn = HARDCODED_MARKER_FQN,
+                    markerFqn = markerFqn,
                     source = source,
                 )
             }
@@ -52,8 +53,13 @@ internal class K2000CapturedSourcesCollector(
         super.visitProperty(declaration)
     }
 
-    private fun IrConstructorCall.isHardcodedMarker(): Boolean =
-        type.classFqName?.asString() == HARDCODED_MARKER_FQN
+    private fun List<IrConstructorCall>.firstHardcodedMarkerFqnOrNull(): String? {
+        for (annotation in this) {
+            val fqn = annotation.type.classFqName?.asString() ?: continue
+            if (fqn in HARDCODED_MARKER_FQNS) return fqn
+        }
+        return null
+    }
 
     /**
      * property 宣言のソース文字列を抽出する。
@@ -124,7 +130,13 @@ internal class K2000CapturedSourcesCollector(
     }
 
     internal companion object {
-        // TODO: Phase 2 で Logic A (メタアノテーション動的検出) に置換し、本定数は撤廃する
-        const val HARDCODED_MARKER_FQN: String = "com.example.Snippets"
+        // TODO: Phase 2 task 2.1 で Logic A (メタアノテーション動的検出) に置換し、本 List は撤廃する。
+        // 現在は Phase 1 同期ポイント (task-007) のため、ケース #1 enable 用の marker を追加した。
+        // - `com.example.Snippets` : `:compiler-plugin:test` 内の kctfork ベース unit test (task-005/006)
+        // - `me.tbsten.capture.code.testapp.Snippets_Case1` : `:integration-test:test-jvm` BasicCasesTest ケース #1
+        val HARDCODED_MARKER_FQNS: List<String> = listOf(
+            "com.example.Snippets",
+            "me.tbsten.capture.code.testapp.Snippets_Case1",
+        )
     }
 }

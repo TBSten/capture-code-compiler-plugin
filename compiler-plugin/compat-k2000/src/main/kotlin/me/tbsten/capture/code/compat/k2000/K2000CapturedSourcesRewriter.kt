@@ -24,16 +24,19 @@ import org.jetbrains.kotlin.name.Name
 /**
  * Phase 1 vertical slice の Logic H (`capturedSources<T>()` 書き換え) 最小実装。
  *
- * 入力された [IrCall] (= `me.tbsten.capture.code.capturedSources<com.example.Snippets>()`) を、
- * task-005 で収集された [CapturedSite] のリストから組み立てた `listOf(Snippets(source = Source(value = "...")))`
- * 相当の [IrCall] (`kotlin.collections.listOf`) に書き換える。
+ * 入力された [IrCall] (= `me.tbsten.capture.code.capturedSources<Marker>()`、`Marker` は
+ * [HARDCODED_MARKER_FQNS] のいずれか) を、task-005 で収集された [CapturedSite] のリストから
+ * 組み立てた `listOf(Marker(source = Source(value = "...")))` 相当の [IrCall]
+ * (`kotlin.collections.listOf`) に書き換える。
  *
  * Phase 1 制約:
- * - marker FqN は `com.example.Snippets` 限定 (`Snippets` の primary constructor は `source: Source = Source()`)
+ * - marker FqN は [HARDCODED_MARKER_FQNS] に列挙された FqN 限定。primary constructor は
+ *   `source: Source = Source()` を持つ前提
  * - filler は `Source(value: String)` のみ。`SourceLocation` / `CaptureKind` / ユーザ定義パラメータは未対応
- * - type argument が `com.example.Snippets` 以外の場合は変換せず元の [IrCall] を返す
+ * - type argument が hardcoded marker 以外の場合は変換せず元の [IrCall] を返す
  *
- * TODO: Phase 2 で Logic A (メタアノテーション動的検出) と組み合わせ、hardcoded `Snippets` / `Source` 参照を撤廃する
+ * TODO: Phase 2 task 2.1 で Logic A (メタアノテーション動的検出) と組み合わせ、hardcoded
+ *       marker / Source 参照を撤廃する
  *
  * 詳細は `compiler-plugin-design.md` §5 Logic H / §7.9 Marker annotation instance の構築 を参照。
  */
@@ -43,30 +46,34 @@ internal object K2000CapturedSourcesRewriter {
     const val CAPTURED_SOURCES_FQN: String = "me.tbsten.capture.code.capturedSources"
 
     /**
-     * Phase 1 で対応する唯一の marker (= `T`) の FqN。
+     * Phase 1 で対応する marker (= `T`) の FqN リスト。
      *
-     * SSOT は [K2000CapturedSourcesCollector.HARDCODED_MARKER_FQN]。collect 側と rewrite 側で
-     * 同じ marker しか扱えないので、collector 側の定数を single source of truth として参照する。
+     * SSOT は [K2000CapturedSourcesCollector.HARDCODED_MARKER_FQNS]。collect 側と rewrite 側で
+     * 同じ marker を扱う必要があるため、collector 側の定数を single source of truth として参照する。
      * Phase 2 で Logic A 化したら collector 側と一緒に撤廃される。
      */
-    val HARDCODED_MARKER_FQN: String
-        get() = K2000CapturedSourcesCollector.HARDCODED_MARKER_FQN
+    val HARDCODED_MARKER_FQNS: List<String>
+        get() = K2000CapturedSourcesCollector.HARDCODED_MARKER_FQNS
 
     /** filler 型 `Source(value: String)` の FqN。 */
     private const val SOURCE_FQN: String = "me.tbsten.capture.code.Source"
 
     /**
-     * 与えられた [original] を [sites] から組み立てた `listOf<Snippets>(...)` の [IrCall] に書き換える。
+     * 与えられた [original] を [sites] から組み立てた `listOf<Marker>(...)` の [IrCall] に書き換える。
+     *
+     * [markerFqn] は `capturedSources<T>()` の type argument T (= 書き換え結果の list 要素型)。
+     * `sites` は当該 marker でフィルタ済みの [CapturedSite] であることを呼び出し側が保証する。
      *
      * marker class / Source class が解決できない場合 (= runtime 依存が不足) は `null` を返し、
      * 呼び出し側は元の [IrCall] をそのまま返すこと。
      */
     fun rewriteCapturedSourcesCall(
         original: IrCall,
+        markerFqn: String,
         sites: List<CapturedSite>,
         pluginContext: IrPluginContext,
     ): IrCall? {
-        val snippetsClassId = ClassId.topLevel(FqName(HARDCODED_MARKER_FQN))
+        val snippetsClassId = ClassId.topLevel(FqName(markerFqn))
         val sourceClassId = ClassId.topLevel(FqName(SOURCE_FQN))
 
         val snippetsSymbol = pluginContext.referenceClass(snippetsClassId) ?: return null

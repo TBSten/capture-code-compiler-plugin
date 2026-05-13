@@ -17,9 +17,11 @@ import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
 /**
  * Kotlin 2.0.0+ 向けの IR 変換実装。
  *
- * Phase 1 (task-005 / task-006) では hardcoded marker (`com.example.Snippets`) 付きの
- * property を走査してソース文字列を収集し、後段で `capturedSources<Snippets>()` 呼び出しを
- * `listOf(Snippets(source = Source(...)))` へ書き換える。
+ * Phase 1 (task-005 / task-006 / task-007) では
+ * [K2000CapturedSourcesRewriter.HARDCODED_MARKER_FQNS] に列挙された hardcoded marker が付いた
+ * property を走査してソース文字列を収集し、後段で `capturedSources<T>()` 呼び出しを
+ * `listOf(T(source = Source(...)))` へ書き換える。Phase 2 task 2.1 で Logic A (動的検出)
+ * に置換され、本 List は撤廃される。
  *
  * 詳細な順序は `compiler-plugin-design.md` §6 Phase ordering 参照。
  */
@@ -59,8 +61,9 @@ internal class K2000CapturedSourcesTransformer(
     /**
      * task-005 で収集した capture サイトの一覧。task-006 の書き換え step が参照する。
      *
-     * Phase 1 では marker FqN が `com.example.Snippets` 1 種類のみで、すべて property。
-     * Phase 2 で marker 多型化と種別拡張に伴い構造を見直す。
+     * Phase 1 では marker FqN は [K2000CapturedSourcesRewriter.HARDCODED_MARKER_FQNS] に限定、
+     * 種別はすべて property。Phase 2 task 2.1 で marker 多型化と種別拡張に伴い、
+     * `Map<MarkerFqn, List<CapturedSite>>` への昇格を予定。
      */
     val capturedSites: MutableList<CapturedSite> = mutableListOf()
 
@@ -77,12 +80,13 @@ internal class K2000CapturedSourcesTransformer(
         if (transformed !is IrCall) return transformed
 
         if (!transformed.isCapturedSourcesCall()) return transformed
-        // TODO: Phase 2 で Logic A 動的検出に置換する。それまでは hardcoded marker 限定。
-        if (!transformed.hasHardcodedMarkerTypeArgument()) return transformed
+        // TODO: Phase 2 task 2.1 で Logic A 動的検出に置換する。それまでは hardcoded marker 限定。
+        val markerFqn = transformed.hardcodedMarkerTypeArgumentOrNull() ?: return transformed
 
         val rewritten = K2000CapturedSourcesRewriter.rewriteCapturedSourcesCall(
             original = transformed,
-            sites = capturedSites.filter { it.markerFqn == K2000CapturedSourcesRewriter.HARDCODED_MARKER_FQN },
+            markerFqn = markerFqn,
+            sites = capturedSites.filter { it.markerFqn == markerFqn },
             pluginContext = pluginContext,
         )
         return rewritten ?: transformed
@@ -91,8 +95,13 @@ internal class K2000CapturedSourcesTransformer(
     private fun IrCall.isCapturedSourcesCall(): Boolean =
         symbol.owner.fqNameWhenAvailable?.asString() == K2000CapturedSourcesRewriter.CAPTURED_SOURCES_FQN
 
-    private fun IrCall.hasHardcodedMarkerTypeArgument(): Boolean {
-        val typeArg = getTypeArgument(0) ?: return false
-        return typeArg.classFqName?.asString() == K2000CapturedSourcesRewriter.HARDCODED_MARKER_FQN
+    /**
+     * type argument が [K2000CapturedSourcesRewriter.HARDCODED_MARKER_FQNS] に含まれていれば
+     * その FqN を返す。それ以外は `null` を返し、呼び出し側で書き換えをスキップする。
+     */
+    private fun IrCall.hardcodedMarkerTypeArgumentOrNull(): String? {
+        val typeArg = getTypeArgument(0) ?: return null
+        val fqn = typeArg.classFqName?.asString() ?: return null
+        return fqn.takeIf { it in K2000CapturedSourcesRewriter.HARDCODED_MARKER_FQNS }
     }
 }
