@@ -320,7 +320,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース35: data class のキャプチャ".config(enabled = false) {
+    "ケース35: data class のキャプチャ" {
         capturedSources<Snippets_Case35>() shouldBe listOf(
             Snippets_Case35(
                 source = Source(
@@ -340,7 +340,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース37: enum class のキャプチャ".config(enabled = false) {
+    "ケース37: enum class のキャプチャ" {
         capturedSources<Snippets_Case37>() shouldBe listOf(
             Snippets_Case37(
                 source = Source(value = "enum class Case37_Direction { NORTH, SOUTH, EAST, WEST }"),
@@ -384,13 +384,13 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース42: ジェネリックなクラスのキャプチャ".config(enabled = false) {
+    "ケース42: ジェネリックなクラスのキャプチャ" {
         capturedSources<Snippets_Case42>() shouldBe listOf(
             Snippets_Case42(source = Source(value = "class Case42_Box<T : Any>(val value: T)")),
         )
     }
 
-    "ケース43: ジェネリックな関数のキャプチャ".config(enabled = false) {
+    "ケース43: ジェネリックな関数のキャプチャ" {
         capturedSources<Snippets_Case43>() shouldBe listOf(
             Snippets_Case43(source = Source(value = "fun <T> case43_identity(x: T): T = x")),
         )
@@ -406,7 +406,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース45: inline function のキャプチャ".config(enabled = false) {
+    "ケース45: inline function のキャプチャ" {
         capturedSources<Snippets_Case45>() shouldBe listOf(
             Snippets_Case45(
                 source = Source(
@@ -416,7 +416,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース46: extension function のキャプチャ".config(enabled = false) {
+    "ケース46: extension function のキャプチャ" {
         capturedSources<Snippets_Case46>() shouldBe listOf(
             Snippets_Case46(
                 source = Source(value = "fun String.case46_shout(): String = uppercase() + \"!\""),
@@ -454,7 +454,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース50: vararg を持つ関数のキャプチャ".config(enabled = false) {
+    "ケース50: vararg を持つ関数のキャプチャ" {
         capturedSources<Snippets_Case50>() shouldBe listOf(
             Snippets_Case50(
                 source = Source(

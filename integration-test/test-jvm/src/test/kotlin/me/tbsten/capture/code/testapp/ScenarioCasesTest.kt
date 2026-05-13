@@ -417,8 +417,7 @@ fun case97_c() {
 internal annotation class Snippets_Case99(val source: Source = Source())
 
 @Snippets_Case99
-fun `case99 user can login successfully`() {
-}
+fun `case99 user can login successfully`() {}
 
 // ============================================================================
 // ケース100: 複数の filler 同時 + 複数 marker + 複数ファイルの統合シナリオ
@@ -753,7 +752,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース99: バックティック識別子をキャプチャ".config(enabled = false) {
+    "ケース99: バックティック識別子をキャプチャ" {
         capturedSources<Snippets_Case99>() shouldBe listOf(
             Snippets_Case99(source = Source(value = "fun `case99 user can login successfully`() {}")),
         )

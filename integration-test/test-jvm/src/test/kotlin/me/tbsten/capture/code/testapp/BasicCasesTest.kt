@@ -335,16 +335,13 @@ internal annotation class Alpha_Case22(val source: Source = Source())
 internal annotation class Beta_Case22(val source: Source = Source())
 
 @Alpha_Case22
-fun case22_alphaOne() {
-}
+fun case22_alphaOne() {}
 
 @Beta_Case22
-fun case22_betaOne() {
-}
+fun case22_betaOne() {}
 
 @Alpha_Case22
-fun case22_alphaTwo() {
-}
+fun case22_alphaTwo() {}
 
 // ============================================================================
 // ケース23: 同じ marker で複数サイト
@@ -388,7 +385,7 @@ class BasicCasesTest : StringSpec({
         )
     }
 
-    "ケース2: property + class を同一 marker でキャプチャ".config(enabled = false) {
+    "ケース2: property + class を同一 marker でキャプチャ" {
         capturedSources<Snippets_Case2>() shouldBe listOf(
             Snippets_Case2(source = Source(value = "val case2_name = \"Tsubasa\"")),
             Snippets_Case2(source = Source(value = "class Case2_User(val id: Int)")),
@@ -434,7 +431,7 @@ class BasicCasesTest : StringSpec({
 
     // ケース7 (EXPRESSION) は ExpressionCasesTest.kt 側
 
-    "ケース8: filler なしの marker (annotation インスタンスを取得するだけ)".config(enabled = false) {
+    "ケース8: filler なしの marker (annotation インスタンスを取得するだけ)" {
         capturedSources<Bench_Case8>() shouldBe listOf(
             Bench_Case8(),
             Bench_Case8(),
@@ -566,26 +563,26 @@ class BasicCasesTest : StringSpec({
         )
     }
 
-    "ケース21: 2 つの marker を同じ宣言に付ける (Foo 側)".config(enabled = false) {
+    "ケース21: 2 つの marker を同じ宣言に付ける (Foo 側)" {
         capturedSources<Foo_Case21>() shouldBe listOf(
             Foo_Case21(source = Source(value = "fun case21_doubleMarked() = 42")),
         )
     }
 
-    "ケース21: 2 つの marker を同じ宣言に付ける (Bar 側)".config(enabled = false) {
+    "ケース21: 2 つの marker を同じ宣言に付ける (Bar 側)" {
         capturedSources<Bar_Case21>() shouldBe listOf(
             Bar_Case21(source = Source(value = "fun case21_doubleMarked() = 42")),
         )
     }
 
-    "ケース22: 別 marker は混在しても独立".config(enabled = false) {
+    "ケース22: 別 marker は混在しても独立" {
         capturedSources<Alpha_Case22>() shouldBe listOf(
             Alpha_Case22(source = Source(value = "fun case22_alphaOne() {}")),
             Alpha_Case22(source = Source(value = "fun case22_alphaTwo() {}")),
         )
     }
 
-    "ケース23: 同じ marker で複数サイト".config(enabled = false) {
+    "ケース23: 同じ marker で複数サイト" {
         capturedSources<Snippets_Case23>() shouldBe listOf(
             Snippets_Case23(source = Source(value = "val case23_a = 1")),
             Snippets_Case23(source = Source(value = "val case23_b = 2")),
