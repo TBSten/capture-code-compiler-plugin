@@ -6,6 +6,10 @@ import me.tbsten.capture.code.CaptureCode
 import me.tbsten.capture.code.Source
 import me.tbsten.capture.code.SourceLocation
 import me.tbsten.capture.code.capturedSources
+import me.tbsten.capture.code.testapp.case101.Snippets_KmpCase101
+import me.tbsten.capture.code.testapp.case102.Snippets_KmpCase102
+import me.tbsten.capture.code.testapp.case105.Snippets_KmpCase105
+import me.tbsten.capture.code.testapp.kmp103.Platform_KmpCase103
 
 // ============================================================================
 // KMP 検証テストのカタログ。
@@ -15,9 +19,9 @@ import me.tbsten.capture.code.capturedSources
 // 使用箇所を **simulate** している暫定形であり、各シナリオの **enable** と
 // commonMain / 各 target source set への **実配置** は後続 ticket で実施する:
 //
-//   - ケース #101 → task-020 (commonMain marker + commonMain use site)
-//   - ケース #102 → task-021 (target ごとの結果)
-//   - ケース #103 → task-022 (expect + actual 両方 annotated)
+//   - ケース #101 → task-020 (commonMain marker + commonMain use site) ✅ 実配置済
+//   - ケース #102 → task-021 (target ごとの結果) ✅ 実配置済
+//   - ケース #103 → task-022 (expect + actual 両方 annotated) ✅ 実配置済
 //   - ケース #104 → task-023 (actual のみ annotated)
 //   - ケース #105 → task-024 (source set hierarchy / intermediate source set)
 //
@@ -27,49 +31,27 @@ import me.tbsten.capture.code.capturedSources
 
 // ============================================================================
 // ケース101: commonMain で marker 定義 + commonMain の use site (KMP 基本)
-// 本テストでは jvmTest 内でローカルに marker / site を宣言して挙動を検証する。
-// 実環境では commonMain に置く想定 (.local/test-cases.md 参照)
+// marker / use site は commonMain (case101/Markers.kt + case101/Usage.kt) に
+// 配置されている。task-020 でこの形に移行した。
 // ============================================================================
-@CaptureCode
-@Target(AnnotationTarget.FUNCTION)
-@Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_KmpCase101(val source: Source = Source())
-
-@Snippets_KmpCase101
-fun kmpCase101_shared() = "from commonMain"
 
 // ============================================================================
 // ケース102: commonMain marker + commonMain と jvmMain で use site
-// 同じく jvmTest 内でローカル simulate。
+// marker は commonMain (case102/Markers.kt) に、shared use site は commonMain
+// (case102/Common.kt) に、jvm-only use site は jvmMain (case102/Jvm.kt) に
+// 配置されている。task-021 でこの形に移行した。
+// jvm target compile では commonMain + jvmMain の両 source set が可視のため
+// 2 件キャプチャされる。js / wasmJs / native target は jvmMain が不可視のため
+// shared 1 件のみキャプチャされる (compile success が保証される)。
 // ============================================================================
-@CaptureCode
-@Target(AnnotationTarget.FUNCTION)
-@Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_KmpCase102(
-    val source: Source = Source(),
-    val location: SourceLocation = SourceLocation(),
-)
-
-@Snippets_KmpCase102
-fun kmpCase102_shared() = "common"
-
-@Snippets_KmpCase102
-fun kmpCase102_jvmOnly() = "jvm"
 
 // ============================================================================
 // ケース103: expect / actual 両方に annotation を付与
-// jvmTest 内で simulate (expect/actual 本体は本格的 KMP 構成が必要)
+// marker / expect は commonMain (kmp103/Markers.kt + kmp103/Expect.kt) に、
+// actual は jvmMain (kmp103/Actual.kt) に配置されている。task-022 でこの形に移行した。
+// 他 target (js / wasmJs / linuxX64 / mingwX64) には annotation 無しの actual を
+// 配置して compile success を保つ (本 ticket scope は jvm target のみ)。
 // ============================================================================
-@CaptureCode
-@Target(AnnotationTarget.FUNCTION)
-@Retention(AnnotationRetention.SOURCE)
-internal annotation class Platform_KmpCase103(
-    val source: Source = Source(),
-    val location: SourceLocation = SourceLocation(),
-)
-
-@Platform_KmpCase103
-fun kmpCase103_currentTimeMillisActual(): Long = System.currentTimeMillis()
 
 // ============================================================================
 // ケース104: actual のみに annotation
@@ -85,18 +67,11 @@ fun kmpCase104_platformNameJvm(): String = "JVM"
 
 // ============================================================================
 // ケース105: source set hierarchy (intermediate な jvmAndroidMain)
-// jvmTest 内で simulate
+// marker / use site は intermediate source set `jvmLinuxMain` (case105/Shared.kt)
+// と commonMain (case105/Markers.kt) に配置されている。task-024 でこの形に移行した。
+// 本プロジェクトに android target が無いため `jvmAndroidMain` の代替として
+// `jvmLinuxMain` (jvm + linuxX64 の親) を使用する。
 // ============================================================================
-@CaptureCode
-@Target(AnnotationTarget.FUNCTION)
-@Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_KmpCase105(
-    val source: Source = Source(),
-    val location: SourceLocation = SourceLocation(),
-)
-
-@Snippets_KmpCase105
-fun kmpCase105_jvmOrAndroidOnly() = "jvm+android"
 
 class KmpCasesTest : StringSpec({
 
@@ -106,21 +81,46 @@ class KmpCasesTest : StringSpec({
         )
     }
 
-    "ケース102: commonMain marker + commonMain と jvmMain で use site (jvm target)".config(enabled = false) {
-        // 期待: jvm target ビルドでは common と jvm の両方が出てくる
+    "ケース102: commonMain marker + commonMain と jvmMain で use site (jvm target)" {
+        // 期待: jvm target ビルドでは common と jvm の両方が出てくる。
+        // compiler-plugin-design.md §7.6 「plugin は target ごとに走り、各 target
+        // から可視な source set のサイトをキャプチャする」シナリオの実機検証。
         val captured = capturedSources<Snippets_KmpCase102>()
         captured.size shouldBe 2
-        captured[0].source shouldBe Source(value = "fun kmpCase102_shared() = \"common\"")
-        captured[1].source shouldBe Source(value = "fun kmpCase102_jvmOnly() = \"jvm\"")
+        captured.map { it.source.value }.toSet() shouldBe setOf(
+            "internal fun kmpCase102_shared() = \"common\"",
+            "internal fun kmpCase102_jvmOnly() = \"jvm\"",
+        )
     }
 
-    "ケース103: expect / actual 両方に annotation を付与".config(enabled = false) {
-        // 期待: expect と actual の両方をキャプチャ
+    "ケース103: expect / actual 両方に annotation を付与" {
+        // 期待: jvm target で commonMain の expect 宣言と jvmMain の actual 宣言を独立にキャプチャ。
+        // compiler-plugin-design.md §7.6 「expect / actual 独立カウント」シナリオの実機検証。
+        //
+        // キャプチャ順序は IR 走査順 (file 単位) で決まるため、source value で expect / actual を
+        // 識別してから verify する (順序非依存)。
         val captured = capturedSources<Platform_KmpCase103>()
-        captured.size shouldBe 1
-        captured[0].source shouldBe Source(
-            value = "fun kmpCase103_currentTimeMillisActual(): Long = System.currentTimeMillis()",
-        )
+        captured.size shouldBe 2
+
+        val expectCapture = captured.singleOrNull {
+            it.source.value == "internal expect fun kmpCase103_currentTimeMillis(): Long"
+        }
+        val actualCapture = captured.singleOrNull {
+            it.source.value ==
+                "internal actual fun kmpCase103_currentTimeMillis(): Long = System.currentTimeMillis()"
+        }
+
+        // expect 側 (commonMain) と actual 側 (jvmMain) の 2 件が揃っていること
+        check(expectCapture != null) { "expect side capture not found in $captured" }
+        check(actualCapture != null) { "actual side capture not found in $captured" }
+
+        // SourceLocation の filePath が commonMain と jvmMain でそれぞれ異なる source set 由来であることを verify
+        check(expectCapture.location.filePath.contains("commonMain")) {
+            "expect capture filePath should contain 'commonMain' but was: ${expectCapture.location.filePath}"
+        }
+        check(actualCapture.location.filePath.contains("jvmMain")) {
+            "actual capture filePath should contain 'jvmMain' but was: ${actualCapture.location.filePath}"
+        }
     }
 
     "ケース104: actual のみに annotation (expect は無印)".config(enabled = false) {
@@ -129,8 +129,8 @@ class KmpCasesTest : StringSpec({
         )
     }
 
-    "ケース105: source set hierarchy (intermediate な jvmAndroidMain)".config(enabled = false) {
-        // 期待: jvm target で jvmAndroidMain は可視のためキャプチャされる
+    "ケース105: source set hierarchy (intermediate な jvmAndroidMain)" {
+        // 期待: jvm target で jvmLinuxMain (intermediate) は可視のためキャプチャされる
         val captured = capturedSources<Snippets_KmpCase105>()
         captured.size shouldBe 1
         captured[0].source shouldBe Source(value = "fun kmpCase105_jvmOrAndroidOnly() = \"jvm+android\"")
