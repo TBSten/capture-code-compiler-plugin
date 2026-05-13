@@ -23,7 +23,9 @@ import org.jetbrains.kotlin.config.CompilerConfigurationKey
  * @property includeKdoc キャプチャしたソースに KDoc コメントを残すかどうか。
  *                       デフォルト `true`。実消費は task-015 (Logic D) 以降で行う。
  * @property includeImports file 起源 (`@file:Marker`) のキャプチャで `import` 宣言行を含めるか。
- *                          デフォルト `false`。実消費は task-016 (file annotation) で行う。
+ *                          デフォルト `false` (= `package` / `import` 行を除外)。task-016 で
+ *                          `K2000CapturedSourcesCollector.fileNormalizeOptions` 経由で
+ *                          `NormalizeOptions.stripPackageAndImport = !includeImports` に投影される。
  * @property includeAnnotationLines 宣言の先頭に並ぶ `@Marker` annotation 行をキャプチャに含めるか。
  *                                  デフォルト `false`。実消費は task-013 / task-015 で行う。
  * @property dedent 全行の最小インデント幅 (空白行を除く) を計算し各行から削除するかどうか。

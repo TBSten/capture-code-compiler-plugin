@@ -33,8 +33,9 @@ import org.jetbrains.kotlin.ir.util.constructors
  * | OBJECT | OBJECT |
  * | FUNCTION | FUNCTION |
  * | TYPEALIAS | TYPEALIAS |
+ * | FILE (task-016) | FILE |
  *
- * 将来 EXPRESSION / FILE が追加されたら本 builder の [kindEnumEntries] map に entry を足すだけ。
+ * 将来 EXPRESSION が追加されたら本 builder の [kindEnumEntries] map に entry を足すだけ。
  * UNKNOWN は collector が site を生成する時点で具体的な kind を埋めているので、本 builder では
  * 使わない (=  fallback の代わりに「未知 kind は build を例外的に処理しない」前提)。
  */

@@ -55,8 +55,11 @@ public data class CapturedSite(
      * - [FUNCTION] — task-012 で追加。top-level / member function
      *   (`IrSimpleFunction`、property accessor を除く)
      * - [TYPEALIAS] — task-012 で追加。`typealias` 宣言 (`IrTypeAlias`)
+     * - [FILE] — task-016 で追加。`@file:Marker` でファイル全体をキャプチャしたサイト
+     *   (`IrFile.annotations` 起源)。`SourceLocation.startLine` は常に 1、`endLine` は
+     *   ファイル末尾の行 (`IrFileEntry.lineCount`) を入れる。
      *
-     * EXPRESSION (task-017) / FILE (task-016) は後続で追加する。
+     * EXPRESSION (task-017) は後続で追加する。
      */
     public enum class CaptureKind {
         PROPERTY,
@@ -64,5 +67,6 @@ public data class CapturedSite(
         OBJECT,
         FUNCTION,
         TYPEALIAS,
+        FILE,
     }
 }

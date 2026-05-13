@@ -49,8 +49,12 @@ public class K2000IrInjector : IrInjector {
 
         // パス 1: 全 file を visit して capturedSiteData を埋める (rewrite はしない)。
         // task-014 で `K2000CapturedSiteData` (CapturedSite + marker IrConstructorCall) を扱うように変更。
+        // task-016 で **file annotation** (`@file:Marker`) も合わせて収集するため、
+        // `collector.collectFileAnnotations()` を declaration 走査の前後で呼ぶ
+        // (visitor では `IrFile.annotations` を訪問しないため別 entry point が必要)。
         for (file in moduleFragment.files) {
             val collector = K2000CapturedSourcesCollector(file, config)
+            collector.collectFileAnnotations()
             file.acceptChildrenVoid(collector)
             transformer.capturedSiteData += collector.capturedSiteData
         }

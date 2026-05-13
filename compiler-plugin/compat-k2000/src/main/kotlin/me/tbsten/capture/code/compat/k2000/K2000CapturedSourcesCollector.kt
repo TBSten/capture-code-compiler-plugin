@@ -6,6 +6,7 @@ import me.tbsten.capture.code.compat.CapturedSite
 import me.tbsten.capture.code.feature.captured_sources.normalize.NormalizeOptions
 import me.tbsten.capture.code.feature.captured_sources.normalize.normalize
 import me.tbsten.capture.code.feature.captured_sources.normalize.toDeclarationNormalizeOptions
+import me.tbsten.capture.code.feature.captured_sources.normalize.toFileNormalizeOptions
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.IrClass
@@ -16,6 +17,7 @@ import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.declarations.IrTypeAlias
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.types.classFqName
+import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 
@@ -62,8 +64,13 @@ internal data class K2000CapturedSiteData(
  * | function | [IrSimpleFunction] (property accessor 除く) | [visitSimpleFunction] | [CapturedSite.CaptureKind.FUNCTION] |
  * | typealias | [IrTypeAlias] | [visitTypeAlias] | [CapturedSite.CaptureKind.TYPEALIAS] |
  *
- * design §4 F2 「宣言レベル」/ §5 Logic B-ir 参照。
- * EXPRESSION (task-017) / FILE (task-016) は後続 ticket。
+ * task-016 で **ファイル全体** (`@file:Marker`) も収集対象に追加。`IrElementVisitorVoid` の
+ * 再帰経路では `IrFile.annotations` (= file-level annotation) を訪問しないため、本 collector の
+ * [collectFileAnnotations] を [K2000IrInjector] パス 1 から **declaration 走査と並行で** 呼び出す
+ * (visitor では拾えないので別 entry point を用意する)。
+ *
+ * design §4 F2 「ファイル」/ §5 Logic B 参照。
+ * EXPRESSION (task-017) は後続 ticket。
  *
  * ## 走査と再帰
  *
@@ -125,6 +132,16 @@ internal class K2000CapturedSourcesCollector(
     /** declaration 起源の正規化 option (task-013 で `config` の `dedent` 等を投影)。 */
     private val normalizeOptions: NormalizeOptions by lazy { config.toDeclarationNormalizeOptions() }
 
+    /**
+     * file 起源 (`@file:Marker`) の正規化 option (task-016)。
+     *
+     * `config.includeImports = false` (default) ならば `stripPackageAndImport = true` になり、
+     * `package` 行と `import` 行が除外される。`includeImports = true` の場合はそれらも残す。
+     * declaration 起源と違って `stripLeadingAnnotationLines` が `!includeAnnotationLines` で
+     * 決まる点に注意 (file 起源では先頭の `@file:Marker` 行も除外する選択肢を持つ)。
+     */
+    private val fileNormalizeOptions: NormalizeOptions by lazy { config.toFileNormalizeOptions() }
+
     override fun visitElement(element: IrElement) {
         element.acceptChildrenVoid(this)
     }
@@ -158,6 +175,121 @@ internal class K2000CapturedSourcesCollector(
         collectIfMarked(declaration, CapturedSite.CaptureKind.TYPEALIAS)
         super.visitTypeAlias(declaration)
     }
+
+    /**
+     * `@file:Marker` で file 全体に付いた marker annotation を走査し、
+     * marker ごとに 1 件ずつ [CapturedSite] (`kind = FILE`) を生成する (task-016)。
+     *
+     * `IrElementVisitorVoid` の再帰経路では `IrFile.annotations` を訪問しないため、本 method を
+     * [K2000IrInjector] パス 1 から **declaration 走査とは独立に** 呼ぶ。declaration 走査と
+     * file 走査を分離することで、双方の収集経路が pollute されないことを保証する。
+     *
+     * ## 収集仕様
+     *
+     * - source: file 全体テキストを [SourceTextExtractor.loadFileText] で取得し、
+     *   [fileNormalizeOptions] (= `stripPackageAndImport = !includeImports`) で正規化する
+     * - filePath: `IrFile.fileEntry.name` (絶対パス。task-013 と同じ妥協で Phase 2 はこのまま)
+     * - packageFqn: `IrFile.packageFqName.asString()`
+     * - startLine: **1** (file 起源は常にファイル先頭から)
+     * - endLine: `IrFileEntry.getLineNumber(maxOffset) + 1` (`IrFileEntry.getLineNumber` は
+     *   0-based なので +1 で 1-based に揃える)。`IrFileEntry.lineCount` のような便利プロパティは
+     *   Kotlin 2.0.0 の `IrFileEntry` interface にはまだ存在しない (`maxOffset` / `getLineNumber`
+     *   のみ stable)。
+     *
+     * design §4 F2 「ファイル」/ §5 Logic B (FIR: `FirFileAnnotationsContainer`、ただし
+     * SOURCE retention でも IR phase に annotation が残ることを deepwiki で確認済) / §5 Logic D
+     * step 5 (file 起源で package / import 除外) 参照。
+     */
+    fun collectFileAnnotations() {
+        val fileAnnotations = currentFile.annotations.markerAnnotations()
+        if (fileAnnotations.isEmpty()) return
+
+        val source = extractFileSource() ?: return
+        val packageFqn = currentFile.packageFqName.asString()
+        val filePath = currentFile.fileEntry.name
+        // file の終端行は `fileEntry.maxOffset` から計算する。
+        // IrFileEntry.getLineNumber は 0-based なので +1 で 1-based に揃える (filler の design 値域)。
+        val endLine = currentFile.fileEntry.getLineNumber(currentFile.fileEntry.maxOffset) + 1
+        for ((markerFqn, markerCall) in fileAnnotations) {
+            capturedSiteData += K2000CapturedSiteData(
+                site = CapturedSite(
+                    markerFqn = markerFqn,
+                    source = source,
+                    kind = CapturedSite.CaptureKind.FILE,
+                    packageFqn = packageFqn,
+                    filePath = filePath,
+                    startLine = 1,
+                    endLine = endLine,
+                ),
+                markerCall = markerCall,
+            )
+        }
+    }
+
+    /**
+     * file 全体テキストを取り出し、[fileNormalizeOptions] (file 起源用) で正規化する。
+     *
+     * declaration 起源と違い、annotation 行スキップ (`skipLeadingAnnotationLines`) は呼ばない。
+     * 代わりに [NormalizeOptions.stripPackageAndImport] が `package` 行と `import` 行を除外する。
+     * 先頭 `@file:Marker` 行も config の `includeAnnotationLines = false` なら
+     * `stripLeadingAnnotationLines = true` 経由で normalize 内 で除外される。
+     *
+     * ## marker class 自身の declaration 除外 (task-016)
+     *
+     * file annotation は **その file 内のキャプチャ対象** を集める用途なので、`@CaptureCode`
+     * メタ付き annotation class (= marker 自身) の declaration は capture 結果から除外する。
+     * marker class 自身は capture のメタ情報のための定義であり、ユーザがその "ソース" を
+     * 受け取ることに実用上の意味はない (design §3.1 / §3.2 の文脈から見ても、marker は
+     * site **に付ける** ものであって site **そのもの** ではない)。
+     *
+     * 実装は [stripMarkerClassDeclarations] で、`IrFile.declarations` のうち
+     * [CaptureCodeMarkerRegistry] に登録された FqN を持つ [IrClass] の `startOffset..endOffset`
+     * 範囲を raw text から drop する形を採る。
+     */
+    private fun extractFileSource(): String? {
+        val fullText = cachedFileText ?: return null
+        val withoutMarkers = stripMarkerClassDeclarations(fullText)
+        return normalize(withoutMarkers, fileNormalizeOptions)
+    }
+
+    /**
+     * raw file text から、本 file 内に定義された **marker class declaration** (= `@CaptureCode`
+     * メタ付き annotation class) の `startOffset..endOffset` 範囲を drop した文字列を返す。
+     *
+     * marker class が複数ある場合は **降順** (`endOffset` の大きい順) に drop することで、
+     * 早い range の drop が後の range の offset を invalid にしない (raw text の offset と
+     * marker class の startOffset は同じ座標系)。
+     *
+     * marker class declaration の startOffset は Kotlin 2.0.0 の IR では先頭 `@Marker` 行を
+     * 含む可能性があるが、本 method は **既知の marker registry に登録された** annotation class
+     * のみを対象とするため、drop 範囲が広めでも問題ない (誤って削れる場合もない)。
+     */
+    private fun stripMarkerClassDeclarations(text: String): String {
+        val markerRanges = currentFile.declarations
+            .filterIsInstance<IrClass>()
+            .filter { irClass ->
+                val fqn = irClass.classFqName() ?: return@filter false
+                CaptureCodeMarkerRegistry.isMarker(fqn)
+            }
+            .mapNotNull { irClass ->
+                val startOffset = irClass.startOffset
+                val endOffset = irClass.endOffset
+                if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) null
+                else if (endOffset > text.length) null
+                else startOffset..endOffset
+            }
+            .sortedByDescending { it.last }
+
+        if (markerRanges.isEmpty()) return text
+        val builder = StringBuilder(text)
+        for (range in markerRanges) {
+            builder.delete(range.first, range.last)
+        }
+        return builder.toString()
+    }
+
+    /** `IrClass.kotlinFqName` の安定版。`internal` annotation class でも FqN を取得できる。 */
+    private fun IrClass.classFqName(): String? = fqNameWhenAvailable?.asString()
 
     /**
      * 指定された宣言が marker annotation を持つ場合、ソースを抽出して [capturedSites] に追加する。
