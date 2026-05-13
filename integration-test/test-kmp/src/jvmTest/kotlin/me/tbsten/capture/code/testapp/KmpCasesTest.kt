@@ -75,7 +75,7 @@ fun kmpCase104_platformNameJvm(): String = "JVM"
 
 class KmpCasesTest : StringSpec({
 
-    "ケース101: commonMain で marker 定義 + commonMain の use site (KMP 基本)".config(enabled = false) {
+    "ケース101: commonMain で marker 定義 + commonMain の use site (KMP 基本)" {
         capturedSources<Snippets_KmpCase101>() shouldBe listOf(
             Snippets_KmpCase101(source = Source(value = "fun kmpCase101_shared() = \"from commonMain\"")),
         )
