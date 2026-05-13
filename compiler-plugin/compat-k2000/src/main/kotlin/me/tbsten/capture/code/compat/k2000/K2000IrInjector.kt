@@ -6,6 +6,10 @@ import me.tbsten.capture.code.compat.IrInjector
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.expressions.IrCall
+import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.types.classFqName
+import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
@@ -36,19 +40,20 @@ public class K2000IrInjector : IrInjector {
  * IR を走査して `@CaptureCode` 由来のキャプチャを構築する transformer。
  *
  * Phase 1 vertical slice の責務分担:
- * - task-005 (本 ticket 範囲) … [K2000CapturedSourcesCollector] を `IrFile` ごとに走らせて
+ * - task-005 … [K2000CapturedSourcesCollector] を `IrFile` ごとに走らせて
  *   [capturedSites] に [CapturedSite] を蓄積する (Logic B / C 最小実装)
- * - task-006 … `visitCall` などを追加し、`capturedSites` を参照して `capturedSources<Snippets>()`
- *   の `IrCall` を list literal に置換する (Logic H)
+ * - task-006 (本 ticket 範囲) … [visitCall] で `capturedSources<Snippets>()` を検出し、
+ *   [capturedSites] から組み立てた `listOf(Snippets(...))` の [IrCall] に置換する (Logic H)
  *
- * `capturedSites` はモジュール 1 回の transform 内で蓄積される。task-006 では同じ transformer
- * 内に書き換えロジックを追加する想定。Phase 2 で marker 多型化に伴い `Map<MarkerFqn, List<CapturedSite>>`
+ * `capturedSites` はモジュール 1 回の transform 内で蓄積される。collect → rewrite の順序は
+ * [visitFile] で先に collector を走らせることで担保している ([K2000CapturedSourcesCollector]
+ * の完了メモ #2 参照)。Phase 2 で marker 多型化に伴い `Map<MarkerFqn, List<CapturedSite>>`
  * への昇格を予定。
  *
  * 詳細は `compiler-plugin-design.md` §5 Logic B/C/D/H、§6 Phase ordering 参照。
  */
 internal class K2000CapturedSourcesTransformer(
-    @Suppress("unused") private val pluginContext: IrPluginContext,
+    private val pluginContext: IrPluginContext,
 ) : IrElementTransformerVoid() {
 
     /**
@@ -64,5 +69,30 @@ internal class K2000CapturedSourcesTransformer(
         declaration.acceptChildrenVoid(collector)
         capturedSites += collector.capturedSites
         return super.visitFile(declaration)
+    }
+
+    override fun visitCall(expression: IrCall): IrExpression {
+        // 子要素を先に処理 (nested capturedSources<T>() 呼び出しに備える)
+        val transformed = super.visitCall(expression)
+        if (transformed !is IrCall) return transformed
+
+        if (!transformed.isCapturedSourcesCall()) return transformed
+        // TODO: Phase 2 で Logic A 動的検出に置換する。それまでは hardcoded marker 限定。
+        if (!transformed.hasHardcodedMarkerTypeArgument()) return transformed
+
+        val rewritten = K2000CapturedSourcesRewriter.rewriteCapturedSourcesCall(
+            original = transformed,
+            sites = capturedSites.filter { it.markerFqn == K2000CapturedSourcesRewriter.HARDCODED_MARKER_FQN },
+            pluginContext = pluginContext,
+        )
+        return rewritten ?: transformed
+    }
+
+    private fun IrCall.isCapturedSourcesCall(): Boolean =
+        symbol.owner.fqNameWhenAvailable?.asString() == K2000CapturedSourcesRewriter.CAPTURED_SOURCES_FQN
+
+    private fun IrCall.hasHardcodedMarkerTypeArgument(): Boolean {
+        val typeArg = getTypeArgument(0) ?: return false
+        return typeArg.classFqName?.asString() == K2000CapturedSourcesRewriter.HARDCODED_MARKER_FQN
     }
 }
