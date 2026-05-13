@@ -1,11 +1,13 @@
 package me.tbsten.capture.code.compat.k2000
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
+import me.tbsten.capture.code.compat.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.compat.CapturedSite
 import me.tbsten.capture.code.feature.captured_sources.normalize.NormalizeOptions
 import me.tbsten.capture.code.feature.captured_sources.normalize.normalize
 import me.tbsten.capture.code.feature.captured_sources.normalize.toDeclarationNormalizeOptions
+import me.tbsten.capture.code.feature.captured_sources.normalize.toExpressionNormalizeOptions
 import me.tbsten.capture.code.feature.captured_sources.normalize.toFileNormalizeOptions
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.ir.IrElement
@@ -36,13 +38,31 @@ import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 internal data class K2000CapturedSiteData(
     val site: CapturedSite,
     /**
-     * `@Marker(...)` 自身に対応する IR コンストラクタ呼び出し。
+     * `@Marker(...)` 自身に対応する IR コンストラクタ呼び出し。declaration / file 起源では
+     * 必ず IR の `IrConstructorCall` が存在する (task-005 / task-016 で確認済) ので non-null だが、
+     * **EXPRESSION 起源 (task-017)** では IR phase に annotation が残らない (task-009 spike) ため
+     * **`null`** になる。
      *
-     * これを通じてユーザが call site で渡した argument (filler 以外) を `getValueArgument(i)` で
-     * 取り出す。call site で省略 (default 利用) されている場合は `null` が返るので、その時は
-     * marker class の primary constructor の `valueParameters[i].defaultValue` を見る。
+     * rewriter は markerCall == null の場合、ユーザ定義 parameter について
+     * [me.tbsten.capture.code.compat.k2000.userargs.UserArgIrBuilder.buildOrDefault] の
+     * default 値 fallback 経路と、FIR session から渡された [userArgs] (= primitive 値) で
+     * IR 式を構築する経路を併用する。
+     *
+     * declaration / file 起源は引き続き `markerCall` を通じて `getValueArgument(i)` で
+     * call site の式を deepCopy する経路を使う。
      */
-    val markerCall: IrConstructorCall,
+    val markerCall: IrConstructorCall?,
+    /**
+     * EXPRESSION 起源で、FIR session storage から取り出した「filler 以外」のパラメータ値。
+     *
+     * declaration / file 起源では `markerCall` から直接 IR 式が取れるので、本フィールドは **空 Map**。
+     * EXPRESSION 起源では FIR phase で抜き出した primitive / enum FqN を name → value で持ち、
+     * rewriter が IR const へ変換して marker constructor へ詰める。
+     *
+     * 本 ticket scope では filler のみが入った marker (ケース #7, #67 等) を主にサポート。
+     * primitive 引数を持つ marker のキャプチャは将来 task で拡張。
+     */
+    val expressionUserArgs: Map<String, Any?> = emptyMap(),
 )
 
 /**
@@ -142,6 +162,13 @@ internal class K2000CapturedSourcesCollector(
      */
     private val fileNormalizeOptions: NormalizeOptions by lazy { config.toFileNormalizeOptions() }
 
+    /**
+     * EXPRESSION 起源の正規化 option (task-017)。dedent + blank trim のみ。
+     * 式起源は package / import / annotation 行を含まない (FIR session が push する offset は
+     * 式そのものを指す) ため、それらの strip flag は false。
+     */
+    private val expressionNormalizeOptions: NormalizeOptions by lazy { config.toExpressionNormalizeOptions() }
+
     override fun visitElement(element: IrElement) {
         element.acceptChildrenVoid(this)
     }
@@ -224,6 +251,139 @@ internal class K2000CapturedSourcesCollector(
                 markerCall = markerCall,
             )
         }
+    }
+
+    /**
+     * task-017 で追加。 FIR session storage ([CaptureCodeExpressionSiteRegistry]) に push された
+     * 式 annotation site のうち、本 [currentFile] にマッチするものを `CapturedSite(kind = EXPRESSION)`
+     * に変換して [capturedSiteData] に追加する。
+     *
+     * design §5 Logic B-fir の **IR phase 側読み出し**:
+     * 1. registry にある全 markerFqn / filePath の組み合わせを走査
+     * 2. file path が `currentFile.fileEntry.name` と一致 (または fixture 名で一致) する site のみ採用
+     * 3. site の `startOffset..endOffset` から `cachedFileText.substring` で raw text を抽出
+     * 4. 周辺の `(` `)` を strip (= `KtParenthesizedExpression` 剥がし相当)
+     * 5. [expressionNormalizeOptions] で dedent / trim blank
+     * 6. [CapturedSite] (kind = EXPRESSION) として登録
+     *
+     * markerCall は EXPRESSION 起源では存在しないため `null`。 rewriter は default 値経路で
+     * marker instance を組み立てる。 ユーザ定義 parameter (primitive 等) は FIR から
+     * push された `userArgs` を経由する。
+     *
+     * file path の照合は **絶対パス完全一致** を試み、 ダメなら **末尾セグメント完全一致**
+     * (`endsWith` 比較) に fallback する。 kctfork テスト fixture では FIR 側が PSI の name
+     * (= ファイル名のみ) を push する可能性があり、 IR 側の `fileEntry.name` は temp dir の絶対パス
+     * になりやすいため、 末尾一致で同一性を判定する。
+     */
+    fun collectExpressionSites() {
+        if (CaptureCodeExpressionSiteRegistry.allSites.isEmpty()) return
+        val fileText = cachedFileText ?: return
+        val packageFqn = currentFile.packageFqName.asString()
+        val filePath = currentFile.fileEntry.name
+        // FIR checker は marker 判定をせずに **すべての expression annotation** を push してくる
+        // (FIR checker phase の ordering 問題回避のため、 task-017 設計判断)。 IR phase 側で
+        // [CaptureCodeMarkerRegistry.isMarker] による filter を行う。
+        val matchingSites = CaptureCodeExpressionSiteRegistry.allSites
+            .asSequence()
+            .filter { CaptureCodeMarkerRegistry.isMarker(it.markerFqn) }
+            .filter { it.matchesFile(filePath) }
+            .sortedBy { it.startOffset }
+            .toList()
+
+        for (site in matchingSites) {
+            val source = extractExpressionSource(fileText, site.startOffset, site.endOffset) ?: continue
+            val startLine = currentFile.fileEntry.getLineNumber(site.startOffset) + 1
+            val endLine = currentFile.fileEntry.getLineNumber(site.endOffset) + 1
+            capturedSiteData += K2000CapturedSiteData(
+                site = CapturedSite(
+                    markerFqn = site.markerFqn,
+                    source = source,
+                    kind = CapturedSite.CaptureKind.EXPRESSION,
+                    packageFqn = packageFqn,
+                    filePath = filePath,
+                    startLine = startLine,
+                    endLine = endLine,
+                ),
+                markerCall = null,
+                expressionUserArgs = site.userArgs,
+            )
+        }
+    }
+
+    /**
+     * 式 annotation 起源の raw 抽出 + 正規化。
+     *
+     * FIR session が push する `(startOffset, endOffset)` は **`@Marker (expr)` のうちの「式部分」**
+     * (task-009 spike (c) より、annotation 自体ではなく対象 expression の source range)。
+     * ただし spike 観察と production の挙動には僅かに差異がある可能性があるため、
+     * 抽出後に **両端の `(` `)` をペアでひと組ずつ strip** する補正を行う。これにより
+     * `(1 + 2 + 3)` で push されても `1 + 2 + 3` に揃う。
+     *
+     * `@Marker run { ... }` (ケース #29) や `@Marker ({ ... })` (ケース #30) では range が
+     * lambda / parenthesized expression 全体を覆うため、 strip は **両端が対応する場合のみ** 一度。
+     * `({ x })` のような特殊形は strip しない (= `({ x })` のまま保つ)。 これは spike (f) で
+     * design §3.4 / §7.8 「`run { }` 推奨」の方針と整合する。
+     */
+    private fun extractExpressionSource(fullText: String, startOffset: Int, endOffset: Int): String? {
+        val raw = SourceTextExtractor.substringOrNull(fullText, startOffset, endOffset) ?: return null
+        val stripped = stripSurroundingParens(raw)
+        return normalize(stripped, expressionNormalizeOptions)
+    }
+
+    /**
+     * 両端を **対応する 1 ペアの括弧で完全に囲まれている** かつ **内部が `{` `}` で始まり/終わる lambda
+     * 形式ではない** 場合に限り、最外殻 `(` `)` を取り除く。
+     *
+     * spec ケース #30 (`@Marker ({ ... })`) は parenthesis-lambda 全体を保つ仕様のため、
+     * 内部が `{` で始まる場合は strip しない。
+     *
+     * 具体例:
+     * - `"(1 + 2)"` → `"1 + 2"`
+     * - `"(compute(\"a\" + \"b\") + compute(\"c\"))"` → `"compute(\"a\" + \"b\") + compute(\"c\")"`
+     * - `"({ println(\"x\") })"` → `"({ println(\"x\") })"` (← parenthesis-lambda 形式なので保持)
+     * - `"run { ... }"` → `"run { ... }"` (← `(` で始まらないので無変更)
+     */
+    private fun stripSurroundingParens(text: String): String {
+        if (text.length < 2) return text
+        if (text.first() != '(' || text.last() != ')') return text
+        // parenthesis-lambda 形式 (`({...})`) は spec ケース #30 で全体保持の仕様
+        val inner = text.substring(1, text.length - 1)
+        val trimmedInner = inner.trimStart()
+        if (trimmedInner.startsWith('{')) return text
+        // 最外殻の `(` と `)` がペアになっていることを balanced check で確認
+        var depth = 0
+        for ((index, ch) in text.withIndex()) {
+            when (ch) {
+                '(' -> depth++
+                ')' -> {
+                    depth--
+                    if (depth == 0 && index != text.lastIndex) return text
+                }
+            }
+        }
+        return if (depth == 0) text.substring(1, text.length - 1) else text
+    }
+
+    /**
+     * registry に登録された site の filePath が本 IrFile に一致するかを判定する。
+     *
+     * 一致条件 (いずれか):
+     * 1. site.filePath == currentFile.fileEntry.name (= 絶対パス完全一致)
+     * 2. site.filePath が currentFile.fileEntry.name の末尾要素と一致 (= ファイル名のみで一致)
+     * 3. currentFile.fileEntry.name が site.filePath の末尾要素と一致 (= 逆方向)
+     *
+     * Kotlin compile-testing (kctfork) では FIR 側で `psi.containingFile?.name` だけが取れ、
+     * IR 側の `fileEntry.name` は temp dir の絶対パスになりうるため、両方向の末尾一致を許容する。
+     */
+    private fun CaptureCodeExpressionSiteRegistry.Site.matchesFile(irFilePath: String): Boolean {
+        if (filePath == irFilePath) return true
+        val sitePath = filePath
+        val sliding = sitePath.substringAfterLast('/').substringAfterLast('\\')
+        val irLeaf = irFilePath.substringAfterLast('/').substringAfterLast('\\')
+        if (sliding == irLeaf && sliding.isNotEmpty()) return true
+        // 部分パス末尾一致 (例えば "src/main/.../FileA.kt" vs "/tmp/.../FileA.kt")
+        if (irFilePath.endsWith(sitePath) || sitePath.endsWith(irFilePath)) return true
+        return false
     }
 
     /**

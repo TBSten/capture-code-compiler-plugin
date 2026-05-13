@@ -50,7 +50,16 @@ internal object UserArgIrBuilder {
     /**
      * call site で指定された値か、marker class の default 値を deepCopy して返す。
      *
-     * @param markerCall declaration に付けられた `@Marker(...)` の `IrConstructorCall`
+     * task-017 で [markerCall] を nullable に拡張。 EXPRESSION 起源 (式 annotation) では
+     * task-009 spike (R1) より IR phase で marker `IrConstructorCall` が残らないため、
+     * markerCall == null の場合は **直接** default 値経路を使う。 ユーザ定義 parameter の
+     * **動的値** (primitive など) は別 builder ([UserArgPrimitiveIrBuilder]) で扱う想定だが、
+     * 本 ticket scope では「ケース #7 / #67 = filler のみが入った marker」 を主にサポートするため、
+     * 式起源で markerCall == null かつ default 値も無い場合は `null` を返して呼び出し側に
+     * 委ねる (= putValueArgument スキップ → primary constructor の default で fill)。
+     *
+     * @param markerCall declaration に付けられた `@Marker(...)` の `IrConstructorCall`。
+     *                   EXPRESSION 起源では `null`。
      * @param parameterIndex marker primary constructor における parameter の 0-based index
      * @param parameter marker primary constructor の対応する [IrValueParameter] (default 値の取得元)
      * @return ユーザが指定した IR 式 (deepCopy 済) または default 値の IR 式 (deepCopy 済)。
@@ -58,14 +67,17 @@ internal object UserArgIrBuilder {
      *         になるべきケース) は `null`
      */
     fun buildOrDefault(
-        markerCall: IrConstructorCall,
+        markerCall: IrConstructorCall?,
         parameterIndex: Int,
         parameter: IrValueParameter,
     ): IrExpression? {
-        val userExpr = markerCall.getValueArgument(parameterIndex)
-        if (userExpr != null) return userExpr.deepCopyWithSymbols()
+        if (markerCall != null) {
+            val userExpr = markerCall.getValueArgument(parameterIndex)
+            if (userExpr != null) return userExpr.deepCopyWithSymbols()
+        }
 
-        // call site で省略されている → marker class 側の default 値を使う
+        // call site で省略されている / EXPRESSION 起源で markerCall が無い
+        // → marker class 側の default 値を使う
         val defaultExpr = parameter.defaultValue?.expression ?: return null
         return defaultExpr.deepCopyWithSymbols()
     }

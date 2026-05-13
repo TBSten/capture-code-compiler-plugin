@@ -6,6 +6,7 @@ import me.tbsten.capture.code.compat.k2000.filler.FillerBuilder
 import me.tbsten.capture.code.compat.k2000.filler.SourceFillerBuilder
 import me.tbsten.capture.code.compat.k2000.filler.SourceLocationFillerBuilder
 import me.tbsten.capture.code.compat.k2000.userargs.UserArgIrBuilder
+import me.tbsten.capture.code.compat.k2000.userargs.UserArgPrimitiveIrBuilder
 import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
@@ -95,6 +96,7 @@ internal object K2000CapturedSourcesRewriter {
                 markerConstructor = markerConstructor,
                 fillerPlan = fillerPlan,
                 config = config,
+                pluginContext = pluginContext,
             )
         }
 
@@ -205,6 +207,7 @@ internal object K2000CapturedSourcesRewriter {
         markerConstructor: IrConstructorSymbol,
         fillerPlan: FillerPlan,
         config: CaptureCodePluginConfig,
+        pluginContext: IrPluginContext,
     ): IrExpression {
         val markerCall = data.markerCall
         val site = data.site
@@ -222,8 +225,18 @@ internal object K2000CapturedSourcesRewriter {
                     // filler: plugin が自動で値を埋める (ユーザの call site 指定があっても上書き)
                     putValueArgument(index, fillerBuilder.build(site, config))
                 } else {
-                    // ユーザ定義 parameter: call site の指定値 or default 値を deepCopy で詰める
-                    val userExpr = UserArgIrBuilder.buildOrDefault(markerCall, index, parameter)
+                    // ユーザ定義 parameter:
+                    // - declaration / file 起源 (markerCall != null): call site の指定値 or default 値を deepCopy
+                    // - EXPRESSION 起源 (markerCall == null): まず FIR から push された
+                    //   `expressionUserArgs` で primitive 値を IR const 化、 default 値 fallback の順
+                    val userExpr = if (markerCall != null) {
+                        UserArgIrBuilder.buildOrDefault(markerCall, index, parameter)
+                    } else {
+                        val name = parameter.name.asString()
+                        val pushed = data.expressionUserArgs[name]
+                        UserArgPrimitiveIrBuilder.buildOrNull(pushed, parameter, pluginContext)
+                            ?: UserArgIrBuilder.buildOrDefault(null, index, parameter)
+                    }
                     if (userExpr != null) {
                         putValueArgument(index, userExpr)
                     }

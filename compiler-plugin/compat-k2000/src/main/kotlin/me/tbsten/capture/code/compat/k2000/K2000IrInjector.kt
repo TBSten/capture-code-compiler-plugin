@@ -52,10 +52,15 @@ public class K2000IrInjector : IrInjector {
         // task-016 で **file annotation** (`@file:Marker`) も合わせて収集するため、
         // `collector.collectFileAnnotations()` を declaration 走査の前後で呼ぶ
         // (visitor では `IrFile.annotations` を訪問しないため別 entry point が必要)。
+        // task-017 で **expression annotation** (`@Marker (expr)`) も合わせて収集する。
+        // FIR phase で `CaptureCodeExpressionSiteRegistry` に push された (filePath, offset, marker)
+        // 情報を `collector.collectExpressionSites()` が読み出して、対応する file の `CapturedSite`
+        // (kind = EXPRESSION) に変換する。
         for (file in moduleFragment.files) {
             val collector = K2000CapturedSourcesCollector(file, config)
             collector.collectFileAnnotations()
             file.acceptChildrenVoid(collector)
+            collector.collectExpressionSites()
             transformer.capturedSiteData += collector.capturedSiteData
         }
 
