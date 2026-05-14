@@ -14,7 +14,7 @@ import me.tbsten.capture.code.SourceLocation
 // 呼んで検証する (test sourceset 完結方式)。
 // ============================================================================
 
-/** Case A: 最小構成 (Source filler のみ)。 */
+/** 最小構成 (Source filler のみ) の marker。 */
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
@@ -22,7 +22,7 @@ internal annotation class KmpSnippet(
     val source: Source = Source(),
 )
 
-/** Case B: SourceLocation も含む。 */
+/** SourceLocation / CaptureKind も含めた詳細 marker。 */
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
@@ -32,7 +32,7 @@ internal annotation class KmpDetailed(
     val kind: CaptureKind = CaptureKind(),
 )
 
-/** Case C: user-defined parameter (タグ付け)。 */
+/** user-defined parameter (タグ付け) を持つ marker。 */
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)

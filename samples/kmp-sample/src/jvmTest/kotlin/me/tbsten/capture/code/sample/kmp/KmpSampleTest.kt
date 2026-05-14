@@ -13,13 +13,13 @@ import me.tbsten.capture.code.capturedSources
 //
 // design §13 Known Limitations に従う 「test sourceset 完結方式」 のため、
 // kotest junit5 runner (jvm 専用) からまとめて検証する形を取る。 全 target で
-// compile が成功すれば他 target でも plugin は動作している (test-kmp #101-#105 で
-// 別途 verify 済み)。
+// compile が成功すれば他 target でも plugin は動作している (test-kmp の
+// KmpCapturedSourcesTest で別途 verify 済み)。
 // ============================================================================
 
 class KmpSampleTest : StringSpec({
 
-    "Case A: KmpSnippet — Source filler のみ" {
+    "KmpSnippet — Source filler のみの marker をキャプチャ" {
         val captured = capturedSources<KmpSnippet>()
         captured.map { it.source.value }
             .shouldContainExactlyInAnyOrder(
@@ -28,7 +28,7 @@ class KmpSampleTest : StringSpec({
             )
     }
 
-    "Case B: KmpDetailed — Source + SourceLocation + CaptureKind" {
+    "KmpDetailed — Source + SourceLocation + CaptureKind を全部埋める" {
         val captured = capturedSources<KmpDetailed>()
         captured.size shouldBe 1
         val d = captured.single()
@@ -41,7 +41,7 @@ class KmpSampleTest : StringSpec({
         (d.location.endLine >= d.location.startLine) shouldBe true
     }
 
-    "Case C: KmpFeature — user-defined `name` parameter は値を保持し source も埋まる" {
+    "KmpFeature — user-defined `name` parameter は値を保持し source も埋まる" {
         val captured = capturedSources<KmpFeature>()
         captured.size shouldBe 2
         val byName = captured.associateBy { it.name }

@@ -9,18 +9,18 @@ package me.tbsten.capture.code.sample.kmp
 // 全 target で plugin が動いている証拠となる。
 // ============================================================================
 
-// --- Case A: simple snippet ---
+// --- simple snippet (Source filler のみ) ---
 @KmpSnippet
 internal fun kmpSampleAdd(a: Int, b: Int): Int = a + b
 
 @KmpSnippet
 internal fun kmpSampleMul(a: Int, b: Int): Int = a * b
 
-// --- Case B: detailed snippet ---
+// --- detailed snippet (Source + SourceLocation + CaptureKind) ---
 @KmpDetailed
 internal fun kmpSampleHello(): String = "hello from common"
 
-// --- Case C: feature flag-like marker with user-defined name parameter ---
+// --- feature flag-like marker with user-defined name parameter ---
 @KmpFeature(name = "dark-mode")
 internal fun featureDarkMode(): Boolean = true
 
