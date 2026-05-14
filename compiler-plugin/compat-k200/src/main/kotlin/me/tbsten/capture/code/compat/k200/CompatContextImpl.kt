@@ -16,11 +16,10 @@ import org.jetbrains.kotlin.name.ClassId
 /**
  * Kotlin 2.0.x 向けの [CompatContext] 実装。
  *
- * task-030 v2 (Metro pattern) で `IrInjector` + `FirAnalyzer` の 2 種 interface を
- * 統合した結果、 IR 変換と FIR 補助メソッドの両方を本 class が実装する。
+ * 単一の Metro pattern interface (`CompatContext`) に統合された結果、 IR 変換と FIR
+ * 補助メソッドの両方を本 class が実装する。
  *
- * - [transformIr] は [runK200IrTransform] (task-030 v2 で `K2000IrInjector.transform` から
- *   関数化) に委譲。
+ * - [transformIr] は [runK200IrTransform] (top-level 関数) に委譲。
  * - [literalValueOrNull] / [isLiteralExpression] は 2.0.0 ベースの
  *   `FirLiteralExpression<*>` (型パラメータ付き) を dispatch して `value` を読み出す。
  *   Kotlin 2.0.21+ では型パラメータが削除されているため、 同等処理を [k210][CompatContext]

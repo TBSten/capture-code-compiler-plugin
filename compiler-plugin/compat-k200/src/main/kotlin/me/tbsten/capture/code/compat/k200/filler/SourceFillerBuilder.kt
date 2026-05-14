@@ -16,13 +16,11 @@ import org.jetbrains.kotlin.ir.util.constructors
 /**
  * `me.tbsten.capture.code.Source(value: String)` filler の値を IR で構築する [FillerBuilder]。
  *
- * task-005 (Phase 1) で `K200CapturedSourcesRewriter` 内に inline 実装されていた logic を
- * task-013 で builder クラスとして切り出した。今後 task-015 wire up (= source 正規化) や
- * task-016 (file annotation) で同じ builder を再利用する。
+ * declaration / file / expression 起源すべての CapturedSite に対して共通で再利用される。
  *
  * 値: `Source(value = site.source)` — [CapturedSite.source] は collector 段で
  * [me.tbsten.capture.code.feature.captured_sources.normalize.normalize] による正規化を
- * 終えた状態で来る (task-013 で wire up 完了)。
+ * 終えた状態で来る。
  */
 internal class SourceFillerBuilder(
     private val sourceType: IrType,

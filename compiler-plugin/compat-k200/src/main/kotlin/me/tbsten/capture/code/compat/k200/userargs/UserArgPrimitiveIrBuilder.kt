@@ -15,20 +15,20 @@ import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
 
 /**
- * task-017 で追加。 EXPRESSION 起源 (式 annotation) の場合、 task-009 spike (R1) より IR phase で
- * marker `IrConstructorCall` が残らないため、 ユーザが式 annotation に書いた primitive 引数を
+ * EXPRESSION 起源 (式 annotation) の場合、 IR phase で marker `IrConstructorCall` が残らない
+ * (spike R1 で確認済) ため、 ユーザが式 annotation に書いた primitive 引数を
  * **FIR session storage 経由で受け取った値** (= `Any?`) から IR const を再構築する。
  *
  * サポートする primitive 種別:
  * - `Int`, `Long`, `Short`, `Byte`, `Boolean`, `Char`, `Float`, `Double`, `String`
  * - enum (`String` で FqN を受け取り IR の `IrGetEnumValue` を組み立て)
  *
- * 本 ticket scope では「filler のみが入った marker (ケース #7, #67)」が主用途のため、
+ * 現状の主用途は「filler のみが入った marker (ケース #7, #67)」のため、
  * 多くの test ケースでは本 builder が呼ばれない (= [buildOrNull] が `null` を返す)。
  * 上位の rewriter は本 builder が `null` を返した場合に [UserArgIrBuilder.buildOrDefault] で
  * default 値経路にフォールバックする。
  *
- * 非対応 (本 ticket scope 外、将来 task で拡張):
+ * 非対応 (将来拡張予定):
  * - 配列 (`vararg`)
  * - nested annotation
  * - KClass の正確な IR 化 (本 builder では String FqN を受け取って IR を組み立てない)

@@ -1,8 +1,8 @@
 // ----------------------------------------------------------------------------
-// task-037: この module は **publish しない** (internal compat layer)。
-// `:compiler-plugin` の shadowJar に bundled で同梱され、 META-INF/services の
-// CompilerCompat factory 経由でロードされる。 詳細は `:compiler-plugin/compat/
-// build.gradle.kts` の comment 参照。
+// This module is **not published** (internal compat layer).
+// It is bundled into the `:compiler-plugin` shadowJar and loaded via the
+// META-INF/services CompilerCompat factory. See `:compiler-plugin/compat/
+// build.gradle.kts` for details.
 // ----------------------------------------------------------------------------
 plugins {
     id("buildsrc.convention.kotlin-jvm")

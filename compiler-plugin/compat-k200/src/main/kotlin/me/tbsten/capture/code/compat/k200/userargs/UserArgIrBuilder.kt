@@ -7,7 +7,7 @@ import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
 
 /**
  * marker annotation の filler 以外のパラメータ (= ユーザが call site で指定する parameter) を
- * IR 化するための helper (task-014)。
+ * IR 化するための helper。
  *
  * filler 自動値埋め ([me.tbsten.capture.code.compat.k200.filler.FillerBuilder]) との境界:
  * - filler 型 (`Source` / `SourceLocation` / `CaptureKind`) → `FillerBuilder` が値を生成する
@@ -18,12 +18,11 @@ import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
  *
  * 当初 (design §5 B-fir) は「FIR phase で `FirAnnotationCall.argumentMapping` を session-scoped
  * storage に push し、IR phase で読み出す」案だったが、Kotlin 2.0 では SOURCE retention の
- * annotation でも **IR まで `IrConstructorCall` が残る** (task-009 spike で式 annotation は
- * 残らないことを確認したが、宣言 annotation は task-005 / task-013 で残ることを確認済)。
- * このため、collector が marker `IrConstructorCall` を保持しておけば、rewriter は
- * `getValueArgument(i)` で直接ユーザの式を取り出せる。FIR storage を追加するより遥かに
- * シンプル。design §5 B-fir はあくまで「式 annotation 用 (task-017)」の経路として残し、
- * 宣言 annotation (本 ticket) では IR 直接ルートを採用する。
+ * 宣言 annotation でも **IR まで `IrConstructorCall` が残る** (spike で実機確認済。 式 annotation
+ * は残らないので例外)。 このため、collector が marker `IrConstructorCall` を保持しておけば、
+ * rewriter は `getValueArgument(i)` で直接ユーザの式を取り出せる。FIR storage を追加するより
+ * 遥かにシンプル。design §5 B-fir はあくまで「式 annotation 用」の経路として残し、
+ * 宣言 annotation では IR 直接ルートを採用する。
  *
  * ## deepCopy の必要性
  *
@@ -50,13 +49,13 @@ internal object UserArgIrBuilder {
     /**
      * call site で指定された値か、marker class の default 値を deepCopy して返す。
      *
-     * task-017 で [markerCall] を nullable に拡張。 EXPRESSION 起源 (式 annotation) では
-     * task-009 spike (R1) より IR phase で marker `IrConstructorCall` が残らないため、
-     * markerCall == null の場合は **直接** default 値経路を使う。 ユーザ定義 parameter の
-     * **動的値** (primitive など) は別 builder ([UserArgPrimitiveIrBuilder]) で扱う想定だが、
-     * 本 ticket scope では「ケース #7 / #67 = filler のみが入った marker」 を主にサポートするため、
-     * 式起源で markerCall == null かつ default 値も無い場合は `null` を返して呼び出し側に
-     * 委ねる (= putValueArgument スキップ → primary constructor の default で fill)。
+     * [markerCall] は nullable で、 EXPRESSION 起源 (式 annotation) では IR phase に marker
+     * `IrConstructorCall` が残らない (spike R1 で確認済) ため `null` になる。 markerCall == null
+     * の場合は **直接** default 値経路を使う。 ユーザ定義 parameter の **動的値** (primitive など)
+     * は別 builder ([UserArgPrimitiveIrBuilder]) で扱う。 現状は「ケース #7 / #67 = filler のみが
+     * 入った marker」 を主にサポートするため、 式起源で markerCall == null かつ default 値も無い
+     * 場合は `null` を返して呼び出し側に委ねる
+     * (= putValueArgument スキップ → primary constructor の default で fill)。
      *
      * @param markerCall declaration に付けられた `@Marker(...)` の `IrConstructorCall`。
      *                   EXPRESSION 起源では `null`。

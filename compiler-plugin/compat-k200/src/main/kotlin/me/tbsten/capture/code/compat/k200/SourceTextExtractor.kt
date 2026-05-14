@@ -16,12 +16,11 @@ import java.io.File
  * 2. **filesystem 経由**: PSI が無い (LightTree / `NaiveSourceBasedFileEntryImpl` など) 場合は
  *    [IrFile.fileEntry] の `name` (絶対パス) から `File.readText()` する。design §7.3 / R3 対応。
  *
- * ## 配置 (task-013 の設計判断)
+ * ## 配置の設計判断
  *
- * task-013 のチケット §「影響範囲」では `:compiler-plugin` 配下 (`feature/captured_sources/
- * SourceTextExtractor.kt`) に置く案だったが、本 extractor は `IrFile` (= IR API) を直接受け取る
- * ため `:compat-k2000` 配下に置く方が依存関係としても自然 (`:compiler-plugin` は :compat-k2000
- * に依存しているため、逆方向に IR API を持ち込むと循環依存になりかねない)。
+ * 本 extractor は `IrFile` (= IR API) を直接受け取るため `:compat-k200` 配下に置く方が依存関係
+ * としても自然 (`:compiler-plugin` は `:compat-k200` に依存しているため、逆方向に IR API を
+ * 持ち込むと循環依存になりかねない)。
  *
  * Kotlin バージョン違いで PSI / fileEntry API が変わったら、本 file を `:compat-kXXXX` 各 module
  * で並列に書き換える形になる (= compat layer の意義そのまま)。同等の logic を `:compat` 共通に

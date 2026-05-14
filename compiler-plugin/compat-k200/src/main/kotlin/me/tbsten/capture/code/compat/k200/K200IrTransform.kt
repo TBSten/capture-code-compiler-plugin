@@ -16,17 +16,16 @@ import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
 /**
  * Kotlin 2.0.x 向けの IR 変換エントリ。 [CompatContextImpl.transformIr] から呼ばれる。
  *
- * task-008 (Logic A 動的検出) 後の責務:
+ * Logic A (動的 marker 検出) 後の責務:
  * - [CaptureCodeMarkerRegistry] (FIR phase で `@CaptureCode` メタ付き annotation class から動的に
  *   構築された marker FqN 集合) を読み、 その marker が付いた **宣言** を IR 走査で発見する
- *   (task-012 で property / class / object / function / typealias の 5 種に拡張)
+ *   (property / class / object / function / typealias の 5 種に対応)
  * - 発見したサイトを [CapturedSite] にして [K200CapturedSourcesTransformer.capturedSiteData] に蓄積
  * - `capturedSources<T>()` 呼び出しを `listOf(T(source = Source(...)))` へ書き換える
  *   (filler 未指定 marker の場合は 0-arg `T()` の list literal)
  *
- * task-030 v2 (Metro pattern) で `IrInjector` interface を廃止し、 [CompatContextImpl.transformIr] に
- * 統合されたため、 本関数は単独 entry point として呼ばれる。 内部の 2 パス transform (collect →
- * rewrite) ロジックは task-013 のものをそのまま保持。
+ * 単一の Metro pattern interface (`CompatContext.transformIr`) に統合された結果、 本関数は単独
+ * entry point として呼ばれる。 内部の 2 パス transform (collect → rewrite) ロジックはそのまま。
  *
  * 詳細な順序は `compiler-plugin-design.md` §6 Phase ordering 参照。
  */
@@ -35,7 +34,7 @@ internal fun runK200IrTransform(
     pluginContext: IrPluginContext,
     config: CaptureCodePluginConfig,
 ) {
-    // ## task-013 で導入した 2 パス transform
+    // ## 2 パス transform
     //
     // パス 1 (collect): 全 IrFile を順に走査して `capturedSites` を蓄積する。
     // パス 2 (rewrite): 全 IrFile を transform して `capturedSources<T>()` を list literal に書き換える。
@@ -69,12 +68,9 @@ internal fun runK200IrTransform(
  * - [visitCall] で `capturedSources<T>()` を検出し、 [capturedSiteData] から組み立てた
  *   `listOf(T(...))` の [IrCall] に置換する (Logic H)
  *
- * **collect は本 transformer の責務ではない**。 task-013 で transform が 2 パス構成 (パス 1:
- * 全 file collect → パス 2: rewrite) に変わり、 collect は [runK200IrTransform] 側で行う
- * ようになった。 本 transformer は [capturedSiteData] を **外部から populate された
- * read-only スナップショット** として扱う。
- *
- * task-030 v2 で K2000* → K200* に rename されたが、 ロジック自体は task-013 のままで変更なし。
+ * **collect は本 transformer の責務ではない**。 transform は 2 パス構成 (パス 1: 全 file collect →
+ * パス 2: rewrite) で、 collect は [runK200IrTransform] 側で行う。 本 transformer は
+ * [capturedSiteData] を **外部から populate された read-only スナップショット** として扱う。
  *
  * 詳細は `compiler-plugin-design.md` §5 Logic B/C/D/H、 §6 Phase ordering 参照。
  */
