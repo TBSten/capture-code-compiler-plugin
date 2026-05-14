@@ -1,6 +1,7 @@
 [versions]
 
 kotlin = "2.0.0"
+kotlin-k200 = "2.0.0"
 kotlin-k210 = "2.1.0"
 agp = "8.5.2"
 maven-publish = "0.30.0"
@@ -18,6 +19,7 @@ kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", v
 # task-037: buildSrc の publish convention plugin から参照するため library 化
 maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish" }
 kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin" }
+kotlin-compiler-embeddable-k200 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k200" }
 kotlin-compiler-embeddable-k210 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k210" }
 auto-service-annotations = { module = "com.google.auto.service:auto-service-annotations", version.ref = "auto-service" }
 auto-service-ksp = { module = "dev.zacsweers.autoservice:auto-service-ksp", version.ref = "auto-service-ksp" }
