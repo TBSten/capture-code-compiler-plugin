@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp
+package me.tbsten.capture.code.testapp.declarationVariants
 
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
