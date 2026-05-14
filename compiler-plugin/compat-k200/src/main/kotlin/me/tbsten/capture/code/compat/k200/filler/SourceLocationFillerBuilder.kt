@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.compat.k2000.filler
+package me.tbsten.capture.code.compat.k200.filler
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.compat.CapturedSite

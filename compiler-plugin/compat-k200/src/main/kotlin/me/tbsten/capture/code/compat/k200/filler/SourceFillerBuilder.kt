@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.compat.k2000.filler
+package me.tbsten.capture.code.compat.k200.filler
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.compat.CapturedSite
@@ -16,7 +16,7 @@ import org.jetbrains.kotlin.ir.util.constructors
 /**
  * `me.tbsten.capture.code.Source(value: String)` filler の値を IR で構築する [FillerBuilder]。
  *
- * task-005 (Phase 1) で `K2000CapturedSourcesRewriter` 内に inline 実装されていた logic を
+ * task-005 (Phase 1) で `K200CapturedSourcesRewriter` 内に inline 実装されていた logic を
  * task-013 で builder クラスとして切り出した。今後 task-015 wire up (= source 正規化) や
  * task-016 (file annotation) で同じ builder を再利用する。
  *

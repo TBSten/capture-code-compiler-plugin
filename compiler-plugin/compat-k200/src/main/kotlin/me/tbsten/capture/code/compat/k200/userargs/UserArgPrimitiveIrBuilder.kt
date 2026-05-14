@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.compat.k2000.userargs
+package me.tbsten.capture.code.compat.k200.userargs
 
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET

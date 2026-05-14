@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.compat.k2000.userargs
+package me.tbsten.capture.code.compat.k200.userargs
 
 import org.jetbrains.kotlin.ir.declarations.IrValueParameter
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
@@ -9,7 +9,7 @@ import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
  * marker annotation の filler 以外のパラメータ (= ユーザが call site で指定する parameter) を
  * IR 化するための helper (task-014)。
  *
- * filler 自動値埋め ([me.tbsten.capture.code.compat.k2000.filler.FillerBuilder]) との境界:
+ * filler 自動値埋め ([me.tbsten.capture.code.compat.k200.filler.FillerBuilder]) との境界:
  * - filler 型 (`Source` / `SourceLocation` / `CaptureKind`) → `FillerBuilder` が値を生成する
  * - それ以外 (primitive / String / KClass / enum / 配列 / nested annotation) → 本 helper が
  *   call site の IR 式または marker class の `IrValueParameter.defaultValue` から値を取り出す

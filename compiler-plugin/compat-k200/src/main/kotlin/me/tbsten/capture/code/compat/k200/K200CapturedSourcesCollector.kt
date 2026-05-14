@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.compat.k2000
+package me.tbsten.capture.code.compat.k200
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.compat.CaptureCodeExpressionSiteRegistry
@@ -35,7 +35,7 @@ import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
  * compat-k2000 内部だけで使う internal な data class として切り出している (SSOT は CapturedSite、
  * markerCall はあくまで collector → rewriter のローカル受け渡し情報)。
  */
-internal data class K2000CapturedSiteData(
+internal data class K200CapturedSiteData(
     val site: CapturedSite,
     /**
      * `@Marker(...)` 自身に対応する IR コンストラクタ呼び出し。declaration / file 起源では
@@ -44,7 +44,7 @@ internal data class K2000CapturedSiteData(
      * **`null`** になる。
      *
      * rewriter は markerCall == null の場合、ユーザ定義 parameter について
-     * [me.tbsten.capture.code.compat.k2000.userargs.UserArgIrBuilder.buildOrDefault] の
+     * [me.tbsten.capture.code.compat.k200.userargs.UserArgIrBuilder.buildOrDefault] の
      * default 値 fallback 経路と、FIR session から渡された [userArgs] (= primitive 値) で
      * IR 式を構築する経路を併用する。
      *
@@ -86,7 +86,7 @@ internal data class K2000CapturedSiteData(
  *
  * task-016 で **ファイル全体** (`@file:Marker`) も収集対象に追加。`IrElementVisitorVoid` の
  * 再帰経路では `IrFile.annotations` (= file-level annotation) を訪問しないため、本 collector の
- * [collectFileAnnotations] を [K2000IrInjector] パス 1 から **declaration 走査と並行で** 呼び出す
+ * [collectFileAnnotations] を [K200IrInjector] パス 1 から **declaration 走査と並行で** 呼び出す
  * (visitor では拾えないので別 entry point を用意する)。
  *
  * design §4 F2 「ファイル」/ §5 Logic B 参照。
@@ -121,7 +121,7 @@ internal data class K2000CapturedSiteData(
  * 厳密な「marker annotation のみスキップ」モードは task-018 の DSL option (`includeAnnotationLines`)
  * 配線後に検討する。
  */
-internal class K2000CapturedSourcesCollector(
+internal class K200CapturedSourcesCollector(
     private val currentFile: IrFile,
     private val config: CaptureCodePluginConfig,
 ) : IrElementVisitorVoid {
@@ -135,7 +135,7 @@ internal class K2000CapturedSourcesCollector(
      *
      * 公開モデル ([CapturedSite]) のみを参照したい場合は [capturedSites] (compatibility view)。
      */
-    val capturedSiteData: MutableList<K2000CapturedSiteData> = mutableListOf()
+    val capturedSiteData: MutableList<K200CapturedSiteData> = mutableListOf()
 
     /**
      * 既存 API 互換のため、[capturedSiteData] から [CapturedSite] のみを抜き出したリスト。
@@ -208,7 +208,7 @@ internal class K2000CapturedSourcesCollector(
      * marker ごとに 1 件ずつ [CapturedSite] (`kind = FILE`) を生成する (task-016)。
      *
      * `IrElementVisitorVoid` の再帰経路では `IrFile.annotations` を訪問しないため、本 method を
-     * [K2000IrInjector] パス 1 から **declaration 走査とは独立に** 呼ぶ。declaration 走査と
+     * [K200IrInjector] パス 1 から **declaration 走査とは独立に** 呼ぶ。declaration 走査と
      * file 走査を分離することで、双方の収集経路が pollute されないことを保証する。
      *
      * ## 収集仕様
@@ -238,7 +238,7 @@ internal class K2000CapturedSourcesCollector(
         // IrFileEntry.getLineNumber は 0-based なので +1 で 1-based に揃える (filler の design 値域)。
         val endLine = currentFile.fileEntry.getLineNumber(currentFile.fileEntry.maxOffset) + 1
         for ((markerFqn, markerCall) in fileAnnotations) {
-            capturedSiteData += K2000CapturedSiteData(
+            capturedSiteData += K200CapturedSiteData(
                 site = CapturedSite(
                     markerFqn = markerFqn,
                     source = source,
@@ -294,7 +294,7 @@ internal class K2000CapturedSourcesCollector(
             val source = extractExpressionSource(fileText, site.startOffset, site.endOffset) ?: continue
             val startLine = currentFile.fileEntry.getLineNumber(site.startOffset) + 1
             val endLine = currentFile.fileEntry.getLineNumber(site.endOffset) + 1
-            capturedSiteData += K2000CapturedSiteData(
+            capturedSiteData += K200CapturedSiteData(
                 site = CapturedSite(
                     markerFqn = site.markerFqn,
                     source = source,
@@ -459,7 +459,7 @@ internal class K2000CapturedSourcesCollector(
      * 生成する (design §7.7 「重複 marker」: エラーにせず両方の `capturedSources<T>()` に出る)。
      *
      * task-013 でこの method は **location 情報** (`packageFqn` / `filePath` / `startLine` /
-     * `endLine`) も合わせて埋めるようになった。後段 ([K2000CapturedSourcesRewriter]) で
+     * `endLine`) も合わせて埋めるようになった。後段 ([K200CapturedSourcesRewriter]) で
      * `SourceLocation` filler に注入される。
      */
     private fun collectIfMarked(
@@ -478,7 +478,7 @@ internal class K2000CapturedSourcesCollector(
         val startLine = currentFile.fileEntry.getLineNumber(declaration.startOffset) + 1
         val endLine = currentFile.fileEntry.getLineNumber(declaration.endOffset) + 1
         for ((markerFqn, markerCall) in markerAnnotations) {
-            capturedSiteData += K2000CapturedSiteData(
+            capturedSiteData += K200CapturedSiteData(
                 site = CapturedSite(
                     markerFqn = markerFqn,
                     source = source,

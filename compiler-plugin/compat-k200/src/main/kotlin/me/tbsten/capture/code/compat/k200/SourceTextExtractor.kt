@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.compat.k2000
+package me.tbsten.capture.code.compat.k200
 
 import org.jetbrains.kotlin.ir.PsiIrFileEntry
 import org.jetbrains.kotlin.ir.declarations.IrFile

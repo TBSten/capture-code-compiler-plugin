@@ -1,12 +1,12 @@
-package me.tbsten.capture.code.compat.k2000
+package me.tbsten.capture.code.compat.k200
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
-import me.tbsten.capture.code.compat.k2000.filler.CaptureKindFillerBuilder
-import me.tbsten.capture.code.compat.k2000.filler.FillerBuilder
-import me.tbsten.capture.code.compat.k2000.filler.SourceFillerBuilder
-import me.tbsten.capture.code.compat.k2000.filler.SourceLocationFillerBuilder
-import me.tbsten.capture.code.compat.k2000.userargs.UserArgIrBuilder
-import me.tbsten.capture.code.compat.k2000.userargs.UserArgPrimitiveIrBuilder
+import me.tbsten.capture.code.compat.k200.filler.CaptureKindFillerBuilder
+import me.tbsten.capture.code.compat.k200.filler.FillerBuilder
+import me.tbsten.capture.code.compat.k200.filler.SourceFillerBuilder
+import me.tbsten.capture.code.compat.k200.filler.SourceLocationFillerBuilder
+import me.tbsten.capture.code.compat.k200.userargs.UserArgIrBuilder
+import me.tbsten.capture.code.compat.k200.userargs.UserArgPrimitiveIrBuilder
 import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
@@ -33,7 +33,7 @@ import org.jetbrains.kotlin.name.Name
  *
  * 入力された [IrCall] (= `me.tbsten.capture.code.capturedSources<Marker>()`、`Marker` は
  * [me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry] に登録された marker のいずれか) を、
- * [K2000CapturedSourcesCollector] が収集した [K2000CapturedSiteData] のリストから組み立てた
+ * [K200CapturedSourcesCollector] が収集した [K200CapturedSiteData] のリストから組み立てた
  * `listOf(Marker(...))` 相当の [IrCall] (`kotlin.collections.listOf`) に書き換える。
  *
  * ## task-013 で対応した変更点
@@ -46,7 +46,7 @@ import org.jetbrains.kotlin.name.Name
  * - **filler 識別は型ベース**: ユーザ定義パラメータ (task-014) との境界はここで明確にしている。
  *   parameter の `type` が `me.tbsten.capture.code.{Source, SourceLocation, CaptureKind}` の
  *   いずれかと **等しい** 場合のみ filler、それ以外はユーザ定義扱い。design §3.2 / §3.3。
- * - **SourceNormalizer の wire up**: 生 source 取得は [K2000CapturedSourcesCollector] 内で
+ * - **SourceNormalizer の wire up**: 生 source 取得は [K200CapturedSourcesCollector] 内で
  *   [me.tbsten.capture.code.feature.captured_sources.normalize.normalize] を経由するようになった
  *   (task-015 ↔ task-013 の合流地点)。本 rewriter は normalize 済の `site.source` をそのまま使う。
  *
@@ -58,7 +58,7 @@ import org.jetbrains.kotlin.name.Name
  * instance に再投入する。call site で省略されている場合は marker class の primary constructor の
  * `IrValueParameter.defaultValue` を使う。design §5 Logic H / §7.9 / 開発タスク順序 #4。
  */
-internal object K2000CapturedSourcesRewriter {
+internal object K200CapturedSourcesRewriter {
 
     /** 書き換え対象となる `capturedSources<T>()` の完全修飾名。 */
     const val CAPTURED_SOURCES_FQN: String = "me.tbsten.capture.code.capturedSources"
@@ -75,7 +75,7 @@ internal object K2000CapturedSourcesRewriter {
     fun rewriteCapturedSourcesCall(
         original: IrCall,
         markerFqn: String,
-        siteData: List<K2000CapturedSiteData>,
+        siteData: List<K200CapturedSiteData>,
         pluginContext: IrPluginContext,
         config: CaptureCodePluginConfig,
     ): IrCall? {
@@ -202,7 +202,7 @@ internal object K2000CapturedSourcesRewriter {
      * 全 parameter を埋めるよう変更。
      */
     private fun buildMarkerInstance(
-        data: K2000CapturedSiteData,
+        data: K200CapturedSiteData,
         markerType: IrType,
         markerConstructor: IrConstructorSymbol,
         fillerPlan: FillerPlan,
