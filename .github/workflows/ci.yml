@@ -87,86 +87,78 @@ jobs:
             experimental: false
 
           # ------------------------------------------------------------------
-          # Stable tier 拡張 (task-067) — kctfork transitive 不整合は
-          # task-066 で ci 側の test execution を Kotlin minor 別に分岐
-          # (`2.0.* → :compiler-plugin:test + compat-k200:test`,
-          #  `それ以外 → :compiler-plugin:compat-k210:test`) させることで
-          # 回避済。 これにより 2.0.20+ の各 patch 〜 2.3.21 までを全て
-          # stable tier (`experimental: false`) に昇格できる。
-          # 2.4.0-RC のみ pre-release 用 warn ポリシーとして experimental
-          # tier に維持する。
+          # Experimental tier (failable=true) — drift 観察用。
+          # kctfork 0.5.1 は kotlin-compiler-
+          # embeddable:2.0.0 を transitive に持つため、 newer Kotlin baseline
+          # では test classpath 上の compiler-embeddable 2.0.0 と Gradle 側の
+          # Kotlin (matrix value) が混在する。 大部分の build/test は
+          # それでも動くが、 一部 spike テスト等で fail することがある。
           # ------------------------------------------------------------------
           - kotlin: "2.0.20"
             ksp: "2.0.20-1.0.24"
-            experimental: false
+            experimental: true
           - kotlin: "2.0.21"
             ksp: "2.0.21-1.0.28"
-            experimental: false
+            experimental: true
           - kotlin: "2.1.0"
             ksp: "2.1.0-1.0.29"
-            experimental: false
+            experimental: true
           - kotlin: "2.1.10"
             ksp: "2.1.10-1.0.31"
-            experimental: false
+            experimental: true
           - kotlin: "2.1.20"
             ksp: "2.1.20-2.0.1"
-            experimental: false
+            experimental: true
           - kotlin: "2.1.21"
             ksp: "2.1.21-2.0.2"
-            experimental: false
+            experimental: true
           - kotlin: "2.2.0"
             ksp: "2.2.0-2.0.2"
-            experimental: false
+            experimental: true
           - kotlin: "2.2.10"
             ksp: "2.2.10-2.0.2"
-            experimental: false
+            experimental: true
           - kotlin: "2.2.20"
             ksp: "2.2.20-2.0.4"
-            experimental: false
+            experimental: true
           - kotlin: "2.2.21"
             ksp: "2.2.21-2.0.5"
-            experimental: false
+            experimental: true
           - kotlin: "2.3.0"
             ksp: "2.3.0"
-            experimental: false
+            experimental: true
           - kotlin: "2.3.10"
             ksp: "2.3.8"  # KSP 2.3.10 native 未 release のため最新 2.3.x で代用
-            experimental: false
+            experimental: true
           - kotlin: "2.3.20"
             ksp: "2.3.8"  # KSP 2.3.20 native 未 release のため最新 2.3.x で代用
-            experimental: false
+            experimental: true
           - kotlin: "2.3.21"
             ksp: "2.3.8"
-            experimental: false
-
-          # ------------------------------------------------------------------
-          # Experimental tier (failable=true) — pre-release 用 warn ポリシー。
-          # ------------------------------------------------------------------
+            experimental: true
           - kotlin: "2.4.0-RC"
             ksp: "2.3.8"  # KSP 2.4.x 未 release のため最新 2.3.x で代用
             experimental: true
 
           # ------------------------------------------------------------------
-          # JDK 21 の代表 cell (各 minor track の latest patch)。
-          # task-067 で全 stable Kotlin patch を JDK 17 で stable 昇格させた
-          # のに合わせ、 JDK 21 cell も同様に stable tier (`experimental:
-          # false`) に昇格する。
+          # JDK 21 の代表 cell (各 minor track の latest patch + pre-release)。
+          # core stable tier (2.0.x) は jdk 17 only、 21 は experimental 扱い。
           # ------------------------------------------------------------------
           - os: "ubuntu-latest"
             jdk: "21"
             kotlin: "2.0.21"
             ksp: "2.0.21-1.0.28"
-            experimental: false
+            experimental: true
           - os: "ubuntu-latest"
             jdk: "21"
             kotlin: "2.1.21"
             ksp: "2.1.21-2.0.2"
-            experimental: false
+            experimental: true
           - os: "ubuntu-latest"
             jdk: "21"
             kotlin: "2.3.21"
             ksp: "2.3.8"
-            experimental: false
+            experimental: true
     steps:
       - uses: actions/checkout@v4
 
