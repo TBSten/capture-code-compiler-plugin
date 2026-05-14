@@ -9,6 +9,11 @@ ksp = "2.0.0-1.0.24"
 auto-service = "1.1.1"
 auto-service-ksp = "1.2.0"
 kctfork = "0.5.1"
+# task-065: compat-k210 専用 kctfork (Kotlin 2.1.x 互換) entry。
+# 現状の compat-k210:test は kctfork 非依存の pure JVM ServiceLoader test を
+# 採用しているため未使用 (kctfork-core-k210 library もまだ参照箇所なし)。
+# 将来 kctfork-based test を入れる際の version SSOT として予約。
+kctfork-k210 = "0.7.1"
 kotest = "5.9.1"
 shadow = "8.3.5"
 bcv = "0.16.3"
@@ -24,6 +29,8 @@ kotlin-compiler-embeddable-k210 = { module = "org.jetbrains.kotlin:kotlin-compil
 auto-service-annotations = { module = "com.google.auto.service:auto-service-annotations", version.ref = "auto-service" }
 auto-service-ksp = { module = "dev.zacsweers.autoservice:auto-service-ksp", version.ref = "auto-service-ksp" }
 kctfork-core = { module = "dev.zacsweers.kctfork:core", version.ref = "kctfork" }
+# task-065: compat-k210 用 kctfork (未使用予約)。 上記 kctfork-k210 entry 参照。
+kctfork-core-k210 = { module = "dev.zacsweers.kctfork:core", version.ref = "kctfork-k210" }
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
 
