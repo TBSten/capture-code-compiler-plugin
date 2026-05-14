@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp.intermediatehierarchy
+package me.tbsten.capture.code.testapp.kmp.intermediatehierarchy
 
 import me.tbsten.capture.code.CaptureCode
 import me.tbsten.capture.code.Source

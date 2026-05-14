@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp.targetspecific
+package me.tbsten.capture.code.testapp.kmp.targetspecific
 
 import me.tbsten.capture.code.CaptureCode
 import me.tbsten.capture.code.Source

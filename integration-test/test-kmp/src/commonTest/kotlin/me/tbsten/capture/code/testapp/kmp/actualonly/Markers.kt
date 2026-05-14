@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp.actualonly
+package me.tbsten.capture.code.testapp.kmp.actualonly
 
 import me.tbsten.capture.code.CaptureCode
 import me.tbsten.capture.code.Source

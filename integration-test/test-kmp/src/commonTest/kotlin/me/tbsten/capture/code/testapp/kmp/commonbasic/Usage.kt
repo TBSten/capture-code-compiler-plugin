@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp.commonbasic
+package me.tbsten.capture.code.testapp.kmp.commonbasic
 
 // 基本シナリオの use site (commonTest)。jvm / js / wasmJs / linuxX64 / mingwX64 の
 // どの test compilation でも可視。

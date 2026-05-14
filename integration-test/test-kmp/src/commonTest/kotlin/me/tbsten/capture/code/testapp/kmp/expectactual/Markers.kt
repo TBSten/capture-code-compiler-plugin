@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp.expectactual
+package me.tbsten.capture.code.testapp.kmp.expectactual
 
 import me.tbsten.capture.code.CaptureCode
 import me.tbsten.capture.code.Source

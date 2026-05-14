@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp.commonbasic
+package me.tbsten.capture.code.testapp.kmp.commonbasic
 
 import me.tbsten.capture.code.CaptureCode
 import me.tbsten.capture.code.Source
