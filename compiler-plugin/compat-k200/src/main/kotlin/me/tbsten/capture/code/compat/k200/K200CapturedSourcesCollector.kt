@@ -4,6 +4,7 @@ import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.compat.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.compat.CapturedSite
+import me.tbsten.capture.code.compat.effectiveFor
 import me.tbsten.capture.code.feature.captured_sources.normalize.NormalizeOptions
 import me.tbsten.capture.code.feature.captured_sources.normalize.findKDocExtendedStartOffset
 import me.tbsten.capture.code.feature.captured_sources.normalize.normalize
@@ -63,6 +64,16 @@ internal data class K200CapturedSiteData(
      * primitive 引数を持つ marker のキャプチャは将来拡張予定。
      */
     val expressionUserArgs: Map<String, Any?> = emptyMap(),
+    /**
+     * 当該 site に対して計算済の effective config (= global Gradle DSL config に
+     * marker 単位の override [me.tbsten.capture.code.compat.CaptureCodeMarkerOptions]
+     * を適用した結果)。 collector 段で site ごとに計算し、 rewriter の filler builder
+     * (例: `SourceLocationFillerBuilder` の `includeLineInfo`) に渡される。
+     *
+     * marker に override が無い (引数なしの `@CaptureCode`) 場合は global config と
+     * 同一インスタンスになる ([CaptureCodePluginConfig.effectiveFor] の fast-path)。
+     */
+    val effectiveConfig: CaptureCodePluginConfig,
 )
 
 /**
@@ -147,25 +158,25 @@ internal class K200CapturedSourcesCollector(
     /** 同一 [IrFile] に対する複数の declaration を処理する際に file テキストをキャッシュする。 */
     private val cachedFileText: String? by lazy { SourceTextExtractor.loadFileText(currentFile) }
 
-    /** declaration 起源の正規化 option (`config` の `dedent` 等を投影)。 */
-    private val normalizeOptions: NormalizeOptions by lazy { config.toDeclarationNormalizeOptions() }
-
     /**
-     * file 起源 (`@file:Marker`) の正規化 option。
+     * marker FqN ごとの effective config キャッシュ。
      *
-     * `config.includeImports = false` (default) ならば `stripPackageAndImport = true` になり、
-     * `package` 行と `import` 行が除外される。`includeImports = true` の場合はそれらも残す。
-     * declaration 起源と違って `stripLeadingAnnotationLines` が `!includeAnnotationLines` で
-     * 決まる点に注意 (file 起源では先頭の `@file:Marker` 行も除外する選択肢を持つ)。
+     * 同一 marker が file 内に複数 site (例: 4 つの property に同じ marker) ある場合に毎回
+     * `effectiveFor` で新インスタンスを作らないよう、 1 marker 1 回だけ計算する。
      */
-    private val fileNormalizeOptions: NormalizeOptions by lazy { config.toFileNormalizeOptions() }
+    private val effectiveConfigCache: MutableMap<String, CaptureCodePluginConfig> = mutableMapOf()
 
     /**
-     * EXPRESSION 起源の正規化 option。dedent + blank trim のみ。
-     * 式起源は package / import / annotation 行を含まない (FIR session が push する offset は
-     * 式そのものを指す) ため、それらの strip flag は false。
+     * marker FqN に対する effective [CaptureCodePluginConfig] を返す。
+     *
+     * Logic A で per-marker option override (`@CaptureCode(includeKdoc = Override.Yes, ...)`) を
+     * 読み取り済みの [CaptureCodeMarkerRegistry] を参照する。 marker に override が無い場合は
+     * `config` (global Gradle DSL config) と同一インスタンスになる ([effectiveFor] の fast-path)。
      */
-    private val expressionNormalizeOptions: NormalizeOptions by lazy { config.toExpressionNormalizeOptions() }
+    private fun effectiveConfigFor(markerFqn: String): CaptureCodePluginConfig =
+        effectiveConfigCache.getOrPut(markerFqn) {
+            config.effectiveFor(CaptureCodeMarkerRegistry.markerOptionsFor(markerFqn))
+        }
 
     override fun visitElement(element: IrElement) {
         element.acceptChildrenVoid(this)
@@ -229,13 +240,14 @@ internal class K200CapturedSourcesCollector(
         val fileAnnotations = currentFile.annotations.markerAnnotations()
         if (fileAnnotations.isEmpty()) return
 
-        val source = extractFileSource() ?: return
         val packageFqn = currentFile.packageFqName.asString()
         val filePath = currentFile.fileEntry.name
         // file の終端行は `fileEntry.maxOffset` から計算する。
         // IrFileEntry.getLineNumber は 0-based なので +1 で 1-based に揃える (filler の design 値域)。
         val endLine = currentFile.fileEntry.getLineNumber(currentFile.fileEntry.maxOffset) + 1
         for ((markerFqn, markerCall) in fileAnnotations) {
+            val effective = effectiveConfigFor(markerFqn)
+            val source = extractFileSource(effective) ?: continue
             capturedSiteData += K200CapturedSiteData(
                 site = CapturedSite(
                     markerFqn = markerFqn,
@@ -247,6 +259,7 @@ internal class K200CapturedSourcesCollector(
                     endLine = endLine,
                 ),
                 markerCall = markerCall,
+                effectiveConfig = effective,
             )
         }
     }
@@ -289,7 +302,8 @@ internal class K200CapturedSourcesCollector(
             .toList()
 
         for (site in matchingSites) {
-            val source = extractExpressionSource(fileText, site.startOffset, site.endOffset) ?: continue
+            val effective = effectiveConfigFor(site.markerFqn)
+            val source = extractExpressionSource(fileText, site.startOffset, site.endOffset, effective) ?: continue
             val startLine = currentFile.fileEntry.getLineNumber(site.startOffset) + 1
             val endLine = currentFile.fileEntry.getLineNumber(site.endOffset) + 1
             capturedSiteData += K200CapturedSiteData(
@@ -304,6 +318,7 @@ internal class K200CapturedSourcesCollector(
                 ),
                 markerCall = null,
                 expressionUserArgs = site.userArgs,
+                effectiveConfig = effective,
             )
         }
     }
@@ -322,10 +337,15 @@ internal class K200CapturedSourcesCollector(
      * `({ x })` のような特殊形は strip しない (= `({ x })` のまま保つ)。 これは
      * design §3.4 / §7.8 「`run { }` 推奨」の方針と整合する。
      */
-    private fun extractExpressionSource(fullText: String, startOffset: Int, endOffset: Int): String? {
+    private fun extractExpressionSource(
+        fullText: String,
+        startOffset: Int,
+        endOffset: Int,
+        effective: CaptureCodePluginConfig,
+    ): String? {
         val raw = SourceTextExtractor.substringOrNull(fullText, startOffset, endOffset) ?: return null
         val stripped = stripSurroundingParens(raw)
-        return normalize(stripped, expressionNormalizeOptions)
+        return normalize(stripped, effective.toExpressionNormalizeOptions())
     }
 
     /**
@@ -404,10 +424,10 @@ internal class K200CapturedSourcesCollector(
      * [CaptureCodeMarkerRegistry] に登録された FqN を持つ [IrClass] の `startOffset..endOffset`
      * 範囲を raw text から drop する形を採る。
      */
-    private fun extractFileSource(): String? {
+    private fun extractFileSource(effective: CaptureCodePluginConfig): String? {
         val fullText = cachedFileText ?: return null
         val withoutMarkers = stripMarkerClassDeclarations(fullText)
-        return normalize(withoutMarkers, fileNormalizeOptions)
+        return normalize(withoutMarkers, effective.toFileNormalizeOptions())
     }
 
     /**
@@ -470,13 +490,14 @@ internal class K200CapturedSourcesCollector(
         val markerAnnotations = declaration.annotations.markerAnnotations()
         if (markerAnnotations.isEmpty()) return
 
-        val source = extractDeclarationSource(declaration) ?: return
         val packageFqn = currentFile.packageFqName.asString()
         val filePath = currentFile.fileEntry.name
         // IrFileEntry.getLineNumber は 0-based なので +1 で 1-based に揃える (filler の design 値域)。
         val startLine = currentFile.fileEntry.getLineNumber(declaration.startOffset) + 1
         val endLine = currentFile.fileEntry.getLineNumber(declaration.endOffset) + 1
         for ((markerFqn, markerCall) in markerAnnotations) {
+            val effective = effectiveConfigFor(markerFqn)
+            val source = extractDeclarationSource(declaration, effective) ?: continue
             capturedSiteData += K200CapturedSiteData(
                 site = CapturedSite(
                     markerFqn = markerFqn,
@@ -488,6 +509,7 @@ internal class K200CapturedSourcesCollector(
                     endLine = endLine,
                 ),
                 markerCall = markerCall,
+                effectiveConfig = effective,
             )
         }
     }
@@ -526,7 +548,10 @@ internal class K200CapturedSourcesCollector(
      * - declaration の offset が UNDEFINED (-1) または不正
      * - offset が file text の範囲外
      */
-    private fun extractDeclarationSource(declaration: IrDeclarationBase): String? {
+    private fun extractDeclarationSource(
+        declaration: IrDeclarationBase,
+        effective: CaptureCodePluginConfig,
+    ): String? {
         val fullText = cachedFileText ?: return null
 
         val startOffset = declaration.startOffset
@@ -539,12 +564,12 @@ internal class K200CapturedSourcesCollector(
         // 単純に startOffset を前方拡張すると `@Marker` 行が skip されない問題がある
         // (skipLeadingAnnotationLines は連続する `@` 行のみ skip するため、 KDoc 行で中断する)。
         // そこで KDoc 抽出と body 抽出を **分離** し、 後で連結する戦略を採る。
-        val kdocPrefix = if (config.includeKdoc) extractKdocPrefix(fullText, startOffset) else ""
+        val kdocPrefix = if (effective.includeKdoc) extractKdocPrefix(fullText, startOffset) else ""
 
         val rawStart = skipLeadingAnnotationLines(fullText, startOffset, endOffset)
         val rawBody = SourceTextExtractor.substringOrNull(fullText, rawStart, endOffset) ?: return null
         val rawText = if (kdocPrefix.isNotEmpty()) kdocPrefix + "\n" + rawBody else rawBody
-        return normalize(rawText, normalizeOptions)
+        return normalize(rawText, effective.toDeclarationNormalizeOptions())
     }
 
     /**

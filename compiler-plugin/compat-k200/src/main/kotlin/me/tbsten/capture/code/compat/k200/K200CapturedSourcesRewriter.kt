@@ -94,7 +94,11 @@ internal object K200CapturedSourcesRewriter {
                 markerType = markerType,
                 markerConstructor = markerConstructor,
                 fillerPlan = fillerPlan,
-                config = config,
+                // Per-marker option override (Logic A): site-level effective config を
+                // 使うことで `SourceLocation` filler の `includeLineInfo` などが marker
+                // 単位で反映される。 fallback として global `config` も併用 (古いコード経路
+                // から呼ばれた場合に備え)。
+                config = data.effectiveConfig,
                 pluginContext = pluginContext,
             )
         }
