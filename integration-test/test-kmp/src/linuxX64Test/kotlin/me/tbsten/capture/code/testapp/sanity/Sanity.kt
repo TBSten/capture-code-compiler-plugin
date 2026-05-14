@@ -1,7 +1,7 @@
 package me.tbsten.capture.code.testapp.sanity
 
 import me.tbsten.capture.code.capturedSources
-import me.tbsten.capture.code.testapp.case101.Snippets_KmpCase101
+import me.tbsten.capture.code.testapp.commonbasic.CommonBasicMarker
 
 // ============================================================================
 // sanity: linuxX64 target で `capturedSources<T>()` の IR 書き換えが
@@ -9,5 +9,5 @@ import me.tbsten.capture.code.testapp.case101.Snippets_KmpCase101
 // 参照。
 // ============================================================================
 internal object IrFileEntrySanity {
-    val captured: List<Snippets_KmpCase101> = capturedSources<Snippets_KmpCase101>()
+    val captured: List<CommonBasicMarker> = capturedSources<CommonBasicMarker>()
 }

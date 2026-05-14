@@ -1,7 +1,7 @@
 package me.tbsten.capture.code.testapp.sanity
 
 import me.tbsten.capture.code.capturedSources
-import me.tbsten.capture.code.testapp.case101.Snippets_KmpCase101
+import me.tbsten.capture.code.testapp.commonbasic.CommonBasicMarker
 
 // ============================================================================
 // sanity: js target で `capturedSources<T>()` の IR 書き換えが起動する
@@ -15,10 +15,10 @@ import me.tbsten.capture.code.testapp.case101.Snippets_KmpCase101
 // ただし object 内 property として参照されるため dead-code elimination は
 // 起こらず、 compile 時に必ず IR transformer が起動する。
 //
-// 検証する case: #101 (commonTest marker + commonTest use site)。 全 target で
-// 同じく成立すべき最小シナリオを 1 件選んでいる (target 別シナリオ #102/#104/
-// #105 は jvmTest で網羅)。
+// 検証するシナリオ: commonTest marker + commonTest use site (KMP 基本)。 全 target で
+// 同じく成立すべき最小シナリオを 1 件選んでいる (target 別 / expect-actual /
+// intermediate hierarchy シナリオは jvmTest で網羅)。
 // ============================================================================
 internal object IrFileEntrySanity {
-    val captured: List<Snippets_KmpCase101> = capturedSources<Snippets_KmpCase101>()
+    val captured: List<CommonBasicMarker> = capturedSources<CommonBasicMarker>()
 }
