@@ -3,7 +3,7 @@ package me.tbsten.capture.code.sample.jvm.cookbook
 import me.tbsten.capture.code.sample.jvm.Route
 
 // ============================================================================
-// Case 03: user-defined parameter を持つ marker
+// user-defined parameter を持つ marker のサンプル
 //
 // REST endpoint カタログを作るユースケース。 `method` と `path` は呼び出し側で
 // 指定し、 `source` は plugin が埋める。 こうした user parameter は filler と

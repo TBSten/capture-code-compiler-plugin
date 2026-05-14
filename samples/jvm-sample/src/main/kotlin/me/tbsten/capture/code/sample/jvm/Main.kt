@@ -6,7 +6,7 @@ import me.tbsten.capture.code.capturedSources
 // JVM sample のエントリーポイント。
 //
 // 各 marker に対して `capturedSources<T>()` を呼び、 plugin が module 内の
-// 使用箇所を集めて埋めてくれた結果を stdout に出力する。 cookbook 各ケースの
+// 使用箇所を集めて埋めてくれた結果を stdout に出力する。 cookbook 各サンプルの
 // 動作を一望できる demo として機能する。
 //
 // 実行方法:
@@ -14,13 +14,13 @@ import me.tbsten.capture.code.capturedSources
 // ============================================================================
 
 fun main() {
-    printSection("Case 01: 単純な marker (Snippet)") {
+    printSection("単純な marker (Snippet)") {
         capturedSources<Snippet>().forEach { snippet ->
             println("- source: ${snippet.source.value}")
         }
     }
 
-    printSection("Case 02: 全 filler (DetailedSnippet)") {
+    printSection("全 filler (DetailedSnippet)") {
         capturedSources<DetailedSnippet>().forEach { d ->
             println("- kind=${d.kind.value} pkg=${d.location.packageName}")
             println("  line=${d.location.startLine}-${d.location.endLine}")
@@ -28,21 +28,21 @@ fun main() {
         }
     }
 
-    printSection("Case 03: user-defined params (Route)") {
+    printSection("user-defined params (Route)") {
         capturedSources<Route>().forEach { r ->
             println("- ${r.method} ${r.path}")
             println("  impl: ${oneLine(r.source.value)}")
         }
     }
 
-    printSection("Case 04: 全宣言ターゲット (TypeDoc)") {
+    printSection("全宣言ターゲット (TypeDoc)") {
         capturedSources<TypeDoc>().forEach { t ->
             println("- kind=${t.kind.value}")
             println("  source: ${oneLine(t.source.value)}")
         }
     }
 
-    printSection("Case 05: file annotation (FileTopic)") {
+    printSection("file annotation (FileTopic)") {
         capturedSources<FileTopic>().forEach { f ->
             println("- topic=${f.topic}")
             // ファイル全体が source に入っているので、 行数だけ示す。

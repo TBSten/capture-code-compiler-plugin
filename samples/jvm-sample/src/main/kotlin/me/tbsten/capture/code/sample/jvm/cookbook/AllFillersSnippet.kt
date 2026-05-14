@@ -3,7 +3,7 @@ package me.tbsten.capture.code.sample.jvm.cookbook
 import me.tbsten.capture.code.sample.jvm.DetailedSnippet
 
 // ============================================================================
-// Case 02: 3 種類の filler (Source / SourceLocation / CaptureKind)
+// 3 種類の filler を同時に使うサンプル (Source / SourceLocation / CaptureKind)
 //
 // `@DetailedSnippet` には Source / SourceLocation / CaptureKind の全 filler が
 // 宣言されているため、 plugin はそれぞれを埋める。

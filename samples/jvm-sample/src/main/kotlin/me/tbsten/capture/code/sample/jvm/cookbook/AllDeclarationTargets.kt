@@ -5,7 +5,8 @@ package me.tbsten.capture.code.sample.jvm.cookbook
 import me.tbsten.capture.code.sample.jvm.TypeDoc
 
 // ============================================================================
-// Case 04: 全宣言ターゲット (class / object / function / typealias)
+// 全宣言ターゲットを単一 marker でマークするサンプル
+// (class / object / function / typealias)
 //
 // `@TypeDoc` は AnnotationTarget を class / function / property / typealias と
 // 広めに宣言してあるため、 同じ marker で複数種類の宣言をマークできる。

@@ -3,9 +3,9 @@ package me.tbsten.capture.code.sample.jvm.cookbook
 import me.tbsten.capture.code.sample.jvm.Snippet
 
 // ============================================================================
-// Case 01: 単純な marker + Source filler
+// 単純な marker + Source filler の最小サンプル
 //
-// 最小ケース: marker を付けた関数の本文を Source として取得する。
+// marker を付けた関数の本文を Source として取得する最小シナリオ。
 // `capturedSources<Snippet>()` を呼ぶと、 同一 module 内の `@Snippet` で
 // マークされた宣言が `List<Snippet>` として得られる。
 // ============================================================================

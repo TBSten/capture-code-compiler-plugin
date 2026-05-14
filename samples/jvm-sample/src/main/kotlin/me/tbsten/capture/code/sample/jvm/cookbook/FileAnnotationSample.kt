@@ -6,7 +6,7 @@
 package me.tbsten.capture.code.sample.jvm.cookbook
 
 // ============================================================================
-// Case 05: file annotation
+// file-level annotation で「ファイル全体の source」 を取得するサンプル
 //
 // `@file:FileTopic(...)` のように **file-level annotation** に marker を付ける
 // と、 plugin は **そのファイル全体** の source code を Source filler に埋める。
