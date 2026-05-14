@@ -20,6 +20,10 @@ import me.tbsten.capture.code.capturedSources
 //     `val r = @Marker() (expr); return r` のローカル変数経由に変更。
 //   - ケース #58/59/60 (when / if / try): `@Marker when { ... }` も同様にカッコ周辺の parser 制約あり。
 //     `@Marker() (when { ... })` の形で対応。
+//
+// KNOWN-LIMITATION (2026-05-14): 上記の `@Marker() (expr)` 必須形式 (= `@Marker (expr)` が直接書けない)
+// は Kotlin K2 parser の挙動として永続的に許容する。 plugin 側では追加対応しない。
+// design 文書 §13.1 (Known Limitations) 参照。
 
 // ============================================================================
 // ケース7: 式のキャプチャ
@@ -331,12 +335,12 @@ class ExpressionCasesTest : StringSpec({
     }
 
     "ケース30: @Marker ({ ... }) のパーレン括り" {
-        // 注記: spec のオリジナル expected は `({ println(\"clicked\") })` だが、
-        // Kotlin 2.0 K2 parser は `@Marker() (expr)` 構文で **annotation が 内側 lambda に直接乗る** 形に
-        // 解釈する (FIR の `FirAnonymousFunctionExpression` 観察結果)。 結果として site source は
-        // `{ println(\"clicked\") }` (parenthesis 外側 1 ペアなし) になる。
-        // design §3.4 / task-009 spike (f) で「`({ ... })` 形は K2 で挙動が安定しない」と明記済み。
-        // task-017 では `@Marker() run { ... }` 形を推奨する。
+        // KNOWN-LIMITATION (2026-05-14): K2 parser が `@Marker () ({...})` の内側 lambda に
+        // annotation を直接乗せる挙動のため、 spec の期待値 (`({ println(\"clicked\") })`、
+        // parenthesis 外殻を含む) と実装現実 (`{ println(\"clicked\") }`、 parenthesis 外殻 1 ペアなし)
+        // が乖離。 design 文書 §13 Known Limitations §13.2 参照。 本ケースは永続的に
+        // 「実装現実に合わせた縮退期待値」を保持し、 plugin 側での追加対応は行わない方針。
+        // 回避策: design §3.4 / §7.8 の通り `@Marker() run { ... }` 形を推奨。
         capturedSources<CaptureLambda_Case30>() shouldBe listOf(
             CaptureLambda_Case30(source = Source(value = "{ println(\"clicked\") }")),
         )

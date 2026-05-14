@@ -57,20 +57,15 @@ class KmpCasesTest : StringSpec({
     }
 
     "ケース103: expect / actual 両方に annotation を付与" {
-        // 観測仕様 (K2 IR の制約により、 design §7.6 の「2 件」期待値から 1 件に縮退):
-        //
-        //   K2 IR の expect/actual マッチングでは、同一 compilation invocation 内で actual が
-        //   存在する場合、 expect 宣言は IR module fragment から消去される。 結果として
-        //   expect 側に付いた marker annotation は IR phase に到達せず、 Logic B (IR collector) は
-        //   actual 側 (annotation 付き) のみをキャプチャできる。
+        // KNOWN-LIMITATION (2026-05-14): K2 IR の expect/actual マッチングで、 同一 compilation
+        // invocation 内に actual が存在する場合 **expect 宣言は IR module fragment から消去** され、
+        // expect 側に付いた marker annotation は IR phase に到達しない。 結果として Logic B
+        // (IR collector) は actual 側 (annotation 付き) のみをキャプチャできる。
         //
         //   →  design §7.6 の「expect + actual 両 annotated → 2 件」は本実装では達成不能。
         //      ケース #104 (actual のみ annotated → 1 件) と同じ観測結果になる。
-        //
-        // TODO: FIR phase で expect 宣言の annotation を検出して registry に push し、
-        //   IR phase が actual の capture と合わせて 2 件出力できるようにする
-        //   (`CaptureCodeExpressionSiteRegistry` と同じ FIR→IR bridge pattern)。
-        //   実装は本 task scope 外 → task-034 (polish) もしくは新規 ticket で扱う。
+        //      plugin 側では追加対応せず Known Limitations として固定化する方針 (2026-05-14 確定)。
+        //      詳細は design 文書 §13 Known Limitations §13.3 参照。
         //
         // 本テストは「現実の K2 IR の挙動」を退行検知するための regression test として、
         // 1 件 (actual のみ) が確実にキャプチャされることを検証する。
