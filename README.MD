@@ -257,6 +257,8 @@ Full list with reproductions and root-cause analysis:
   — how to add a new `compat-kXYZ` module.
 - [compiler-plugin/compat/README.md](compiler-plugin/compat/README.md) —
   compat layer architecture in depth.
+- [docs/publishing.md](docs/publishing.md) — Maven Central publishing setup,
+  credentials, and release workflow.
 
 The test catalog lives in [test-cases.md](test-cases.md), with 100 cases.
 
