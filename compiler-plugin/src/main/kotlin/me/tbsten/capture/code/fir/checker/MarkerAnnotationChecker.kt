@@ -38,12 +38,12 @@ import org.jetbrains.kotlin.name.StandardClassIds
  * `compiler-plugin-design.md` §5 Logic F に列挙された 6 つの制約をチェックし、違反時に
  * `CaptureCodeDiagnostics` の対応する factory で `reporter.reportOn(...)` を行う。
  *
- * 1. visibility が `internal` / `private` のいずれでもない → [CaptureCodeDiagnostics.MARKER_NOT_INTERNAL_OR_PRIVATE]
- * 2. `@Retention` が `SOURCE` 以外 → [CaptureCodeDiagnostics.MARKER_RETENTION_NOT_SOURCE]
- * 3. `@Target(...)` が空 / 未指定 → [CaptureCodeDiagnostics.MARKER_TARGET_EMPTY]
- * 4. parameter 型が Kotlin annotation 制約外 → [CaptureCodeDiagnostics.MARKER_PARAMETER_TYPE_INVALID]
- * 5. filler 型 parameter にデフォルト値が無い → [CaptureCodeDiagnostics.MARKER_FILLER_REQUIRES_DEFAULT]
- * 6. marker 自身が `expect` 宣言 → [CaptureCodeDiagnostics.MARKER_IS_EXPECT_ANNOTATION]
+ * 1. visibility が `internal` / `private` のいずれでもない → [CaptureCodeDiagnostics.CC_MARKER_VISIBILITY_VIOLATION]
+ * 2. `@Retention` が `SOURCE` 以外 → [CaptureCodeDiagnostics.CC_MARKER_RETENTION_VIOLATION]
+ * 3. `@Target(...)` が空 / 未指定 → [CaptureCodeDiagnostics.CC_MARKER_TARGET_EMPTY]
+ * 4. parameter 型が Kotlin annotation 制約外 → [CaptureCodeDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID]
+ * 5. filler 型 parameter にデフォルト値が無い → [CaptureCodeDiagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT]
+ * 6. marker 自身が `expect` 宣言 → [CaptureCodeDiagnostics.CC_MARKER_IS_EXPECT]
  *
  * Logic A の `CaptureCodeMarkerClassChecker` (registration only) とは責務が分離されている。
  * 本 checker は **診断のみ** を行い、registry への登録は副作用としても起こさない。
@@ -72,7 +72,7 @@ internal object MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.
         // marker 自身を expect 宣言にすることは design §7.6 で非対応。
         // 一番先に判定して、他の診断が expect 側の status とぶつからないようにする。
         if (declaration.isExpect) {
-            reporter.reportOn(source, CaptureCodeDiagnostics.MARKER_IS_EXPECT_ANNOTATION, context)
+            reporter.reportOn(source, CaptureCodeDiagnostics.CC_MARKER_IS_EXPECT, context)
         }
 
         // ------- (1) visibility -------
@@ -100,7 +100,7 @@ internal object MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.
         if (visibility != Visibilities.Internal && visibility != Visibilities.Private) {
             reporter.reportOn(
                 declaration.source,
-                CaptureCodeDiagnostics.MARKER_NOT_INTERNAL_OR_PRIVATE,
+                CaptureCodeDiagnostics.CC_MARKER_VISIBILITY_VIOLATION,
                 context,
             )
         }
@@ -116,7 +116,7 @@ internal object MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.
         if (declaration.getRetention(context.session) != AnnotationRetention.SOURCE) {
             reporter.reportOn(
                 declaration.source,
-                CaptureCodeDiagnostics.MARKER_RETENTION_NOT_SOURCE,
+                CaptureCodeDiagnostics.CC_MARKER_RETENTION_VIOLATION,
                 context,
             )
         }
@@ -139,7 +139,7 @@ internal object MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.
             // @Target が無い場合は declaration 全体に対して reportOn
             reporter.reportOn(
                 declaration.source,
-                CaptureCodeDiagnostics.MARKER_TARGET_EMPTY,
+                CaptureCodeDiagnostics.CC_MARKER_TARGET_EMPTY,
                 context,
             )
             return
@@ -148,7 +148,7 @@ internal object MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.
         if (sites.isEmpty()) {
             reporter.reportOn(
                 targetAnnotation.source,
-                CaptureCodeDiagnostics.MARKER_TARGET_EMPTY,
+                CaptureCodeDiagnostics.CC_MARKER_TARGET_EMPTY,
                 context,
             )
         }
@@ -190,7 +190,7 @@ internal object MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.
             if (!isAllowed) {
                 reporter.reportOn(
                     parameterSymbol.source ?: declaration.source,
-                    CaptureCodeDiagnostics.MARKER_PARAMETER_TYPE_INVALID,
+                    CaptureCodeDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID,
                     parameterName,
                     context,
                 )
@@ -204,7 +204,7 @@ internal object MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.
                 if (!hasDefault) {
                     reporter.reportOn(
                         parameterSymbol.source ?: declaration.source,
-                        CaptureCodeDiagnostics.MARKER_FILLER_REQUIRES_DEFAULT,
+                        CaptureCodeDiagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT,
                         parameterName,
                         context,
                     )

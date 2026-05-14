@@ -23,7 +23,7 @@ import org.jetbrains.kotlin.fir.types.coneTypeOrNull
  * Logic G: `capturedSources<T>()` 呼び出しに対する FIR checker。
  *
  * `T` が `@CaptureCode` メタ付き annotation 型でない場合に
- * [CapturedSourcesCheckerDiagnostics.CAPTURED_SOURCES_T_NOT_CAPTURE_CODE_MARKER] error を報告する。
+ * [CapturedSourcesCheckerDiagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE] error を報告する。
  *
  * これがないと、ユーザは `T : Annotation` の generic bound だけを満たす一般 annotation を
  * 渡せてしまい、plugin は何も書き換えないため `capturedSources<T>()` は runtime に
@@ -95,7 +95,7 @@ internal object CapturedSourcesCallChecker : FirExpressionChecker<FirFunctionCal
         val classId = compat.classIdOf(classSymbol) ?: return
         reporter.reportOn(
             source = expression.source,
-            factory = CapturedSourcesCheckerDiagnostics.CAPTURED_SOURCES_T_NOT_CAPTURE_CODE_MARKER,
+            factory = CapturedSourcesCheckerDiagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
             a = classId.asSingleFqName().asString(),
             context = context,
         )

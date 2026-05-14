@@ -15,6 +15,13 @@ import org.jetbrains.kotlin.psi.KtElement
  * **`CapturedSourcesCheckerDiagnostics.kt`** という prefix 付き専用ファイルにしている
  * (ticket-011 「並列作業ルール」)。
  *
+ * task-034 (Phase 5 polish) で:
+ *
+ * - メッセージ文面を [CaptureCodeDiagnosticMessages] (bilingual SSOT) に分離
+ * - `CC_<feature>_<rule>` 命名規則に合わせて property 名を整理
+ *   ([CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE])
+ * - `Suggested fix:` ヒントをメッセージに追加
+ *
  * Renderer は `RootDiagnosticRendererFactory.registerFactory` で 1 度だけ登録される。
  * 同一 JVM 上で複数コンパイル (kctfork の連続 test 実行など) が走っても二重登録にならないよう、
  * [ensureRegistered] で AtomicBoolean ガードを置く。
@@ -24,15 +31,16 @@ import org.jetbrains.kotlin.psi.KtElement
 internal object CapturedSourcesCheckerDiagnostics {
 
     /**
-     * `capturedSources<T>()` の `T` が `@CaptureCode` メタ付き annotation 型ではないときに発する error。
+     * `CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE` — `capturedSources<T>()` の `T` が `@CaptureCode`
+     * メタ付き annotation 型ではないときに発する error。
      *
      * パラメータ A (String): T の表示用文字列 (FqN ベース)。
      *
      * メッセージは [CapturedSourcesCheckerDiagnosticRendererFactory] の `MAP` で定義する。
      */
-    val CAPTURED_SOURCES_T_NOT_CAPTURE_CODE_MARKER: KtDiagnosticFactory1<String> =
+    val CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE: KtDiagnosticFactory1<String> =
         KtDiagnosticFactory1(
-            name = "CAPTURED_SOURCES_T_NOT_CAPTURE_CODE_MARKER",
+            name = "CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE",
             severity = Severity.ERROR,
             defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
             psiType = KtElement::class,
@@ -55,6 +63,9 @@ internal object CapturedSourcesCheckerDiagnostics {
 /**
  * [CapturedSourcesCheckerDiagnostics] の各 factory に対するメッセージ renderer。
  *
+ * 文面の SSOT は [CaptureCodeDiagnosticMessages]。`CAPTURECODE_LOCALE` 環境変数で
+ * 英語 / 日本語 / 併記を切替できる (default = 併記)。
+ *
  * `RootDiagnosticRendererFactory` に登録することで、`reporter.reportOn(...)` 呼び出しが
  * 適切なエラーメッセージ付きで compile error として出力されるようになる。
  * 未登録の場合でも compile error 自体は発生するが、メッセージが generic になる。
@@ -63,9 +74,10 @@ internal object CapturedSourcesCheckerDiagnosticRendererFactory : BaseDiagnostic
     override val MAP: KtDiagnosticFactoryToRendererMap =
         KtDiagnosticFactoryToRendererMap("CapturedSourcesChecker").also { map ->
             map.put(
-                CapturedSourcesCheckerDiagnostics.CAPTURED_SOURCES_T_NOT_CAPTURE_CODE_MARKER,
-                "Type parameter T of capturedSources<T>() must be annotated with @CaptureCode. " +
-                    "{0} does not have @CaptureCode.",
+                CapturedSourcesCheckerDiagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
+                CaptureCodeDiagnosticMessages.render(
+                    CaptureCodeDiagnosticMessages.CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
+                ),
                 org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
             )
         }
