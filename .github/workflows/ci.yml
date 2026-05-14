@@ -9,7 +9,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # core-matrix: Kotlin × JDK の全 stable + 最新 pre-release を回す主要 matrix。
   #
-  # task-044 で拡張: Kotlin 2.0.0 以降の全 minor track (initial + latest patch
+  # Kotlin 2.0.0 以降の全 minor track (initial + latest patch
   # = 代表 2 cell × 4 tracks = 8 stable) + 最新 pre-release 1 つを含める。
   # 各 minor track の patch level 全数 (例 2.0.10/2.0.20) は CI コストの観点
   # から省略する (代表 patch level だけで drift 観察として十分)。
@@ -54,8 +54,8 @@ jobs:
           #   - D1 drift (FirLiteralExpression<T> → FirLiteralExpression) が
           #     2.0.21 で発生。 `compat-k200` の compile が 2.0.21 native
           #     classpath では落ちる (本ローカルで実機確認済)。
-          #   - これは task-028 で catalog 済の既知 drift で、 `compat-k210`
-          #     側が 2.1.x baseline として既に absorb 済。
+          #   - これは既知 drift で、 `compat-k210` 側が 2.1.x baseline と
+          #     して既に absorb 済。
           #   - 既存 plugin の出荷 artifact は **shadowJar 内に
           #     `compat-k200` (2.0.0 baseline) + `compat-k210` (2.1.0 baseline)
           #     を bundle して** いるため、 consumer の Kotlin が 2.0.21 でも
@@ -71,7 +71,7 @@ jobs:
 
           # ------------------------------------------------------------------
           # Experimental tier (failable=true) — drift 観察用。
-          # task-031 完了メモにある通り kctfork 0.5.1 は kotlin-compiler-
+          # kctfork 0.5.1 は kotlin-compiler-
           # embeddable:2.0.0 を transitive に持つため、 newer Kotlin baseline
           # では test classpath 上の compiler-embeddable 2.0.0 と Gradle 側の
           # Kotlin (matrix value) が混在する。 大部分の build/test は
@@ -161,7 +161,7 @@ jobs:
             --no-configuration-cache \
             --stacktrace
 
-      # task-040: TestKit + fixture project による真の E2E。 別 step に分けて
+      # TestKit + fixture project による真の E2E。 別 step に分けて
       # CI ログを読みやすくする。
       - name: Run Gradle plugin E2E tests (TestKit)
         continue-on-error: ${{ matrix.experimental }}
@@ -187,7 +187,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      # task-031: Kotlin 2.1.x 向け compat module の compile-only check。
+      # Kotlin 2.1.x 向け compat module の compile-only check。
       # 2.1.x native API (top-level `IrCallImpl(...)` factory /
       # `IrConstructorCallImpl.Companion.fromSymbolOwner` 拡張 /
       # `IrConstKind` 非ジェネリック化 など) との API 整合を CI で保証する。
@@ -199,7 +199,7 @@ jobs:
             --stacktrace
 
       # 非 JVM target の sanity (compile success レベル)。
-      # task-025 で意図していたのは「全 target で IR transformer の compile が
+      # 目的は「全 target で IR transformer の compile が
       # 通る」ことの確認。 `:linuxX64Test` / `:jsTest` / `:wasmJsTest` は
       # link + ランタイム実行まで走り、 GitHub-hosted runner の Konan cache
       # 整合性問題 (`platform.builtin is cached but its dependency isn't:

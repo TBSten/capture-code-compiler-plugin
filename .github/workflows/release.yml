@@ -1,8 +1,7 @@
 # ----------------------------------------------------------------------------
 # capture-code-compiler-plugin Release workflow
 #
-# 本 workflow は **impl-plan.md §2 Phase 5 task 5.6 (task-038)** に従い、
-# `vX.Y.Z` 形式の tag push を契機に以下を自動実行する:
+# 本 workflow は `vX.Y.Z` 形式の tag push を契機に以下を自動実行する:
 #
 #   1. checkout (fetch-depth: 0 で tag 履歴を取得)
 #   2. JDK 21 + Gradle wrapper setup
@@ -44,7 +43,7 @@
 #
 # 本 workflow は ubuntu-latest 単独で publish する。 KMP iOS/macOS target は
 # `enableAppleTargets=false` の default 設定では publish されない (= Apple
-# 向け artifact が必要になったら macos runner job を追加する)。 task-038 スコープ
+# 向け artifact が必要になったら macos runner job を追加する)。 現状はスコープ
 # 外。
 # ----------------------------------------------------------------------------
 name: Release
