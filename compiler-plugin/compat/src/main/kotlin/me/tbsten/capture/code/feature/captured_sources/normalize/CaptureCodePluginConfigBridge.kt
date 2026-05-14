@@ -31,6 +31,7 @@ public fun CaptureCodePluginConfig.toDeclarationNormalizeOptions(): NormalizeOpt
         trimBlankEdges = true,
         stripPackageAndImport = false,
         stripLeadingAnnotationLines = false,
+        stripKdoc = !includeKdoc,
     )
 
 /**
@@ -45,6 +46,7 @@ public fun CaptureCodePluginConfig.toFileNormalizeOptions(): NormalizeOptions =
         trimBlankEdges = true,
         stripPackageAndImport = !includeImports,
         stripLeadingAnnotationLines = !includeAnnotationLines,
+        stripKdoc = !includeKdoc,
     )
 
 /**

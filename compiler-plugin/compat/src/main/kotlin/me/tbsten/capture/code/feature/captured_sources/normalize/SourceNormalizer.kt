@@ -9,11 +9,12 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  *
  * 処理順序:
  * 1. `"\n"` で行に split
- * 2. (declaration 起源) `stripLeadingAnnotationLines` — 先頭 `@Marker` 行を drop (保険)
- * 3. (file 起源) `stripPackageAndImportLines` — `package` / `import` 行を drop
- * 4. `dedentLines` — 共通先頭インデントを削除
- * 5. `trimBlankEdgeLines` — 先頭/末尾の空白行を drop
- * 6. `"\n"` で join
+ * 2. (declaration / file 起源) `stripLeadingKdocLines` — 先頭 KDoc block を drop (task-042 保険)
+ * 3. (declaration 起源) `stripLeadingAnnotationLines` — 先頭 `@Marker` 行を drop (保険)
+ * 4. (file 起源) `stripPackageAndImportLines` — `package` / `import` 行を drop
+ * 5. `dedentLines` — 共通先頭インデントを削除
+ * 6. `trimBlankEdgeLines` — 先頭/末尾の空白行を drop
+ * 7. `"\n"` で join
  *
  * **idempotent**: 既に正規化済みのテキストを通しても出力は変わらない (= 二度正規化しても OK)。
  * これは「1 行宣言は dedent しても変わらない」ことを保証するための重要な性質。
@@ -37,6 +38,10 @@ public fun normalize(rawText: String, options: NormalizeOptions): String {
     val lf = rawText.normalizeLineEndings()
 
     var lines: List<String> = lf.split('\n')
+
+    if (options.stripKdoc) {
+        lines = stripLeadingKdocLines(lines)
+    }
 
     if (options.stripLeadingAnnotationLines) {
         lines = stripLeadingAnnotationLines(lines)

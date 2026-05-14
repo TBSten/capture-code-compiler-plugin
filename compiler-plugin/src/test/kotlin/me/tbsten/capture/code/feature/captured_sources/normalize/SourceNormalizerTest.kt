@@ -290,6 +290,54 @@ import a.b"""
     }
 
     // -----------------------------------------------------------------
+    // task-042: stripKdoc (Logic D safety net) — KDoc が含まれた input を除外
+    // -----------------------------------------------------------------
+    "kdoc strip: 単行 KDoc (`/** ... */`) を drop" {
+        val raw = "/** simple */\nval x = 1"
+        normalize(
+            raw,
+            NormalizeOptions.DECLARATION_DEFAULT.copy(stripKdoc = true),
+        ) shouldBe "val x = 1"
+    }
+
+    "kdoc strip: 複数行 KDoc を drop" {
+        val raw = "/**\n * doc line\n */\nval x = 1"
+        normalize(
+            raw,
+            NormalizeOptions.DECLARATION_DEFAULT.copy(stripKdoc = true),
+        ) shouldBe "val x = 1"
+    }
+
+    "kdoc strip: KDoc と宣言の間の空行も drop" {
+        val raw = "/**\n * doc\n */\n\nval x = 1"
+        normalize(
+            raw,
+            NormalizeOptions.DECLARATION_DEFAULT.copy(stripKdoc = true),
+        ) shouldBe "val x = 1"
+    }
+
+    "kdoc strip: OFF (default) なら KDoc は保持される" {
+        val raw = "/**\n * doc\n */\nval x = 1"
+        normalize(raw, NormalizeOptions.DECLARATION_DEFAULT) shouldBe raw
+    }
+
+    "kdoc strip: KDoc 以外の `/* block */` コメントは drop しない (= /** で始まらないので無視)" {
+        val raw = "/* not kdoc */\nval x = 1"
+        normalize(
+            raw,
+            NormalizeOptions.DECLARATION_DEFAULT.copy(stripKdoc = true),
+        ) shouldBe raw
+    }
+
+    "kdoc strip: 宣言内部に登場する KDoc 様コメントは drop しない (leading のみ対象)" {
+        val raw = "class Outer {\n    /** inner */\n    val y = 1\n}"
+        normalize(
+            raw,
+            NormalizeOptions.DECLARATION_DEFAULT.copy(stripKdoc = true),
+        ) shouldBe raw
+    }
+
+    // -----------------------------------------------------------------
     // boundary: 既存 1 行 declaration ケースを退行させない
     // -----------------------------------------------------------------
     "boundary: 既存 1 行 property は normalize しても変わらない (idempotent + boundary)" {
@@ -349,5 +397,80 @@ class SourceNormalizerHelpersTest : StringSpec({
     "stripLeadingAnnotationLines: 最初の非 @ 行以降は drop しない" {
         stripLeadingAnnotationLines(listOf("@Foo", "val x = 1", "@Bar")) shouldBe
             listOf("val x = 1", "@Bar")
+    }
+
+    // task-042: stripLeadingKdocLines
+    "stripLeadingKdocLines: 単行 KDoc を drop" {
+        stripLeadingKdocLines(listOf("/** doc */", "val x = 1")) shouldBe listOf("val x = 1")
+    }
+
+    "stripLeadingKdocLines: 複数行 KDoc を drop" {
+        stripLeadingKdocLines(listOf("/**", " * doc", " */", "val x = 1")) shouldBe listOf("val x = 1")
+    }
+
+    "stripLeadingKdocLines: KDoc + blank + 宣言 → blank も drop" {
+        stripLeadingKdocLines(listOf("/** doc */", "", "val x = 1")) shouldBe listOf("val x = 1")
+    }
+
+    "stripLeadingKdocLines: 最初の宣言行以降は drop しない" {
+        stripLeadingKdocLines(listOf("/** doc */", "val x = 1", "/** inner */")) shouldBe
+            listOf("val x = 1", "/** inner */")
+    }
+
+    "stripLeadingKdocLines: KDoc が無ければそのまま返す" {
+        stripLeadingKdocLines(listOf("val x = 1")) shouldBe listOf("val x = 1")
+    }
+
+    "stripLeadingKdocLines: 空入力はそのまま" {
+        stripLeadingKdocLines(emptyList()) shouldBe emptyList()
+    }
+})
+
+/**
+ * task-042: KDoc 用 pure helper のテスト。
+ */
+class KDocLookupTest : StringSpec({
+    "findKDocExtendedStartOffset: KDoc が無ければ元の offset を返す" {
+        val text = "val x = 1"
+        findKDocExtendedStartOffset(text, 0) shouldBe 0
+    }
+
+    "findKDocExtendedStartOffset: 直前に単行 KDoc がある場合に拡張される" {
+        // "/** doc */\nval x = 1"
+        val text = "/** doc */\nval x = 1"
+        val declStart = text.indexOf("val")
+        findKDocExtendedStartOffset(text, declStart) shouldBe 0
+    }
+
+    "findKDocExtendedStartOffset: 直前に複数行 KDoc がある場合に拡張される" {
+        val text = "/**\n * line\n */\nfun foo() = 1"
+        val declStart = text.indexOf("fun")
+        findKDocExtendedStartOffset(text, declStart) shouldBe 0
+    }
+
+    "findKDocExtendedStartOffset: KDoc 様でも `/* ... */` (block comment) は拡張対象外" {
+        val text = "/* not kdoc */\nval x = 1"
+        val declStart = text.indexOf("val")
+        findKDocExtendedStartOffset(text, declStart) shouldBe declStart
+    }
+
+    "findKDocExtendedStartOffset: KDoc と宣言の間に空白行があっても拡張される" {
+        val text = "/** doc */\n\nval x = 1"
+        val declStart = text.indexOf("val")
+        findKDocExtendedStartOffset(text, declStart) shouldBe 0
+    }
+
+    "findKDocExtendedStartOffset: file 内部での 2 つ目の宣言の KDoc も拡張する" {
+        val text = "val a = 1\n/** doc */\nval b = 2"
+        val declStart = text.indexOf("val b")
+        findKDocExtendedStartOffset(text, declStart) shouldBe text.indexOf("/** doc")
+    }
+
+    "findKDocExtendedStartOffset: startOffset = 0 はそのまま" {
+        findKDocExtendedStartOffset("val x = 1", 0) shouldBe 0
+    }
+
+    "findKDocExtendedStartOffset: startOffset が text 範囲外なら元の offset 返却" {
+        findKDocExtendedStartOffset("val x = 1", 999) shouldBe 999
     }
 })

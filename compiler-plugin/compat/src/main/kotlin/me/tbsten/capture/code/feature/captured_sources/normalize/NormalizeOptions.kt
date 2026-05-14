@@ -17,12 +17,18 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  * @property stripLeadingAnnotationLines declaration 起源で、normalize 後の先頭に残った
  *                                       `@Marker` annotation 行を除外する。IR offset には
  *                                       既に annotation 行が含まれない前提でデフォルトは false。
+ * @property stripKdoc declaration / file 起源で、normalize 入力に含まれた leading KDoc
+ *                     (`/** ... */`) 行群を除外する safety net。 task-042 で導入。 通常は
+ *                     Logic C 側 ([findKDocExtendedStartOffset]) が `includeKdoc = false`
+ *                     のときには KDoc を含めないため no-op だが、 万一含まれてしまった場合の
+ *                     保険として動作する。 デフォルト false。
  */
 public data class NormalizeOptions(
     val dedent: Boolean = true,
     val trimBlankEdges: Boolean = true,
     val stripPackageAndImport: Boolean = false,
     val stripLeadingAnnotationLines: Boolean = false,
+    val stripKdoc: Boolean = false,
 ) {
     public companion object {
         /** declaration 起源 (property / class / function / typealias / object) のデフォルト。 */
@@ -31,6 +37,7 @@ public data class NormalizeOptions(
             trimBlankEdges = true,
             stripPackageAndImport = false,
             stripLeadingAnnotationLines = false,
+            stripKdoc = false,
         )
 
         /** file 起源 (`@file:Marker`) のデフォルト。design 仕様によりデフォルトで package/import を除外する。 */
@@ -39,6 +46,7 @@ public data class NormalizeOptions(
             trimBlankEdges = true,
             stripPackageAndImport = true,
             stripLeadingAnnotationLines = false,
+            stripKdoc = false,
         )
 
         /** 式起源 (`@Marker (expr)`)。dedent + blank trim のみ。 */
@@ -47,6 +55,7 @@ public data class NormalizeOptions(
             trimBlankEdges = true,
             stripPackageAndImport = false,
             stripLeadingAnnotationLines = false,
+            stripKdoc = false,
         )
     }
 }
