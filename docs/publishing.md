@@ -3,7 +3,7 @@
 Capture Code compiler plugin を Maven Central に publish するための手順をまとめる。
 local 開発時の dry-run / 実 release / CI からの自動化を網羅する。
 
-> 実 release は GitHub Actions workflow (task-038) から行うことを推奨。手動 release
+> 実 release は GitHub Actions workflow から行うことを推奨。手動 release
 > は緊急 hotfix 等の例外運用に限定する。
 
 ## Publish 対象 module
@@ -121,7 +121,7 @@ ls ~/.m2/repository/me/tbsten/capture/code/
 4. https://central.sonatype.com/ で release status を確認。
 5. release 後、 `VERSION_NAME` を次の SNAPSHOT (例: `0.2.0-SNAPSHOT`) に bump して commit。
 
-## CI からの自動 release (task-038)
+## CI からの自動 release
 
 `.github/workflows/release.yml` に **tag push を契機とする自動 release workflow** を整備してある。 `vX.Y.Z` 形式の tag を push すると以下が自動実行される:
 
@@ -180,7 +180,7 @@ GitHub repository の **Settings → Secrets and variables → Actions → New r
 
 ## Gradle Plugin Portal
 
-`gradle-plugin` を [Gradle Plugin Portal](https://plugins.gradle.org/) にも publish する場合は `com.gradle.plugin-publish` plugin を追加する (本 ticket スコープ外、task-038 か別 ticket で対応)。 Maven Central published plugin marker でも `pluginManagement { repositories { mavenCentral() } }` 経由なら `plugins {}` syntax は動くので、 Plugin Portal は optional。
+`gradle-plugin` を [Gradle Plugin Portal](https://plugins.gradle.org/) にも publish する場合は `com.gradle.plugin-publish` plugin を追加する (現状は未対応)。 Maven Central published plugin marker でも `pluginManagement { repositories { mavenCentral() } }` 経由なら `plugins {}` syntax は動くので、 Plugin Portal は optional。
 
 ## トラブルシューティング
 

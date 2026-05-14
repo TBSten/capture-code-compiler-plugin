@@ -61,10 +61,9 @@ Open `compat-k220/src/main/kotlin/.../CompatContextImpl.kt` and replace every
 diff against the new Kotlin's compiler sources for the APIs that have
 actually moved.
 
-The drift catalogue in
-`.local/ticket/done/task-028-api-drift-observation.md` (internal) documents
-every API drift the project has encountered between 2.0.x and 2.1.x. Use it
-as a checklist of likely failure points.
+An internal drift catalogue documents every API drift the project has
+encountered between 2.0.x and 2.1.x; use the existing `compat-k200` /
+`compat-k210` implementations as a checklist of likely failure points.
 
 ## 4. Verify locally
 

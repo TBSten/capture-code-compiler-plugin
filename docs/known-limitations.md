@@ -5,8 +5,8 @@ The following constraints come from the **Kotlin 2.x K2 compiler itself**
 paper over them. Each limitation links to the integration-test case that
 keeps the current behaviour locked in as a regression detector.
 
-Confirmed and frozen on 2026-05-14, after Phase 1 – 3 (task-001 …
-task-026) of the implementation plan.
+Confirmed and frozen on 2026-05-14, after Phase 1 – 3 of the implementation
+plan.
 
 ---
 

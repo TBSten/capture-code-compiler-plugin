@@ -298,5 +298,5 @@ The project ships with three layers of tests; they run together in CI (`.github/
 
 The `:integration-test:test-kmp` module exercises the compiler plugin across `jvm`, `js`, `wasmJs`, `linuxX64`, `mingwX64`, and (opt-in) all Apple native targets. KMP case verification (#101 - #105) runs on the `jvm` target via Kotest; the other targets are covered by per-target sanity checks in their respective `*Test` source sets.
 
-Apple targets are gated behind `-PenableAppleTargets=true` so that contributors without Xcode (and the default CI runner) can still build the project end-to-end. The full Apple test matrix is planned for Phase 4 (`task-032`).
+Apple targets are gated behind `-PenableAppleTargets=true` so that contributors without Xcode (and the default CI runner) can still build the project end-to-end. The full Apple test matrix on macOS runners is planned for a later phase.
 
