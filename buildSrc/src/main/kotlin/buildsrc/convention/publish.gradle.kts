@@ -2,37 +2,6 @@ package buildsrc.convention
 
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
 
-// ----------------------------------------------------------------------------
-// task-037: Maven Central 向け共通 publish 設定
-//
-// 適用方法 (各 publish 対象 module の build.gradle.kts):
-//   plugins {
-//       id("buildsrc.convention.publish")
-//   }
-//   // (vanniktech) coordinates / artifactId は module 側で個別に
-//   mavenPublishing {
-//       coordinates(group as String, "annotation", version as String)
-//   }
-//
-// 本 convention が提供するもの:
-//   - vanniktech `com.vanniktech.maven.publish` plugin の適用
-//   - `publishToMavenCentral()` — `VERSION_NAME` の `-SNAPSHOT` 末尾で
-//     `automaticRelease` を切替
-//   - POM 共通 metadata (name は module 側で上書き、 url / license / developer
-//     / scm を統一)
-//   - signing 条件分岐: `signingInMemoryKey` (env 経由) が存在する時のみ
-//     `signAllPublications()` を呼ぶ。 これにより `publishToMavenLocal` は
-//     credentials なしで動く。
-//
-// 環境変数 / Gradle property の対応 (vanniktech v0.30 ベース):
-//   - `ORG_GRADLE_PROJECT_mavenCentralUsername` / `mavenCentralPassword`
-//   - `ORG_GRADLE_PROJECT_signingInMemoryKey` (ASCII-armored GPG private key)
-//   - `ORG_GRADLE_PROJECT_signingInMemoryKeyId` (任意、 sub-key 指定)
-//   - `ORG_GRADLE_PROJECT_signingInMemoryKeyPassword` (任意)
-//
-// 詳細手順: `docs/publishing.md`
-// ----------------------------------------------------------------------------
-
 plugins {
     id("com.vanniktech.maven.publish")
 }
