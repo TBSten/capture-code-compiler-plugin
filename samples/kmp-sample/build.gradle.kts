@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 
 // ----------------------------------------------------------------------------
-// task-035: Kotlin Multiplatform sample for the Capture Code compiler plugin.
+// Kotlin Multiplatform sample for the Capture Code compiler plugin.
 //
 // 本 module は **エンドユーザ向け cookbook (KMP 版)** であり、 jvm + js + native
 // (linux / mingw) の各 target で plugin が動作することを実機で示す。
@@ -11,7 +11,7 @@ import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 // KMP では design §13 Known Limitations に従い、 marker / use site / `captured
 // Sources<T>()` 呼び出しを **すべて test sourceset** に置く必要がある (commonMain
 // で marker を宣言し commonTest から呼ぶと、 IR transform が rewrite しない
-// ケースがあるため)。 task-021 で確立した「test sourceset 完結方式」を踏襲する。
+// ケースがあるため)。 integration-test/test-kmp で確立した「test sourceset 完結方式」を踏襲する。
 //
 //   commonTest → jvmTest (kotest junit5 runner で実行)
 //

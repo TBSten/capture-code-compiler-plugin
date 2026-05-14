@@ -11,7 +11,7 @@ import me.tbsten.capture.code.SourceLocation
 // design §13 Known Limitations に従い、 marker / use site / `capturedSources<T>()`
 // 呼び出しを **すべて test sourceset** に置く。 commonTest に marker を宣言し、
 // commonTest または jvmTest の use site で利用、 jvmTest から `capturedSources` を
-// 呼んで検証する (task-021 で確立した方式)。
+// 呼んで検証する (test sourceset 完結方式)。
 // ============================================================================
 
 /** Case A: 最小構成 (Source filler のみ)。 */

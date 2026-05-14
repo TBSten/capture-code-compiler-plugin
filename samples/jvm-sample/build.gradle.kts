@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// task-035: JVM-only sample for the Capture Code compiler plugin.
+// JVM-only sample for the Capture Code compiler plugin.
 //
 // 本 module は **エンドユーザ向け cookbook** であり、 「ユーザが自分の project に
 // そのままコピーして持っていける最小形」 を意識して書いている。
@@ -25,7 +25,7 @@
 //       includeLineInfo = true
 //   }
 //
-// `me.tbsten.capture.code:annotation` / `:gradle-plugin` の publish (task-037)
+// `me.tbsten.capture.code:annotation` / `:gradle-plugin` の Maven Central publish
 // が完了すると、 上記の形が動く。
 //
 // ## 本 module (publish 前) での記述方針
