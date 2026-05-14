@@ -241,7 +241,7 @@ class IntegrationCasesTest : StringSpec({
     "0 個の宣言 (filler 値だけが意味を持つ場合)" {
         val captured = capturedSources<TrackPositionMarker>()
         captured.size shouldBe 1
-        captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp"
+        captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp.integration"
     }
 
     "file annotation + 同モジュール内の declaration annotation 混在" {
