@@ -1,7 +1,7 @@
-package me.tbsten.capture.code.testapp.sanity
+package me.tbsten.capture.code.testapp.kmp.sanity
 
 import me.tbsten.capture.code.capturedSources
-import me.tbsten.capture.code.testapp.commonbasic.CommonBasicMarker
+import me.tbsten.capture.code.testapp.kmp.commonbasic.CommonBasicMarker
 
 // ============================================================================
 // sanity: wasmJs target で `capturedSources<T>()` の IR 書き換えが
