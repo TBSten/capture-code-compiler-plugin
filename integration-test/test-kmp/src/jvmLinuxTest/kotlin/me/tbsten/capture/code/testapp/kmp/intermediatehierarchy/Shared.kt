@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp.intermediatehierarchy
+package me.tbsten.capture.code.testapp.kmp.intermediatehierarchy
 
 // intermediate hierarchy シナリオの use site (jvmLinuxTest — intermediate test sourceset)。
 // `commonTest → jvmLinuxTest → { jvmTest, linuxX64Test }` の階層により、
