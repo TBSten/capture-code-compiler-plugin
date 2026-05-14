@@ -7,7 +7,7 @@ import me.tbsten.capture.code.SourceLocation
 // ============================================================================
 // ケース103: expect / actual 両方に annotation を付与
 //
-// 採用版 (task-021 再配置版 2026-05-14):
+// 配置方針 (test sourceset 完結 2026-05-14):
 //   marker / annotated expect は commonTest、annotated actual は jvmTest に
 //   配置。他の test sourceset (jsTest / wasmJsTest / linuxX64Test / mingwX64Test)
 //   には annotation **無し** の actual を置いて compile を成立させる。

@@ -7,10 +7,10 @@ import me.tbsten.capture.code.Source
 import me.tbsten.capture.code.capturedSources
 
 // ============================================================================
-// task-018 (Gradle plugin DSL options): `captureCode { ... }` で渡した option が
+// Gradle plugin DSL options 検証: `captureCode { ... }` で渡した option が
 // 実コンパイル時に CompilerConfiguration まで届くことを示す integration-test。
 //
-// ## ステータス (post-completion polish, 2026-05-14)
+// ## ステータス
 // 本ファイルの 2 ケース (dedent=true / dedent=false) は、 構造上 `:integration-test:test-jvm`
 // では検証できない。 理由:
 //   - `:integration-test:test-jvm` は `kotlinCompilerPluginClasspath(project(":compiler-plugin"))`
@@ -19,7 +19,7 @@ import me.tbsten.capture.code.capturedSources
 //   - 同一の test-jvm モジュール内で「dedent=true」 と「dedent=false」 の **両方** を同時に
 //     検証するには 2 度コンパイルする必要があるが、 単一 module の build script からは不可能。
 //
-// 代替として、 task-040 で構築した `:integration-test:test-gradle-plugin` の Gradle TestKit
+// 代替として、 `:integration-test:test-gradle-plugin` の Gradle TestKit
 // fixture (`dedent-sample/`) 経由で **ユーザ実利用形態 (`plugins { id("me.tbsten.capture.code") }`
 // + `captureCode { dedent = ... }`)** で同シナリオを検証している:
 //

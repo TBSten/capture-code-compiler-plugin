@@ -27,7 +27,7 @@ val enableAppleTargets: Boolean =
 kotlin {
     // KMP 公式の階層テンプレートを有効化。
     // jvm/js/native の標準 source set 関係 (nativeMain → linuxX64Main 等) を提供する。
-    // 後続 task-024 で intermediate source set (jvmAndroidMain 等) を追加する際の土台。
+    // intermediate source set (jvmAndroidMain 等) を追加する際の土台でもある。
     applyDefaultHierarchyTemplate()
 
     jvm {
@@ -39,10 +39,10 @@ kotlin {
         nodejs()
     }
 
-    // wasm 代表 target。本 ticket (task-019) と同時に `:annotation` 側にも
-    // wasmJs target を追加しているため、commonMain dependency (`:annotation`)
-    // は wasmJs 上でも解決される。`browser()` は kotlin-browser-api の依存が
-    // 必要となり setup コストが大きいので、当面 `nodejs()` のみで testing する。
+    // wasm 代表 target。 `:annotation` 側にも wasmJs target を持つため、
+    // commonMain dependency (`:annotation`) は wasmJs 上でも解決される。
+    // `browser()` は kotlin-browser-api の依存が必要となり setup コストが
+    // 大きいので、当面 `nodejs()` のみで testing する。
     wasmJs {
         nodejs()
     }
@@ -71,7 +71,7 @@ kotlin {
         }
 
         // ----------------------------------------------------------------
-        // task-021 採用版: intermediate **test** source set `jvmLinuxTest`.
+        // intermediate **test** source set `jvmLinuxTest`.
         // ケース #105 (source set hierarchy) の挙動を test sourceset 階層で
         // 検証する。jvmAndroidTest (jvm + android の親) を本プロジェクトには
         // android target が無いため `jvmLinuxTest` (jvmTest + linuxX64Test の
@@ -103,6 +103,6 @@ dependencies {
     // wasm / native すべての compilation に plugin が乗る。
     //
     // 将来的に `:gradle-plugin` 経由 (`plugins { id("me.tbsten.capture.code") }`)
-    // への移行は task-026 (TestKit による DSL 検証) で別途扱う。
+    // への移行は TestKit による DSL 検証で別途扱う。
     kotlinCompilerPluginClasspath(project(":compiler-plugin"))
 }

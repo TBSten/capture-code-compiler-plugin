@@ -11,7 +11,7 @@ import me.tbsten.capture.code.testapp.case105.Snippets_KmpCase105
 import me.tbsten.capture.code.testapp.kmp103.Platform_KmpCase103
 
 // ============================================================================
-// KMP 検証テストのカタログ (task-021 採用版: 再配置版 2026-05-14)。
+// KMP 検証テストのカタログ (test sourceset 完結配置版 2026-05-14)。
 //
 // marker / use site / capturedSources<T>() 呼び出しを **すべて test sourceset**
 // に配置する設計に統一した (本ファイル含め main 系には KMP 検証用 fixture 無し)。
@@ -29,7 +29,6 @@ import me.tbsten.capture.code.testapp.kmp103.Platform_KmpCase103
 //   #105 commonTest に marker / `jvmLinuxTest` (intermediate) に use site
 //
 // 全 5 ケースを `jvmTest` から実行する (kotest junit5 runner が JVM 専用のため)。
-// task-020 / task-022 / task-023 / task-024 と統合して本 task-021 で再配置完了。
 // ============================================================================
 
 class KmpCasesTest : StringSpec({

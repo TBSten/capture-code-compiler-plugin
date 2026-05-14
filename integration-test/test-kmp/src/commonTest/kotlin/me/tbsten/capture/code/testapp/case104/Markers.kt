@@ -6,7 +6,7 @@ import me.tbsten.capture.code.Source
 // ============================================================================
 // ケース104: actual のみに annotation (expect は無印)
 //
-// 採用版 (task-021 再配置版 2026-05-14):
+// 配置方針 (test sourceset 完結 2026-05-14):
 //   marker / expect (annotation 無し) は commonTest、annotated actual は
 //   jvmTest に配置。他 test sourceset には annotation 無しの actual を配置して
 //   compile を成立させる。

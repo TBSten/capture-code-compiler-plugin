@@ -8,10 +8,10 @@ import me.tbsten.capture.code.Source
 import me.tbsten.capture.code.SourceLocation
 import me.tbsten.capture.code.capturedSources
 
-// NOTE (task-017 完了時更新):
+// NOTE:
 // Expression annotation の正確な site 構文は、 Kotlin 2.0 の K2 parser が `@Marker (expr)` を
 // `@Marker(expr)` (annotation constructor 引数) と greedy に解釈する制約から、 marker の引数
-// `()` を **明示的に空** にする `@Marker() (expr)` 形を採用する (task-009 spike 結論 + design §7.8 補強)。
+// `()` を **明示的に空** にする `@Marker() (expr)` 形を採用する (design §7.8 参照)。
 // この方針により marker class の constructor が `Source` / `CaptureKind` 等 filler 型のみで
 // 構成されている場合でも parser が annotation 終端を確実に認識する。
 //
@@ -346,7 +346,7 @@ class ExpressionCasesTest : StringSpec({
         )
     }
 
-    // task-042 (2026-05-14): Logic C に KDoc 探索 path 追加 + `includeKdoc` option 配線完了。
+    // Logic C は KDoc 探索 path を持ち、 `includeKdoc` option を配線済み。
     // `CaptureCodePluginConfig.includeKdoc = true` (default) のため、 KDoc を含む source が
     // capture される。 Logic C 側で declaration の startOffset を直前 KDoc まで前方拡張する
     // path ([findKDocExtendedStartOffset]) が機能している。

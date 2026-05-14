@@ -277,7 +277,7 @@ class IntegrationCasesTest : StringSpec({
         )
     }
 
-    // task-043 で 同一行 multi-property 対応を実装 (token ベース skipLeadingAnnotationLines)。
+    // 同一行 multi-property 対応 (token ベース skipLeadingAnnotationLines による実装)。
     // 1 番目の property は IR の endOffset が `;` を含むため source に `;` が残るが、 capture は成立する。
     "ケース75: 単一行に property 2 つ ⇒ 各々 location 取得" {
         val captured = capturedSources<Snippets_Case75>()

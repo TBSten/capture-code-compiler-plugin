@@ -7,7 +7,7 @@ import me.tbsten.capture.code.SourceLocation
 // ============================================================================
 // ケース105: source set hierarchy (intermediate な jvmLinuxTest)
 //
-// 採用版 (task-021 再配置版 2026-05-14):
+// 配置方針 (test sourceset 完結 2026-05-14):
 //   marker は commonTest、annotated use site は intermediate test sourceset
 //   `jvmLinuxTest` に配置。`commonTest → jvmLinuxTest → { jvmTest, linuxX64Test }`
 //   の階層により、jvmTest / linuxX64Test の両 compilation から intermediate の
