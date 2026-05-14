@@ -37,9 +37,12 @@ internal object SupportedKotlinVersions {
     /**
      * 検証済み Kotlin バージョン上限 (exclusive)。
      *
-     * 現在は `compat-k200` (Kotlin 2.0.x) と `compat-k210` (Kotlin 2.1.x) が同梱されており、
-     * 2.2.0 以降は **未検証**。 ユーザ project が 2.2.0+ を使う場合は warn を出すが、
-     * `compat-k210` の Factory が dispatch される (= 動く可能性は高いが保証なし)。
+     * 現状サポート: **Kotlin 2.0.x 〜 2.3.x** が CI matrix (`core-matrix`) で実機検証済み
+     * (task-053 〜 task-061 の experimental tier 通過実績)。 `compat-k200` / `compat-k210` の
+     * 2 つの compat module を通じて FIR / IR API drift を吸収している。
+     *
+     * 2.4.x は pre-release (`2.4.0-RC`) を CI で検証中だが、 stable 昇格までは **未検証扱い**
+     * とし、 ユーザ project が 2.4.0+ を指定した場合は warn を出す (build 自体は続行)。
      */
-    const val MAX_TESTED_VERSION_EXCLUSIVE: String = "2.2.0"
+    const val MAX_TESTED_VERSION_EXCLUSIVE: String = "2.4.0"
 }
