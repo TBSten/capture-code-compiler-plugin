@@ -586,36 +586,45 @@ internal class K210CapturedSourcesCollector(
      * (`@JvmInline` 等) が宣言の意味論上必須** であるケース (= inline value class) で
      * `@JvmInline` 行まで落としてしまい、 結果 source として残らない問題があった。
      *
-     * 新仕様: 行頭 `@<simpleName>(...)` の `<simpleName>` が [CaptureCodeMarkerRegistry] の
-     * 登録 marker の simpleName 集合に含まれている場合のみ、 その行を末尾改行まで skip する。
-     * それ以外の annotation (`@JvmInline` / `@Suppress` 等) はスキップせず、 source の一部として残る。
-     * これにより value class 等の semantic-significant annotation を保持できる。
+     * task-043 で **token ベース** に変更: 旧実装は「marker 行を改行まで丸ごと飲み込む」線形 skip
+     * だったが、 `@Marker val p1 = 1; @Marker val p2 = 2` のような **同一行に複数 property** 形式では
+     * 改行まで進めると `endOffset` を超え substring が null を返してしまっていた (= capture 失敗)。
+     * 新実装は marker annotation **そのもの** (`@<simpleName>` + optional `(<args>)`) を token として
+     * 識別し、 末尾の空白 (改行を含む) を吸収する。 改行を跨いだ場合は次の行頭まで進み、 次の
+     * annotation / 宣言本体の判定に進む。 同一行に declaration 本体がある場合は marker と
+     * declaration 本体の間の空白だけを吸収して停止する。
      *
-     * 既存テストへの影響: 既存ケースは「marker annotation だけが先頭に付く」前提で書かれており、
-     * marker 行は引き続き skip されるため期待値は不変。
+     * 新仕様:
+     * - `@<simpleName>` の `<simpleName>` が [CaptureCodeMarkerRegistry] の simpleName 集合に
+     *   含まれる場合のみ marker として処理し、 当該 annotation token (任意の `(...)` 引数を含む)
+     *   と直後の whitespace (改行を含む) を skip。
+     * - 改行を跨いだ場合、 次の行の先頭 indent は **保持** する (dedent の base として残す)。
+     * - 同一行に declaration 本体がある場合、 marker と本体の間の単一スペース (or タブ) は drop。
+     * - marker ではない annotation (`@JvmInline` 等) はスキップせず、 ソースの一部として残す。
      *
      * 制約: dotted FQN (`@com.example.Foo`) は simpleName 抽出が `com` になるため marker 判定が
-     * 失敗し、 行が残る (= 期待値と乖離する可能性)。 ただし現状のテストは単純名 import で書かれて
-     * いるため scope 外。 将来必要になれば last segment 抽出に拡張する。
-     *
-     * 引き続き、 annotation arguments 内に改行があるケース (`@Foo(\n  ...\n)`) は未対応。
+     * 失敗し、 行が残る (= 期待値と乖離する可能性)。 現状のテストは単純名 import で書かれている
+     * ため scope 外。
      */
     private fun skipLeadingAnnotationLines(text: String, startOffset: Int, endOffset: Int): Int {
         val markerSimpleNames = CaptureCodeMarkerRegistry.markerFqns
             .map { it.substringAfterLast('.') }
             .toSet()
         var cursor = startOffset
+        // ループ不変条件: cursor は次の token (annotation または declaration 本体) の開始位置を
+        // 「探す」ためのスキャンポインタ。 各反復で marker annotation を 1 つ消費するか、
+        // 非 marker トークンを検出した時点で return する。
         while (cursor < endOffset) {
-            // 行頭の空白をスキップ
+            // 1. 行頭の空白 (space / tab) をスキップして lineStart を覚える
             val lineStart = cursor
             while (cursor < endOffset && (text[cursor] == ' ' || text[cursor] == '\t')) {
                 cursor++
             }
             if (cursor >= endOffset || text[cursor] != '@') {
-                // アノテーション行ではないので、行頭の空白を含めて return
+                // 非 annotation トークン (declaration 本体 or 非 marker annotation の indent 行頭)
                 return lineStart
             }
-            // `@` 直後の identifier (`[A-Za-z_][A-Za-z0-9_]*`) を取り出して simpleName とする。
+            // 2. `@<simpleName>` を解析
             val nameStart = cursor + 1
             var nameEnd = nameStart
             while (nameEnd < endOffset) {
@@ -624,14 +633,35 @@ internal class K210CapturedSourcesCollector(
             }
             val simpleName = if (nameEnd > nameStart) text.substring(nameStart, nameEnd) else ""
             if (simpleName !in markerSimpleNames) {
-                // marker ではない annotation (`@JvmInline` 等): この行はソースの一部として残す。
+                // marker でない annotation はソースの一部として残す
                 return lineStart
             }
-            // marker annotation 行: 行末改行まで進める (annotation arguments 内に改行が無い前提)
-            while (cursor < endOffset && text[cursor] != '\n') {
+            // 3. marker annotation 本体 (`@Name`) の終端から、 もし `(` があれば balanced paren を消費
+            cursor = nameEnd
+            if (cursor < endOffset && text[cursor] == '(') {
+                var depth = 0
+                while (cursor < endOffset) {
+                    when (text[cursor]) {
+                        '(' -> depth++
+                        ')' -> {
+                            depth--
+                            if (depth == 0) {
+                                cursor++
+                                break
+                            }
+                        }
+                    }
+                    cursor++
+                }
+                if (depth != 0) return lineStart
+            }
+            // 4. annotation 直後の trailing whitespace を吸収。
+            //    改行に到達した場合は改行も 1 つだけ消費し、 次の token を新しい行頭として扱う。
+            //    改行に到達せず space/tab のみだった場合はそれらをすべて消費し、 同一行のまま続行
+            //    (= `@Marker val p1 = 1; @Marker val p2 = 2` ケース)。
+            while (cursor < endOffset && (text[cursor] == ' ' || text[cursor] == '\t')) {
                 cursor++
             }
-            // 改行をスキップ
             if (cursor < endOffset && text[cursor] == '\n') {
                 cursor++
             }

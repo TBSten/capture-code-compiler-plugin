@@ -278,7 +278,51 @@ class AllDeclarationTargetsTest : FunSpec({
     }
 
     // ----------------------------------------------------------------
-    // 7. filler-less marker (ケース #8 相当) — 0-arg Marker() の list literal に書き換わる
+    // 7. 同一行に複数 property (`@Marker val p1 = 1; @Marker val p2 = 2`) のキャプチャ (task-043)
+    //
+    // task-041 で marker-aware にした skipLeadingAnnotationLines は、 marker 行を「次の改行まで」
+    // 線形に skip していたため、 同一行に 2 つの property を `;` 区切りで並べると 1 番目の
+    // declaration の endOffset を超えて読みすぎ、 substring 取得が null になり capture できなかった。
+    // task-043 で token ベースの skip に切り替え、 marker annotation 本体 (+ optional `(...)`) と
+    // 直後の whitespace のみを吸収するように修正。 同一行 multi-property 形式でも各 property を
+    // 独立に capture できるようになった。
+    // ----------------------------------------------------------------
+    test("multiple properties on a single line are each captured (task-043)") {
+        val result = compile(
+            SourceFile.kotlin(
+                "MultiPropOneLine.kt",
+                """
+                package example
+
+                import me.tbsten.capture.code.CaptureCode
+                import me.tbsten.capture.code.Source
+                import me.tbsten.capture.code.capturedSources
+
+                @CaptureCode
+                @Target(AnnotationTarget.PROPERTY)
+                @Retention(AnnotationRetention.SOURCE)
+                internal annotation class MultiPropSnippets(val source: Source = Source())
+
+                @MultiPropSnippets val mlP1 = 1; @MultiPropSnippets val mlP2 = 2
+
+                internal object Main {
+                    fun captured(): List<MultiPropSnippets> = capturedSources<MultiPropSnippets>()
+                }
+                """.trimIndent(),
+            ),
+        )
+        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+
+        val captured = loadCaptured(result)
+        captured.size shouldBe 2
+        // 1 番目の property は IR 上の endOffset が `;` を含むため source に `;` が残る。
+        // 同一行 multi-property は珍しい形式なので、 trailing `;` の整形は別 ticket スコープとする。
+        captureSourceValue(captured[0] as Annotation) shouldBe "val mlP1 = 1;"
+        captureSourceValue(captured[1] as Annotation) shouldBe "val mlP2 = 2"
+    }
+
+    // ----------------------------------------------------------------
+    // 8. filler-less marker (ケース #8 相当) — 0-arg Marker() の list literal に書き換わる
     // ----------------------------------------------------------------
     test("filler-less marker yields zero-arg constructor calls") {
         val result = compile(
