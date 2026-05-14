@@ -76,25 +76,27 @@ kotlin {
         }
 
         // ----------------------------------------------------------------
-        // task-024: intermediate source set `jvmLinuxMain`.
-        // jvmAndroidMain (jvm + android の親) を本プロジェクトには android
-        // target が無いため `jvmLinuxMain` (jvm + linuxX64 の親) で代替する。
-        // ケース #105 (source set hierarchy) の挙動検証用。
+        // task-021 採用版: intermediate **test** source set `jvmLinuxTest`.
+        // ケース #105 (source set hierarchy) の挙動を test sourceset 階層で
+        // 検証する。jvmAndroidTest (jvm + android の親) を本プロジェクトには
+        // android target が無いため `jvmLinuxTest` (jvmTest + linuxX64Test の
+        // 親) で代替する。
         //
-        //   commonMain → jvmLinuxMain → { jvmMain, linuxX64Main }
-        //   commonMain → { jsMain, wasmJsMain, mingwX64Main, appleMain* }
+        //   commonTest → jvmLinuxTest → { jvmTest, linuxX64Test }
+        //   commonTest → { jsTest, wasmJsTest, mingwX64Test, appleTest* }
         //
-        // linuxX64Main は applyDefaultHierarchyTemplate() により `nativeMain`
-        // の子でもあり、ここで `jvmLinuxMain` も親として追加する (多重継承)。
+        // marker / use site / capturedSources の全要素を test sourceset 内に
+        // 置くため (main 系には KMP 検証用 fixture を一切置かない)、
+        // `jvmLinuxMain` ではなく `jvmLinuxTest` を作る。
         // ----------------------------------------------------------------
-        val jvmLinuxMain by creating {
-            dependsOn(commonMain.get())
+        val jvmLinuxTest by creating {
+            dependsOn(commonTest.get())
         }
-        jvmMain {
-            dependsOn(jvmLinuxMain)
+        jvmTest {
+            dependsOn(jvmLinuxTest)
         }
-        named("linuxX64Main") {
-            dependsOn(jvmLinuxMain)
+        named("linuxX64Test") {
+            dependsOn(jvmLinuxTest)
         }
     }
 }
