@@ -3,10 +3,9 @@ package me.tbsten.capture.code.error
 /**
  * Capture Code plugin の診断メッセージのロケール切替ヘルパ。
  *
- * task-034 (Phase 5 polish) で導入。`RootDiagnosticRendererFactory` は Kotlin compiler
- * プロセス内で **静的に 1 度だけ** 登録されるため、本来の意味での「コンパイル単位ごとの
- * locale 切替」は plugin 側からは制御しづらい (Kotlin compiler の標準 i18n API が
- * `KtDiagnosticFactory` レベルでは公開されていない)。
+ * `RootDiagnosticRendererFactory` は Kotlin compiler プロセス内で **静的に 1 度だけ** 登録される
+ * ため、本来の意味での「コンパイル単位ごとの locale 切替」は plugin 側からは制御しづらい
+ * (Kotlin compiler の標準 i18n API が `KtDiagnosticFactory` レベルでは公開されていない)。
  *
  * そこで、本 plugin では:
  *
@@ -21,7 +20,7 @@ package me.tbsten.capture.code.error
  * 環境変数は JVM 起動時に 1 度だけ読まれる (Kotlin compiler の長寿命プロセス内で
  * 動的に切り替える必要は無い)。CI / IDE 連携で個別に上書きしたい場合のみ設定する。
  *
- * design `compiler-plugin-design.md` §5 Logic F / G、ticket task-034 参照。
+ * design `compiler-plugin-design.md` §5 Logic F / G 参照。
  */
 internal enum class CaptureCodeMessageLocale {
     /** 英語と日本語を併記する (default)。 */

@@ -15,16 +15,16 @@ import org.jetbrains.kotlin.diagnostics.rendering.RootDiagnosticRendererFactory
  * Capture Code compiler plugin の **診断 SSOT**。
  *
  * 各 FIR checker / IR transformer が `reporter.reportOn(...)` で発する診断 ID とメッセージを
- * 1 箇所に集約する。task-034 (Phase 5 polish) で:
+ * 1 箇所に集約する。 設計上の取り決め:
  *
  * - メッセージ文面を [CaptureCodeDiagnosticMessages] (bilingual SSOT) に分離
  * - `CC_<feature>_<rule>` 命名規則に合わせて property 名を整理 (例: [CC_MARKER_VISIBILITY_VIOLATION])
  * - `Suggested fix:` ヒントを各メッセージに追加
  * - 環境変数 `CAPTURECODE_LOCALE` で英語 / 日本語 / 併記を切替 (default = 併記)
  *
- * 詳細は `compiler-plugin-design.md` §5 Logic F、`impl-plan.md` §1.1 (`error/` SSOT) を参照。
+ * 詳細は `compiler-plugin-design.md` §5 Logic F、§8.5 (`error/` SSOT) を参照。
  *
- * ## Logic F (task-010): marker annotation の制約違反 (6 種類)
+ * ## Logic F: marker annotation の制約違反 (6 種類)
  *
  * | DiagnosticFactory                              | 違反内容                                                       |
  * |------------------------------------------------|----------------------------------------------------------------|
@@ -38,7 +38,7 @@ import org.jetbrains.kotlin.diagnostics.rendering.RootDiagnosticRendererFactory
 internal object CaptureCodeDiagnostics {
 
     // ----------------------------------------------------------------
-    // Logic F (task-010): marker annotation の制約違反
+    // Logic F: marker annotation の制約違反
     // ----------------------------------------------------------------
 
     /** `CC_MARKER_VISIBILITY_VIOLATION` — visibility が `internal` / `private` のいずれでもない。 */

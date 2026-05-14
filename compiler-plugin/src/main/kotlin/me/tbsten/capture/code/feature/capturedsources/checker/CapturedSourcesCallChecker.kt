@@ -55,8 +55,8 @@ import org.jetbrains.kotlin.fir.types.coneTypeOrNull
  *
  * ## 並列 checker 構成
  *
- * task-008 / task-010 の declaration checker extension とは別の expression checker 専用 extension
- * ([CapturedSourcesCallCheckersExtension]) で登録する。並列開発時の merge conflict 回避目的。
+ * Logic A / Logic F の declaration checker extension とは別の expression checker 専用 extension
+ * ([CapturedSourcesCallCheckersExtension]) で登録する。責務分離 + 並列開発時の merge conflict 回避目的。
  *
  * 詳細は `compiler-plugin-design.md` §5 Logic G、§6 Phase ordering 参照。
  */
@@ -77,8 +77,8 @@ internal object CapturedSourcesCallChecker : FirExpressionChecker<FirFunctionCal
         val typeArgument = expression.firstTypeArgumentOrNull() ?: return
 
         // 4) `T` の class symbol を解決 (annotation を読むため)
-        //    task-030 v2: `toRegularClassSymbol` extension の package 移動 drift (D2) は
-        //    CompatContext.toRegularClassSymbolOrNull 経由で吸収。
+        //    `toRegularClassSymbol` extension は Kotlin バージョン間で package 移動 drift (D2)
+        //    があるため、 CompatContext.toRegularClassSymbolOrNull 経由で吸収する。
         val compat = CaptureCodeCompatHolder.context
         val classSymbol = compat.toRegularClassSymbolOrNull(typeArgument, context.session)
         if (classSymbol == null) {
@@ -91,7 +91,7 @@ internal object CapturedSourcesCallChecker : FirExpressionChecker<FirFunctionCal
         if (classSymbol.hasCaptureCodeMeta(context.session)) return
 
         // 6) 違反: error を報告
-        //    task-030 v2: classId accessor の将来 drift 対策 (D3) で CompatContext 経由化。
+        //    classId accessor は drift 対策 (D3) のため CompatContext 経由でアクセスする。
         val classId = compat.classIdOf(classSymbol) ?: return
         reporter.reportOn(
             source = expression.source,

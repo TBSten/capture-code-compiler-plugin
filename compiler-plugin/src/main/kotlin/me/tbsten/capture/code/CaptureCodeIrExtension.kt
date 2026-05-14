@@ -13,7 +13,7 @@ import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
  * 現在の Kotlin バージョンに合った [me.tbsten.capture.code.compat.CompatContext] を
  * ServiceLoader 経由で選択し、 その `transformIr` メソッドに委譲する。
  *
- * Logic A (task-008) の動的検出結果は [CaptureCodeMarkerRegistry] (FIR phase の checker が蓄積) を
+ * Logic A の動的検出結果は [CaptureCodeMarkerRegistry] (FIR phase の checker が蓄積) を
  * 通じて受け渡されるため、本 extension では FIR session に直接アクセスする必要はない。
  *
  * ## Registry lifecycle
@@ -23,28 +23,26 @@ import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
  * 前回の marker FqN が次回に漏れないよう、本 extension の `generate` 完了時に [reset]
  * (try/finally) してクリアする。
  *
- * KMP の複数 target (例: jvmMain + jsMain) は task-024 以降でハンドリングする (本 ticket scope 外)。
+ * KMP の複数 target (例: jvmMain + jsMain) のハンドリングは将来の拡張ポイント。
  *
  * ## Plugin config
  *
- * task-018 (Logic I) で `CompilerConfiguration` から [CaptureCodePluginConfig] を受け取り保持する。
- * Logic D (task-015) / file annotation (task-016) / line info (task-013) はこの config を読んで
- * 振る舞いを切り替える。本 ticket 時点では config は配線のみで、実消費は後続 ticket で行う
- * (`compat/IrInjector` への伝搬は task-015 が必要としたタイミングで追加する)。
+ * Logic I で `CompilerConfiguration` から [CaptureCodePluginConfig] を受け取り保持する。
+ * Logic D (dedent) / file annotation / line info はこの config を読んで振る舞いを切り替える。
  */
 public class CaptureCodeIrExtension(
     private val config: CaptureCodePluginConfig = CaptureCodePluginConfig.DEFAULT,
 ) : IrGenerationExtension {
     override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
         try {
-            // task-030 v2 (Metro pattern) で IrInjector + FirAnalyzer の 2 interface を
-            // CompatContext 1 つに統合済。 CaptureCodeCompatHolder.context は
-            // process-scoped lazy で ServiceLoader を 1 回だけ走らせ、 K2 compiler 起動の
-            // hot path で全 generate() invocation 共有する。
+            // Metro pattern: IrInjector + FirAnalyzer の 2 interface を CompatContext 1 つに
+            // 統合している。 CaptureCodeCompatHolder.context は process-scoped lazy で
+            // ServiceLoader を 1 回だけ走らせ、 K2 compiler 起動の hot path で全 generate()
+            // invocation 共有する。
             CaptureCodeCompatHolder.context.transformIr(moduleFragment, pluginContext, config)
         } finally {
             // 同一 ClassLoader での連続 compile (kctfork) で前回コンパイルの marker / expression site が
-            // 次回に漏れないよう、 両 registry をクリアする (task-008, task-017)。
+            // 次回に漏れないよう、 marker registry と expression site registry の両方をクリアする。
             CaptureCodeMarkerRegistry.reset()
             CaptureCodeExpressionSiteRegistry.reset()
         }

@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirRegularClassChe
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 
 /**
- * Logic F (task-010) で導入された marker annotation 診断 checker を登録する
+ * Logic F の marker annotation 診断 checker を登録する
  * `FirAdditionalCheckersExtension`。
  *
  * Logic A の `CaptureCodeMarkerCheckersExtension` (registration only) とは責務を分離している:

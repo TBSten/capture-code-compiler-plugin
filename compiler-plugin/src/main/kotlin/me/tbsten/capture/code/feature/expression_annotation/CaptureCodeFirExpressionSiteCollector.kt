@@ -25,9 +25,9 @@ import org.jetbrains.kotlin.fir.types.resolvedType
 /**
  * Logic B-fir (design §5) の **式 annotation 側** を担う FIR basic expression checker。
  *
- * task-017 で新規追加。task-009 spike の結論「IR phase で式 annotation は残らない (R1 確定)」を
- * 受け、本 checker が FIR phase で全 expression を訪問し、`expression.annotations` 内の marker を
- * 発見次第 [CaptureCodeExpressionSiteRegistry] に push する。IR phase の collector
+ * IR phase では式 annotation が残らない (spike で観測済) ため、本 checker が FIR phase で
+ * 全 expression を訪問し、`expression.annotations` 内の marker を発見次第
+ * [CaptureCodeExpressionSiteRegistry] に push する。IR phase の collector
  * (`K200CapturedSourcesCollector.collectExpressionSites`) がそれを読み出して
  * `CapturedSite(kind = EXPRESSION)` に変換する。
  *
@@ -35,9 +35,9 @@ import org.jetbrains.kotlin.fir.types.resolvedType
  *
  * - **filePath**: FIR の `expression.source` (`KtPsiSourceElement.psi.containingFile.virtualFilePath`)
  *   から取る。LightTree 環境では PSI が無いため null になりうる。その場合は site を諦める
- *   (R3: LightTree 環境では path 経由のフォールバックが必要だが本 ticket では PSI 経由のみ)。
+ *   (R3: LightTree 環境では path 経由のフォールバックが必要だが、現状は PSI 経由のみサポート)。
  * - **startOffset / endOffset**: **annotation を持つ expression 自身** の source range (= 式そのもの)。
- *   task-009 spike (c) より、`FirAnnotation.source` は `@Marker` 部分のみを指すので NG。
+ *   `FirAnnotation.source` は `@Marker` 部分のみを指すため使えない (spike で観測済)。
  * - **markerFqn**: `annotation.annotationTypeRef.coneType.classId` の `asSingleFqName()`。
  * - **userArgs**: FIR `annotation.argumentMapping` を name → primitive/enum FqN の Map に変換。
  *   現状は filler のみが入った marker (ケース #7 / #67 など) を確実に handle するため、最小実装で OK。
@@ -123,7 +123,7 @@ internal object CaptureCodeFirExpressionSiteCollector : FirBasicExpressionChecke
      *
      * PSI が利用可能な場合 (= `KtPsiSourceElement`) は `psi.containingFile.virtualFilePath` を返す。
      * LightTree 環境 (= PSI が無い) では現状 `null` を返し、本 site は諦める。
-     * task-009 spike (R3) より、production の Gradle compile では PSI 経由が基本利用できる前提。
+     * spike 観測で、 production の Gradle compile では PSI 経由が基本利用できることを確認済。
      */
     private fun KtSourceElement.containingFilePath(): String? {
         if (this is KtPsiSourceElement) {
@@ -143,7 +143,7 @@ internal object CaptureCodeFirExpressionSiteCollector : FirBasicExpressionChecke
      * - `FirGetClassCall` の type (KClass パラメータ)
      * - enum entry の `FirPropertyAccessExpression` / `FirQualifiedAccessExpression` (resolved symbol 経由)
      *
-     * 非対応 (本 ticket scope 外):
+     * 非対応 (将来拡張):
      * - array (`vararg`)
      * - nested annotation
      *
@@ -163,14 +163,14 @@ internal object CaptureCodeFirExpressionSiteCollector : FirBasicExpressionChecke
         for ((name, expr) in mapping) {
             val typeFqn = expr.resolvedType.classId?.asSingleFqName()?.asString()
             if (typeFqn != null && typeFqn in fillerFqns) continue
-            // task-030 v2: `FirLiteralExpression<*>` の type-parameter 削除 drift (D1) を
-            // CompatContext.isLiteralExpression / literalValueOrNull 経由で吸収。
-            // FirGetClassCall / enum entry の解決は 2.0.0 / 2.1.0 で API が安定しているため
-            // main module 側で直接ハンドリング。
+            // `FirLiteralExpression<*>` は Kotlin バージョン間で type-parameter の有無が
+            // 変わる API drift (D1) があるため、 CompatContext.isLiteralExpression /
+            // literalValueOrNull 経由で吸収する。 FirGetClassCall / enum entry の解決は
+            // 2.0.0 / 2.1.0 で API が安定しているため main module 側で直接ハンドリング。
             val value = when {
                 compat.isLiteralExpression(expr) -> compat.literalValueOrNull(expr)
                 expr is FirGetClassCall -> {
-                    // KClass argument: 型 FqN を文字列で保持 (本 ticket では IR 化の最小サポート)
+                    // KClass argument: 型 FqN を文字列で保持 (IR 化の最小サポート)
                     val classId = expr.arguments.firstOrNull()?.resolvedType?.classId
                     classId?.asSingleFqName()?.asString()
                 }

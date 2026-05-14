@@ -11,11 +11,10 @@ import org.jetbrains.kotlin.psi.KtElement
 /**
  * `capturedSources<T>()` 呼び出し (Logic G: `CapturedSourcesCallChecker`) の compile error の定義。
  *
- * task-010 が並列で `CaptureCodeDiagnostics.kt` を作成中のため、ファイル名衝突を避けて
- * **`CapturedSourcesCheckerDiagnostics.kt`** という prefix 付き専用ファイルにしている
- * (ticket-011 「並列作業ルール」)。
+ * Logic F の `CaptureCodeDiagnostics.kt` との責務分離 / 並列作業時のファイル名衝突回避のため、
+ * **`CapturedSourcesCheckerDiagnostics.kt`** という prefix 付き専用ファイルに切り出している。
  *
- * task-034 (Phase 5 polish) で:
+ * 設計上の取り決め:
  *
  * - メッセージ文面を [CaptureCodeDiagnosticMessages] (bilingual SSOT) に分離
  * - `CC_<feature>_<rule>` 命名規則に合わせて property 名を整理

@@ -17,10 +17,9 @@ import org.jetbrains.kotlin.fir.declarations.FirRegularClass
  * かつ `@CaptureCode` メタが付いているものを [CaptureCodeFirMarkerService] (session component)
  * に登録する。
  *
- * 「checker」と命名されているが、本 ticket (task-008) の範囲では診断 (compile error / warning) は
- * 発しない。診断の追加は task-010 (Logic F) の責務で、本 checker はあくまで marker class の
- * 「発見と登録」専用。task-010 でこのファイルを起点に visibility / @Retention / @Target の
- * チェックを追加する想定。
+ * 「checker」と命名されているが、本 extension では診断 (compile error / warning) は
+ * 発しない。診断は Logic F (`MarkerAnnotationChecker`) の責務で、本 checker はあくまで
+ * marker class の「発見と registry への登録」専用。
  *
  * `MppCheckerKind.Common` を指定する理由: marker annotation は v1 では single module 内に閉じている
  * ので、leaf platform module 側でしか検出できない `Platform` ではなく、`Common` で
@@ -42,7 +41,7 @@ internal class CaptureCodeMarkerCheckersExtension(
  * 対象: `ClassKind.ANNOTATION_CLASS` の [FirRegularClass] のみ。
  * 通常の class / object / enum は早期 short-circuit する。
  *
- * 副作用のみで `reporter` には何も report しない (診断は task-010 で追加)。
+ * 副作用のみで `reporter` には何も report しない (診断は Logic F の `MarkerAnnotationChecker` が担う)。
  */
 internal object CaptureCodeMarkerClassChecker : FirRegularClassChecker(MppCheckerKind.Common) {
     override fun check(

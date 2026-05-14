@@ -3,8 +3,8 @@ package me.tbsten.capture.code.error
 /**
  * Capture Code plugin が発する全診断メッセージの **bilingual (英語 + 日本語) SSOT**。
  *
- * task-034 (Phase 5 polish) で `CaptureCodeDiagnostics.kt` / `CapturedSourcesCheckerDiagnostics.kt`
- * の renderer 文面をこのファイルに集約した。renderer は本 object の [BilingualMessage] を
+ * `CaptureCodeDiagnostics.kt` / `CapturedSourcesCheckerDiagnostics.kt` の renderer 文面を
+ * このファイルに集約している。renderer は本 object の [BilingualMessage] を
  * [CaptureCodeMessageLocale] に応じて render するだけになる。
  *
  * ## 文面ポリシー
@@ -22,13 +22,12 @@ package me.tbsten.capture.code.error
  * 既存 test は **文面の部分一致** (`shouldContain`) で検証しているため、英語側の
  * 既存 phrase (`must be 'internal' or 'private'` 等) は **後方互換のため温存** する。
  *
- * design `compiler-plugin-design.md` §5 Logic F / G、§8.5 (`error/` SSOT)、
- * `impl-plan.md` §2 Phase 5 task 5.2 参照。
+ * design `compiler-plugin-design.md` §5 Logic F / G、§8.5 (`error/` SSOT) 参照。
  */
 internal object CaptureCodeDiagnosticMessages {
 
     // ------------------------------------------------------------------
-    // Logic F (task-010, ID: CC_MARKER_*): marker annotation の制約違反
+    // Logic F (ID: CC_MARKER_*): marker annotation の制約違反
     // ------------------------------------------------------------------
 
     /** `CC_MARKER_VISIBILITY_VIOLATION` — visibility が `internal` / `private` でない */
@@ -107,7 +106,7 @@ internal object CaptureCodeDiagnosticMessages {
     )
 
     // ------------------------------------------------------------------
-    // Logic G (task-011, ID: CC_CAPTUREDSOURCES_*): capturedSources<T>() 呼び出しの制約違反
+    // Logic G (ID: CC_CAPTUREDSOURCES_*): capturedSources<T>() 呼び出しの制約違反
     // ------------------------------------------------------------------
 
     /**

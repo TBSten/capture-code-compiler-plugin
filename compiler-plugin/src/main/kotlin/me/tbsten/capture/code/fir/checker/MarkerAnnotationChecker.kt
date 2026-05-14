@@ -33,7 +33,7 @@ import org.jetbrains.kotlin.fir.types.isUnsignedTypeOrNullableUnsignedType
 import org.jetbrains.kotlin.name.StandardClassIds
 
 /**
- * Logic F (task-010): `@CaptureCode` メタ付き marker annotation の制約違反を診断する FIR checker。
+ * Logic F: `@CaptureCode` メタ付き marker annotation の制約違反を診断する FIR checker。
  *
  * `compiler-plugin-design.md` §5 Logic F に列挙された 6 つの制約をチェックし、違反時に
  * `CaptureCodeDiagnostics` の対応する factory で `reporter.reportOn(...)` を行う。
@@ -272,8 +272,8 @@ internal object MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.
         type: ConeLookupTagBasedType,
         session: FirSession,
     ): Boolean {
-        // task-030 v2: `toRegularClassSymbol` extension の package 移動 drift (D2) を
-        // CompatContext.toRegularClassSymbolOrNull 経由で吸収。
+        // `toRegularClassSymbol` extension は Kotlin バージョン間で package 移動 drift (D2) が
+        // あるため、CompatContext.toRegularClassSymbolOrNull 経由で吸収する。
         val symbol = CaptureCodeCompatHolder.context.toRegularClassSymbolOrNull(type, session)
             ?: return false
         val kind = symbol.classKind

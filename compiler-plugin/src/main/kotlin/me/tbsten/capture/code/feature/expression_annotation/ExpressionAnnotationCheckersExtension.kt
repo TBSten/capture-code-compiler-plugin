@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirBasicExpressionC
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 
 /**
- * 式 annotation (`@Marker (expr)`) 検出のための `FirAdditionalCheckersExtension`。task-017。
+ * 式 annotation (`@Marker (expr)`) 検出のための `FirAdditionalCheckersExtension`。
  *
  * design §5 Logic B-fir の式起源側を担う。FIR phase で全 expression を訪問する
  * [CaptureCodeFirExpressionSiteCollector] を `expressionCheckers.basicExpressionCheckers` に
