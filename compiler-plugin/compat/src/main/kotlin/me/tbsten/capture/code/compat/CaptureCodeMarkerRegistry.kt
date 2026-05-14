@@ -1,5 +1,6 @@
 package me.tbsten.capture.code.compat
 
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
@@ -42,6 +43,19 @@ public object CaptureCodeMarkerRegistry {
     private val markers: MutableSet<String> = CopyOnWriteArraySet()
 
     /**
+     * 各 marker FqN に対する per-marker option override の保持テーブル。
+     *
+     * `@CaptureCode(includeKdoc = Override.Yes, ...)` のように引数付きで宣言された marker は、
+     * FIR phase で argument を読んだ後 [registerMarkerOptions] でこのテーブルに保存される。
+     * 引数なしの `@CaptureCode` marker は entry を持たない (= IR 側で参照すると
+     * [CaptureCodeMarkerOptions.DEFAULT] が返る) ことで、後方互換が保たれる。
+     *
+     * IR phase の collector が `markerOptionsFor(fqn)` 経由で per-site の effective option を
+     * 計算する際に参照する。
+     */
+    private val markerOptionsTable: MutableMap<String, CaptureCodeMarkerOptions> = ConcurrentHashMap()
+
+    /**
      * `@CaptureCode` メタ付き annotation class として検出された FqN の集合 (read-only view)。
      *
      * 戻り値は snapshot ではなく live view (CopyOnWriteArraySet がそのまま iterate 安全な参照を返す)
@@ -62,6 +76,30 @@ public object CaptureCodeMarkerRegistry {
     }
 
     /**
+     * marker class の FqN に紐づく per-marker option overrides を登録する。
+     *
+     * 同 marker に対して複数回呼ばれた場合は **後勝ち** (= 最後の登録値で上書き) する。
+     * 通常 declaration checker は 1 つの class につき 1 回呼ばれるため、 競合は発生しない。
+     *
+     * @param fqn marker annotation class の完全修飾名
+     * @param options 当該 marker の per-marker override
+     */
+    public fun registerMarkerOptions(fqn: String, options: CaptureCodeMarkerOptions) {
+        markers.add(fqn)
+        markerOptionsTable[fqn] = options
+    }
+
+    /**
+     * marker FqN に対応する per-marker option overrides を返す。
+     *
+     * marker 自体が未登録の場合、 もしくは marker は登録済みだが option が未登録の場合は
+     * [CaptureCodeMarkerOptions.DEFAULT] (= すべて `Override.Default`) を返す。 これにより
+     * 既存の引数なし `@CaptureCode` marker は global config の値をそのまま使う。
+     */
+    public fun markerOptionsFor(fqn: String): CaptureCodeMarkerOptions =
+        markerOptionsTable[fqn] ?: CaptureCodeMarkerOptions.DEFAULT
+
+    /**
      * 与えられた FqN が登録済みの marker かどうかを返す。
      *
      * IR phase で annotation の type 経由で marker 判定を行う際の hot path。
@@ -76,5 +114,6 @@ public object CaptureCodeMarkerRegistry {
      */
     public fun reset() {
         markers.clear()
+        markerOptionsTable.clear()
     }
 }
