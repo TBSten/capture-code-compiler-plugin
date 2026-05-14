@@ -1,49 +1,51 @@
 package me.tbsten.capture.code
 
-import me.tbsten.capture.code.feature.capturedsources.checker.CapturedSourcesCallCheckersExtension
-import me.tbsten.capture.code.feature.expression_annotation.ExpressionAnnotationCheckersExtension
-import me.tbsten.capture.code.fir.checker.CaptureCodeFirAdditionalCheckersExtension
-import me.tbsten.capture.code.fir.marker.CaptureCodeFirMarkerService
-import me.tbsten.capture.code.fir.marker.CaptureCodeMarkerCheckersExtension
+import me.tbsten.capture.code.compat.CaptureCodeCompatHolder
 import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrar
 
 /**
  * Capture Code compiler plugin の FIR 拡張点エントリ。
  *
- * Logic A:
+ * task-072 で **FIR checker class を compat layer (compat-k200 / compat-k210) に全面移管** した。
  *
- * - [CaptureCodeFirMarkerService]: `@CaptureCode` メタ付き annotation class の `ClassId` を保持する
- *   session component。後段 (B-fir / F / G / H) が参照する SSOT
- * - [CaptureCodeMarkerCheckersExtension]: FIR check phase で全 annotation class を訪問し、
- *   meta-annotation の有無を判定して service に登録する `FirAdditionalCheckersExtension`
+ * ## 移管の動機 (runtime drift D9)
  *
- * Logic F:
+ * Kotlin 2.0.x → 2.2.x で `FirDeclarationChecker.check(...)` / `FirExpressionChecker.check(...)` の
+ * 抽象メソッドの **引数順** が `check(declaration, context, reporter)` から
+ * `check(context, reporter, declaration)` に変わった。 2.0.0 baseline で compile した checker class の
+ * bytecode は 2.2.x runtime で abstract method を実装していない判定となり、 **AbstractMethodError**
+ * を引き起こす。
  *
- * - [CaptureCodeFirAdditionalCheckersExtension]: marker annotation の制約違反 (visibility /
- *   @Retention / @Target / parameter 型 / filler default / expect annotation) を診断する
- *   `FirAdditionalCheckersExtension`
+ * task-071 で main module を `kotlin-compiler-embeddable-k200` (2.0.0 固定) で compile することにより
+ * `compileKotlin` レベルの drift は解消したが、 上記 runtime drift は残存していた。 本 ticket で
+ * checker class を **各 compat-kXXX module の baseline で compile される箇所** に移すことで、
+ * main module が runtime drift から完全に隔離される。
  *
- * Logic G:
+ * ## 現在のエントリ構成
  *
- * - [CapturedSourcesCallCheckersExtension]: `capturedSources<T>()` 呼び出しの型引数 `T` が
- *   `@CaptureCode` メタ付き marker class であることを検査する expression checker
+ * - **Compat-provided checkers**: `CompatContext.firAdditionalCheckersExtensions()` が
+ *   選択された compat module (= 現在の Kotlin compiler version に対応する compat-kXXX) から
+ *   FIR additional checker extension factory のリストを返す。 これを `+::` 構文で登録する。
  *
- * Logic B-fir:
- *
- * - [ExpressionAnnotationCheckersExtension]: `@Marker (expr)` 形の式 annotation を
- *   FIR phase で観察し、`CaptureCodeExpressionSiteRegistry` に
- *   `(filePath, startOffset, endOffset, markerFqn, userArgs)` を push する
- *   `FirBasicExpressionChecker` を登録する。IR phase では式 annotation が残らない (spike で
- *   観測済) ため、FIR session storage 経由で IR phase に bridge する経路の FIR 側エントリ。
+ *   提供 logic:
+ *   - Logic A: `@CaptureCode` メタ付き annotation class の発見 / registry 登録
+ *   - Logic F: marker annotation の制約違反診断 (visibility / @Retention / @Target / parameter 型 etc.)
+ *   - Logic G: `capturedSources<T>()` の型引数 `T` 検査
+ *   - Logic B-fir: `@Marker (expr)` 式 annotation の site collection
  *
  * 詳細は `compiler-plugin-design.md` §5 / §6 を参照。
  */
 public class CaptureCodeFirExtensionRegistrar : FirExtensionRegistrar() {
     override fun ExtensionRegistrarContext.configurePlugin() {
-        +::CaptureCodeFirMarkerService
-        +::CaptureCodeMarkerCheckersExtension
-        +::CaptureCodeFirAdditionalCheckersExtension
-        +::CapturedSourcesCallCheckersExtension
-        +::ExpressionAnnotationCheckersExtension
+        // compat layer から FIR checker extension factory のリストを取得し、 同一 session で
+        // 構築されるように `+(FirSession) -> FirAdditionalCheckersExtension` 形で登録する。
+        //
+        // ※ ServiceLoader 経由で resolveFactory() が走るのは、 本 plugin が JVM 上で初めて
+        //   インスタンス化される時 (= compile session 開始時)。 一度キャッシュされた CompatContext
+        //   は process 寿命の間有効。
+        val compat = CaptureCodeCompatHolder.context
+        for (factory in compat.firAdditionalCheckersExtensions()) {
+            +factory
+        }
     }
 }
