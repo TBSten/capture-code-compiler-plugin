@@ -1,6 +1,7 @@
 [versions]
 
 kotlin = "2.0.0"
+kotlin-k210 = "2.1.0"
 agp = "8.5.2"
 maven-publish = "0.30.0"
 ksp = "2.0.0-1.0.24"
@@ -15,6 +16,7 @@ bcv = "0.16.3"
 
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin" }
+kotlin-compiler-embeddable-k210 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k210" }
 auto-service-annotations = { module = "com.google.auto.service:auto-service-annotations", version.ref = "auto-service" }
 auto-service-ksp = { module = "dev.zacsweers.autoservice:auto-service-ksp", version.ref = "auto-service-ksp" }
 kctfork-core = { module = "dev.zacsweers.kctfork:core", version.ref = "kctfork" }

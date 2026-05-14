@@ -47,7 +47,9 @@ tasks.withType<Test>().configureEach {
     // fixture の settings.gradle.kts の pluginManagement で resolve する。
     systemProperty(
         "test-gradle-plugin.kotlinVersion",
-        libs.versions.kotlin.get(),
+        // task-030 v2: `kotlin-k210` library エントリ追加で `libs.versions.kotlin` accessor が
+        // namespace 化されたため `.asProvider().get()` で明示。
+        libs.versions.kotlin.asProvider().get(),
     )
 
     // includeBuild + dependencySubstitution は configuration-cache と相性問題が出る場合があるため、

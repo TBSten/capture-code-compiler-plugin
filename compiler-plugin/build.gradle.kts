@@ -21,13 +21,15 @@ dependencies {
 
     implementation(project(":compiler-plugin:compat"))
 
-    // 全 compat-kXXXX を shadow JAR で同梱する。バージョン追加時はここに足す。
-    bundled(project(":compiler-plugin:compat-k2000"))
+    // 全 compat-kXXX を shadow JAR で同梱する。 バージョン追加時はここに足す。
+    bundled(project(":compiler-plugin:compat-k200"))
+    bundled(project(":compiler-plugin:compat-k210"))
 
     testImplementation(project(":annotation"))
     // Unit test では shadow JAR ではなく素の classpath を使うので、
     // compat 実装モジュールも明示的に testImplementation に含める。
-    testImplementation(project(":compiler-plugin:compat-k2000"))
+    testImplementation(project(":compiler-plugin:compat-k200"))
+    testImplementation(project(":compiler-plugin:compat-k210"))
     testImplementation(libs.kotlin.compiler.embeddable)
     testImplementation(libs.kctfork.core)
     testImplementation(libs.kotest.runner.junit5)
@@ -42,7 +44,7 @@ tasks.shadowJar {
 
 // 通常の jar は無効化し、shadow JAR を main artifact として公開する。
 // これにより `kotlinCompilerPluginClasspath(project(":compiler-plugin"))` が
-// compat-k2000 を同梱した JAR を取得する。
+// compat-k200 / compat-k210 を同梱した JAR を取得する。
 tasks.named<Jar>("jar") {
     enabled = false
 }
