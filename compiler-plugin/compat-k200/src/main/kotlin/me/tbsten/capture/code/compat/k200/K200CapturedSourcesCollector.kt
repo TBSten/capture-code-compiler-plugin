@@ -5,6 +5,7 @@ import me.tbsten.capture.code.compat.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.compat.CapturedSite
 import me.tbsten.capture.code.feature.captured_sources.normalize.NormalizeOptions
+import me.tbsten.capture.code.feature.captured_sources.normalize.findKDocExtendedStartOffset
 import me.tbsten.capture.code.feature.captured_sources.normalize.normalize
 import me.tbsten.capture.code.feature.captured_sources.normalize.toDeclarationNormalizeOptions
 import me.tbsten.capture.code.feature.captured_sources.normalize.toExpressionNormalizeOptions
@@ -536,23 +537,62 @@ internal class K200CapturedSourcesCollector(
         if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) return null
         if (endOffset > fullText.length) return null
 
+        // task-042: `includeKdoc = true` (デフォルト) の場合、 declaration の startOffset の
+        // 直前にある KDoc を別途抽出する。 KDoc は `@Marker` 行より手前にあるため、
+        // 単純に startOffset を前方拡張すると `@Marker` 行が skip されない問題がある
+        // (skipLeadingAnnotationLines は連続する `@` 行のみ skip するため、 KDoc 行で中断する)。
+        // そこで KDoc 抽出と body 抽出を **分離** し、 後で連結する戦略を採る。
+        val kdocPrefix = if (config.includeKdoc) extractKdocPrefix(fullText, startOffset) else ""
+
         val rawStart = skipLeadingAnnotationLines(fullText, startOffset, endOffset)
-        val rawText = SourceTextExtractor.substringOrNull(fullText, rawStart, endOffset) ?: return null
+        val rawBody = SourceTextExtractor.substringOrNull(fullText, rawStart, endOffset) ?: return null
+        val rawText = if (kdocPrefix.isNotEmpty()) kdocPrefix + "\n" + rawBody else rawBody
         return normalize(rawText, normalizeOptions)
     }
 
     /**
-     * `startOffset` 〜 `endOffset` の範囲のうち、先頭の `@Foo` アノテーション行 (改行まで) を
+     * declaration の `startOffset` 直前に位置する KDoc コメントブロック (`/** ... */`) を
+     * raw text として抽出する。 KDoc が見つからない場合は空文字列を返す。
+     *
+     * 例:
+     * - `text` = `"/**\n * doc\n */\n@Marker\nfun foo()"` , startOffset = `@Marker` 行頭
+     * - 戻り値 = `"/**\n * doc\n */"` (末尾 `\n` は含めない)
+     */
+    private fun extractKdocPrefix(fullText: String, startOffset: Int): String {
+        val kdocStart = findKDocExtendedStartOffset(fullText, startOffset)
+        if (kdocStart >= startOffset) return ""
+        // kdocStart..startOffset の範囲には KDoc + 末尾空白行が含まれる。
+        // 末尾の whitespace / newline は trim して KDoc 本体だけを返す。
+        return fullText.substring(kdocStart, startOffset).trimEnd()
+    }
+
+    /**
+     * `startOffset` 〜 `endOffset` の範囲のうち、 先頭の **marker annotation 行** (改行まで) を
      * スキップした offset を返す。
      *
-     * Phase 1 / task-005 ではシンプルさのため行頭に `@` がある限り次の改行までスキップする
-     * 線形パスとしている。複数 annotation や複数行 annotation 引数には対応する
-     * (1 行ずつ判定する) が、annotation arguments 内に改行がある場合 (`@Foo(\n  ...\n)`) には
-     * 未対応 (現状のテストケースは 1 行 annotation 引数のみ)。
+     * task-041 で挙動を変更: かつては行頭が `@` で始まる行をすべてスキップしていたが、
+     * `@JvmInline value class Foo(val raw: Long)` のように **Kotlin 標準 annotation
+     * (`@JvmInline` 等) が宣言の意味論上必須** であるケース (= inline value class) で
+     * `@JvmInline` 行まで落としてしまい、 結果 source として残らない問題があった。
      *
-     * 行頭の空白はスキップ前にカウントし、`@` で始まらない行ならその行頭 (空白含む) を返す。
+     * 新仕様: 行頭 `@<simpleName>(...)` の `<simpleName>` が [CaptureCodeMarkerRegistry] の
+     * 登録 marker の simpleName 集合に含まれている場合のみ、 その行を末尾改行まで skip する。
+     * それ以外の annotation (`@JvmInline` / `@Suppress` 等) はスキップせず、 source の一部として残る。
+     * これにより value class 等の semantic-significant annotation を保持できる。
+     *
+     * 既存テストへの影響: 既存ケースは「marker annotation だけが先頭に付く」前提で書かれており、
+     * marker 行は引き続き skip されるため期待値は不変。
+     *
+     * 制約: dotted FQN (`@com.example.Foo`) は simpleName 抽出が `com` になるため marker 判定が
+     * 失敗し、 行が残る (= 期待値と乖離する可能性)。 ただし現状のテストは単純名 import で書かれて
+     * いるため scope 外。 将来必要になれば last segment 抽出に拡張する。
+     *
+     * 引き続き、 annotation arguments 内に改行があるケース (`@Foo(\n  ...\n)`) は未対応。
      */
     private fun skipLeadingAnnotationLines(text: String, startOffset: Int, endOffset: Int): Int {
+        val markerSimpleNames = CaptureCodeMarkerRegistry.markerFqns
+            .map { it.substringAfterLast('.') }
+            .toSet()
         var cursor = startOffset
         while (cursor < endOffset) {
             // 行頭の空白をスキップ
@@ -564,7 +604,19 @@ internal class K200CapturedSourcesCollector(
                 // アノテーション行ではないので、行頭の空白を含めて return
                 return lineStart
             }
-            // `@` を含む行末まで進める (annotation arguments 内に改行が無い前提)
+            // `@` 直後の identifier (`[A-Za-z_][A-Za-z0-9_]*`) を取り出して simpleName とする。
+            val nameStart = cursor + 1
+            var nameEnd = nameStart
+            while (nameEnd < endOffset) {
+                val ch = text[nameEnd]
+                if (ch.isLetterOrDigit() || ch == '_') nameEnd++ else break
+            }
+            val simpleName = if (nameEnd > nameStart) text.substring(nameStart, nameEnd) else ""
+            if (simpleName !in markerSimpleNames) {
+                // marker ではない annotation (`@JvmInline` 等): この行はソースの一部として残す。
+                return lineStart
+            }
+            // marker annotation 行: 行末改行まで進める (annotation arguments 内に改行が無い前提)
             while (cursor < endOffset && text[cursor] != '\n') {
                 cursor++
             }
