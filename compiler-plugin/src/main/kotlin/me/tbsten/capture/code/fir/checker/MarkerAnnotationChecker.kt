@@ -23,6 +23,7 @@ import org.jetbrains.kotlin.fir.declarations.extractEnumValueArgumentInfo
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.expressions.unwrapAndFlattenArgument
 import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
+import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.types.ConeKotlinTypeProjection
 import org.jetbrains.kotlin.fir.types.ConeLookupTagBasedType
 import org.jetbrains.kotlin.fir.types.classId
@@ -171,6 +172,11 @@ internal object MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.
         return args.mapNotNull { it.extractEnumValueArgumentInfo()?.enumEntryName?.asString() }
     }
 
+    // Kotlin 2.1.0+ では `FirValueParameterSymbol.resolvedReturnTypeRef` が
+    // `@SymbolInternals` opt-in 必須に変更された (2.0.x までは warning だった
+    // ものが error 化)。 ここでは型情報の参照のみ (副作用なし) のため、 局所
+    // 関数単位で opt-in する。
+    @OptIn(SymbolInternals::class)
     private fun checkParameters(
         declaration: FirRegularClass,
         session: FirSession,
