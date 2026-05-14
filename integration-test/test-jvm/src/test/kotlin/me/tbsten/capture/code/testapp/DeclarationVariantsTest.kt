@@ -306,7 +306,7 @@ data class Case55_Config(
 
 class DeclarationVariantsTest : StringSpec({
 
-    "ケース33: クラス内のメンバ関数をキャプチャ (インデントを dedent)".config(enabled = false) {
+    "ケース33: クラス内のメンバ関数をキャプチャ (インデントを dedent)" {
         capturedSources<MemberSnippet_Case33>() shouldBe listOf(
             MemberSnippet_Case33(
                 source = Source(value = "fun findById(id: Int): String? {\n    return null\n}"),
@@ -314,7 +314,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース34: 多重ネストクラス内の関数キャプチャ".config(enabled = false) {
+    "ケース34: 多重ネストクラス内の関数キャプチャ" {
         capturedSources<DeepSnippet_Case34>() shouldBe listOf(
             DeepSnippet_Case34(source = Source(value = "fun deepFunc() = \"deep\"")),
         )
@@ -330,7 +330,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース36: sealed class とその子クラスのキャプチャ".config(enabled = false) {
+    "ケース36: sealed class とその子クラスのキャプチャ" {
         capturedSources<Snippets_Case36>() shouldBe listOf(
             Snippets_Case36(
                 source = Source(
@@ -356,7 +356,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース39: abstract class のキャプチャ".config(enabled = false) {
+    "ケース39: abstract class のキャプチャ" {
         capturedSources<Snippets_Case39>() shouldBe listOf(
             Snippets_Case39(
                 source = Source(
@@ -366,7 +366,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース40: interface のキャプチャ".config(enabled = false) {
+    "ケース40: interface のキャプチャ" {
         capturedSources<Snippets_Case40>() shouldBe listOf(
             Snippets_Case40(
                 source = Source(
@@ -376,7 +376,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース41: companion object のキャプチャ".config(enabled = false) {
+    "ケース41: companion object のキャプチャ" {
         capturedSources<Snippets_Case41>() shouldBe listOf(
             Snippets_Case41(
                 source = Source(value = "companion object {\n    const val NAME = \"Foo\"\n}"),
@@ -396,7 +396,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース44: suspend function のキャプチャ".config(enabled = false) {
+    "ケース44: suspend function のキャプチャ" {
         capturedSources<Snippets_Case44>() shouldBe listOf(
             Snippets_Case44(
                 source = Source(
@@ -424,7 +424,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース47: operator function のキャプチャ".config(enabled = false) {
+    "ケース47: operator function のキャプチャ" {
         capturedSources<Snippets_Case47>() shouldBe listOf(
             Snippets_Case47(
                 source = Source(
@@ -434,7 +434,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース48: infix function のキャプチャ".config(enabled = false) {
+    "ケース48: infix function のキャプチャ" {
         capturedSources<Snippets_Case48>() shouldBe listOf(
             Snippets_Case48(
                 source = Source(
@@ -444,7 +444,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース49: デフォルト引数を持つ関数のキャプチャ".config(enabled = false) {
+    "ケース49: デフォルト引数を持つ関数のキャプチャ" {
         capturedSources<Snippets_Case49>() shouldBe listOf(
             Snippets_Case49(
                 source = Source(
@@ -464,25 +464,25 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース51: lateinit var のキャプチャ".config(enabled = false) {
+    "ケース51: lateinit var のキャプチャ" {
         capturedSources<Snippets_Case51>() shouldBe listOf(
             Snippets_Case51(source = Source(value = "lateinit var name: String")),
         )
     }
 
-    "ケース52: const val のキャプチャ".config(enabled = false) {
+    "ケース52: const val のキャプチャ" {
         capturedSources<Snippets_Case52>() shouldBe listOf(
             Snippets_Case52(source = Source(value = "const val MAX_RETRY = 3")),
         )
     }
 
-    "ケース53: by lazy デリゲートのキャプチャ".config(enabled = false) {
+    "ケース53: by lazy デリゲートのキャプチャ" {
         capturedSources<Snippets_Case53>() shouldBe listOf(
             Snippets_Case53(source = Source(value = "val case53_heavy: String by lazy { case53_computeHeavy() }")),
         )
     }
 
-    "ケース54: カスタムゲッターを持つ property".config(enabled = false) {
+    "ケース54: カスタムゲッターを持つ property" {
         capturedSources<Snippets_Case54>() shouldBe listOf(
             Snippets_Case54(
                 source = Source(value = "val fullName: String\n    get() = \"\$first \$last\""),
@@ -490,7 +490,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース55: trailing-comma 多パラメータ data class".config(enabled = false) {
+    "ケース55: trailing-comma 多パラメータ data class" {
         capturedSources<Snippets_Case55>() shouldBe listOf(
             Snippets_Case55(
                 source = Source(
