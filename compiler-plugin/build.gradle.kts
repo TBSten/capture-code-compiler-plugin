@@ -12,11 +12,32 @@ kotlin {
     }
 }
 
+// task-071: 補足
+//
+// main module の compileKotlin が consumer kotlin (root の kotlin version)
+// に従って動くこと自体は変えていない。 ただし `compileOnly` を
+// `kotlin-compiler-embeddable-k200` (= 2.0.0 固定) に切り替えたことで、
+// main module の source code が解決する compile-time symbol は常に 2.0.0
+// 系の signature になる。 これにより consumer kotlin が 2.2.x+ に bump
+// されても main module 自体の compile fail は発生しない。
+//
+// `apiVersion` / `languageVersion` を `KOTLIN_2_0` に明示固定する案は
+// ksp の `kspKotlin` task が独自に `languageVersion = 1.9` を強制する
+// ため衝突 (`-api-version (2.0) cannot be greater than -language-version
+// (1.9)`) しビルドが壊れる。 ksp 側の制約が緩むまで、 compilerOptions の
+// version 固定は採用しない。 compileOnly 切替だけで本 ticket の目的
+// (drift 解消) は達成できている。
+
 // shadowJar に同梱する compat 実装モジュール (transitive 依存は持ち込まない)
 val bundled: Configuration by configurations.creating { isTransitive = false }
 
 dependencies {
-    compileOnly(libs.kotlin.compiler.embeddable)
+    // task-071: main module は固定 2.0.0 (kotlin-k200) API に対して compile する。
+    // これにより consumer kotlin が 2.2.x+ に bump されても drift (FirChecker
+    // signature / RootDiagnosticRendererFactory 等) に影響されない。 shadowJar
+    // で出荷される native binary も 2.0.0 固定となり、 多 version 対応は
+    // compat layer (compat-k200 / compat-k210) 経由で行う設計。
+    compileOnly(libs.kotlin.compiler.embeddable.k200)
     compileOnly(libs.auto.service.annotations)
     ksp(libs.auto.service.ksp)
 
@@ -41,7 +62,8 @@ dependencies {
     testImplementation(project(":compiler-plugin:compat"))
     testImplementation(project(":compiler-plugin:compat-k200"))
     testImplementation(project(":compiler-plugin:compat-k210"))
-    testImplementation(libs.kotlin.compiler.embeddable)
+    // task-071: test classpath も 2.0.0 固定 (main と合わせる)
+    testImplementation(libs.kotlin.compiler.embeddable.k200)
     testImplementation(libs.kctfork.core)
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
