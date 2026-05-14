@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp.actualonly
+package me.tbsten.capture.code.testapp.kmp.actualonly
 
 // actualOnly シナリオ: jvmTest の actual のみに annotation を付ける
 @ActualOnlyMarker

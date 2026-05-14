@@ -1,14 +1,14 @@
-package me.tbsten.capture.code.testapp
+package me.tbsten.capture.code.testapp.kmp
 
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 import me.tbsten.capture.code.Source
 import me.tbsten.capture.code.capturedSources
-import me.tbsten.capture.code.testapp.actualonly.ActualOnlyMarker
-import me.tbsten.capture.code.testapp.commonbasic.CommonBasicMarker
-import me.tbsten.capture.code.testapp.expectactual.ExpectActualBothMarker
-import me.tbsten.capture.code.testapp.intermediatehierarchy.IntermediateHierarchyMarker
-import me.tbsten.capture.code.testapp.targetspecific.TargetSpecificKmpMarker
+import me.tbsten.capture.code.testapp.kmp.actualonly.ActualOnlyMarker
+import me.tbsten.capture.code.testapp.kmp.commonbasic.CommonBasicMarker
+import me.tbsten.capture.code.testapp.kmp.expectactual.ExpectActualBothMarker
+import me.tbsten.capture.code.testapp.kmp.intermediatehierarchy.IntermediateHierarchyMarker
+import me.tbsten.capture.code.testapp.kmp.targetspecific.TargetSpecificKmpMarker
 
 // ============================================================================
 // KMP 検証テストのカタログ (test sourceset 完結配置版 2026-05-14)。
@@ -76,7 +76,7 @@ class KmpCapturedSourcesTest : StringSpec({
         captured[0].source shouldBe Source(
             value = "internal actual fun expectActualCurrentTimeMillis(): Long = System.currentTimeMillis()",
         )
-        captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp.expectactual"
+        captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp.kmp.expectactual"
         // capture 元が jvmTest sourceset 由来であることを verify (source set hierarchy 整合性)
         check(captured[0].location.filePath.contains("jvmTest")) {
             "expect/actual both capture filePath should contain 'jvmTest' but was: ${captured[0].location.filePath}"
