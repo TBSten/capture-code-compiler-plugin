@@ -31,16 +31,12 @@ kotlin {
     applyDefaultHierarchyTemplate()
 
     jvm {
-        mainRun {
-            mainClass = "me.tbsten.capture.code.testapp.MainKt"
-        }
         testRuns["test"].executionTask.configure {
             useJUnitPlatform()
         }
     }
     js(IR) {
         nodejs()
-        binaries.executable()
     }
 
     // wasm 代表 target。本 ticket (task-019) と同時に `:annotation` 側にも
@@ -49,7 +45,6 @@ kotlin {
     // 必要となり setup コストが大きいので、当面 `nodejs()` のみで testing する。
     wasmJs {
         nodejs()
-        binaries.executable()
     }
 
     // Linux / Windows native (Xcode 不要)
