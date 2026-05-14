@@ -33,6 +33,7 @@ jobs:
           # === 2.0.x track ===
           - "2.0.0"   # base — SSOT, libs.versions.toml に固定
           - "2.0.10"  # stable tier (task-047): compat-k200 が 2.0.10 native でも PASS
+          - "2.0.20"  # experimental (task-048): D1 drift (FirLiteralExpression generics) 発生
           - "2.0.21"  # latest 2.0.x patch
           # === 2.1.x track ===
           - "2.1.0"
@@ -51,18 +52,21 @@ jobs:
           # PASS を要求する。 それ以外の version は experimental (= continue-
           # on-error で fail を許容、 ただし matrix の継続には影響しない)。
           #
-          # 2.0.21+ を stable から外す理由:
+          # 2.0.20+ を stable から外す理由:
           #   - D1 drift (FirLiteralExpression<T> → FirLiteralExpression) が
-          #     2.0.21 で発生。 `compat-k200` の compile が 2.0.21 native
-          #     classpath では落ちる (本ローカルで実機確認済)。
+          #     **2.0.20** で発生 (task-048 ローカル実機検証で確定。 task-047
+          #     時点の comment では 2.0.21 と帰属していたが、 patch 単位の
+          #     計測で 2.0.20 が真の drift introduction patch であることが
+          #     判明)。 `compat-k200` の compile が 2.0.20+ native classpath
+          #     では落ちる。
           #   - これは既知 drift で、 `compat-k210` 側が 2.1.x baseline と
           #     して既に absorb 済。
           #   - 既存 plugin の出荷 artifact は **shadowJar 内に
           #     `compat-k200` (2.0.0 baseline) + `compat-k210` (2.1.0 baseline)
-          #     を bundle して** いるため、 consumer の Kotlin が 2.0.21 でも
+          #     を bundle して** いるため、 consumer の Kotlin が 2.0.20+ でも
           #     `compat-k210` が選ばれる (resolveFactory の minVersion 選択
-          #     ロジック)。 つまり **plugin の出荷 artifact 自体は 2.0.21+
-          #     consumer で動く**。 ただし CI 上で `compat-k200` を 2.0.21
+          #     ロジック)。 つまり **plugin の出荷 artifact 自体は 2.0.20+
+          #     consumer で動く**。 ただし CI 上で `compat-k200` を 2.0.20
           #     native でビルドしようとすると drift が露呈する、 という
           #     CI 用の構造的制約 (= experimental tier で許容)。
           # ------------------------------------------------------------------
@@ -84,6 +88,9 @@ jobs:
           # Kotlin (matrix value) が混在する。 大部分の build/test は
           # それでも動くが、 一部 spike テスト等で fail することがある。
           # ------------------------------------------------------------------
+          - kotlin: "2.0.20"
+            ksp: "2.0.20-1.0.24"
+            experimental: true
           - kotlin: "2.0.21"
             ksp: "2.0.21-1.0.28"
             experimental: true
