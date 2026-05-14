@@ -4,6 +4,7 @@ import java.util.ServiceLoader
 import me.tbsten.capture.code.CaptureCodePluginConfig
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.fir.FirSession
+import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
@@ -106,6 +107,45 @@ public interface CompatContext {
      * to guard against a future shape change of that accessor (drift D3).
      */
     public fun classIdOf(symbol: FirRegularClassSymbol): ClassId?
+
+    /**
+     * Returns the list of FIR `FirAdditionalCheckersExtension` factories that
+     * this compat implementation contributes to the plugin's
+     * `FirExtensionRegistrar`.
+     *
+     * Each element is a function `(FirSession) -> FirAdditionalCheckersExtension`
+     * that the main module's `CaptureCodeFirExtensionRegistrar` registers via
+     * `+plusAdditionalCheckersExtension(...)`.
+     *
+     * **Why factories instead of pre-built extensions**: Kotlin builds one FIR
+     * session per compile and constructs extensions per-session. The factory is
+     * invoked with the active `FirSession` to produce a fresh extension instance
+     * each time.
+     *
+     * **Why this lives in compat layer**: `FirRegularClassChecker` /
+     * `FirBasicExpressionChecker` (= `FirDeclarationChecker<FirRegularClass>` /
+     * `FirExpressionChecker<FirStatement>`) are abstract base classes whose
+     * `check(...)` method's **argument order** shifted across Kotlin minor
+     * versions:
+     *
+     * - 2.0.x: `check(declaration, context, reporter)`
+     * - 2.2.x+: `check(context, reporter, declaration)`
+     *
+     * The bytecode produced by compiling a checker against 2.0 will fail to
+     * dispatch to the 2.2 abstract method at runtime (AbstractMethodError).
+     * By keeping each version's checker concrete subclasses inside the matching
+     * `compat-kXXX` module (compiled against its own baseline), the main module
+     * never holds a static reference to a `FirChecker` subclass and the runtime
+     * drift is isolated to the compat layer.
+     *
+     * Implementations typically return checker extensions covering:
+     * - Logic A: `@CaptureCode` marker class discovery & registration
+     * - Logic F: marker annotation constraint diagnostics
+     * - Logic G: `capturedSources<T>()` type argument validation
+     * - Logic B-fir: expression-site `@Marker (expr)` collection
+     */
+    public fun firAdditionalCheckersExtensions():
+        List<(FirSession) -> FirAdditionalCheckersExtension>
 
     /**
      * Factory for compat implementations. Each `compat-kXXX` module registers
