@@ -100,15 +100,163 @@ val block = @Marker run { ... }
 
 ---
 
+## Quick Start
+
+### JVM プロジェクト
+
+```kotlin
+// settings.gradle.kts
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+// build.gradle.kts
+plugins {
+    kotlin("jvm") version "2.1.0"
+    id("me.tbsten.capture.code") version "<plugin-version>"
+}
+
+captureCode {
+    includeKdoc = true              // デフォルト: true
+    includeImports = false          // デフォルト: false (@file: キャプチャ専用)
+    includeAnnotationLines = false  // デフォルト: false
+    dedent = true                   // デフォルト: true
+    includeLineInfo = true          // デフォルト: true
+}
+
+repositories { mavenCentral() }
+```
+
+Gradle plugin は `afterEvaluate` で `me.tbsten.capture.code:annotation`
+runtime を `implementation` に自動追加するため、 plugin を apply するだけで
+良い。
+
+### Kotlin Multiplatform プロジェクト
+
+```kotlin
+plugins {
+    kotlin("multiplatform") version "2.1.0"
+    id("me.tbsten.capture.code") version "<plugin-version>"
+}
+
+kotlin {
+    jvm()
+    js(IR) { browser(); nodejs() }
+    wasmJs { browser(); nodejs() }
+    linuxX64()
+    // Apple target は Xcode 必須 (下記参照)。
+}
+
+captureCode {
+    dedent = true
+}
+```
+
+KMP project では annotation runtime が `commonMainImplementation` に自動で
+追加される。
+
+> [!IMPORTANT]
+> marker 定義 / use site / `capturedSources<T>()` 呼び出しは **同一 Kotlin
+> compilation invocation** (同一 source set ツリー) 内に揃える必要がある。
+> plugin の in-process registry は invocation スコープ。 test fixture では
+> 三者すべてを test sourceset (`commonTest` / `jvmTest` / ...) に置く。
+> 詳細は [docs/known-limitations.md](docs/known-limitations.md) を参照。
+
+### サンプル
+
+実行可能なサンプルは [`samples/`](samples/) 配下に置かれる:
+
+- [`samples/jvm-sample/`](samples/jvm-sample/) — 最小 JVM 構成。
+- [`samples/kmp-sample/`](samples/kmp-sample/) — test sourceset 完結方式の
+  KMP 構成。
+
+---
+
+## アーキテクチャ概要
+
+runtime stub / compiler plugin / Gradle plugin / Kotlin compiler API drift
+を吸収する compat layer の 4 層で構成される。
+
+```
+:annotation                     // @CaptureCode, filler 型, capturedSources<T>() stub
+:compiler-plugin                // FIR + IR extension
+  :compiler-plugin:compat       // CompatContext Interface
+  :compiler-plugin:compat-k200  // Kotlin 2.0.x 実装
+  :compiler-plugin:compat-k210  // Kotlin 2.1.x 実装
+:gradle-plugin                  // KotlinCompilerPluginSupportPlugin
+```
+
+FIR phase で `@CaptureCode` メタが付いた marker を発見し、 制約 (visibility /
+@Retention / @Target / parameter 型) をチェックし、 マーク済み宣言 / 式を
+in-process registry に登録する。 IR phase はその registry を読み、
+`IrFileEntry` 経由で生ソースを抽出して正規化し、 `capturedSources<T>()`
+呼び出しを `listOf(MarkerCtor(...), ...)` のリテラルに書き換える。
+inline 展開より前に走るので `@Marker run { ... }` のような式 annotation も
+保持される。
+
+詳細は [docs/architecture.md](docs/architecture.md) を参照。
+
+---
+
+## サポート Kotlin バージョン
+
+| Kotlin | ステータス | Compat module |
+| ------ | ---------- | ------------- |
+| 2.0.x  | サポート (CI で検証) | `compat-k200` |
+| 2.1.x  | サポート (CI で検証) | `compat-k210` |
+| 2.2.x  | 未検証 — `compat-k210` に fallback + warn | — |
+| < 2.0  | **非サポート**。 build 時に明示的にエラー。 | — |
+
+Gradle plugin は consumer project の Kotlin 版を
+`KotlinGradlePlugin.getKotlinPluginVersion()` で取得し、 最小サポート版
+未満ならエラー、 最大検証版超なら warn を出す。 実 dispatch は同梱
+compiler plugin JAR 内の `ServiceLoader` 経由で compile time に行われる。
+
+新 minor の追加手順は
+[docs/adding-kotlin-version-support.md](docs/adding-kotlin-version-support.md)
+を参照。
+
+---
+
 ## 制約
 
 - Kotlin **2.x (K2)** のみ
 - marker annotation は **`internal` または `private`** 必須 — 単一モジュール内に閉じた設計
 - **KMP 対応** — JVM / JS / Native / WASM。commonMain と各 platform source set で marker 定義・use site・取得が可能
 
+### Known limitations (抜粋)
+
+K2 compiler 由来の制約は plugin 側では吸収せず、 既知の挙動として受け入れる:
+
+1. `@Marker (expr)` には marker の `()` 明示が必要 (`@Marker() (expr)`)。
+2. `@Marker () ({ ... })` の lambda 式 annotation は外側 parenthesis を
+   含めずキャプチャされる。 `@Marker() run { ... }` 推奨。
+3. KMP の `expect` / `actual` 両方に annotation を付けても expect 側は IR
+   phase に到達せず、 actual 側 1 件のみキャプチャされる。
+4. marker / use site / `capturedSources<T>()` は同一 Kotlin compilation
+   invocation 内に置く必要がある。
+5. Apple native target は `-PenableAppleTargets=true` の opt-in。
+
+完全な一覧と root-cause 解説は
+[docs/known-limitations.md](docs/known-limitations.md)。
+
 ---
 
-設計・内部実装は [DESIGN.md](DESIGN.md) を参照。テストカタログは [test-cases.md](test-cases.md) に 100 ケース。
+## ドキュメント
+
+- [docs/architecture.md](docs/architecture.md) — module 構成、 FIR / IR
+  pipeline、 Logic A〜H カタログ。
+- [docs/known-limitations.md](docs/known-limitations.md) — K2 由来の制約
+  リスト。
+- [docs/adding-kotlin-version-support.md](docs/adding-kotlin-version-support.md)
+  — 新 Kotlin version 対応の手順。
+- [compiler-plugin/compat/README.md](compiler-plugin/compat/README.md) —
+  compat layer の詳細設計。
+
+テストカタログは [test-cases.md](test-cases.md) に 100 ケース。
 
 ---
 

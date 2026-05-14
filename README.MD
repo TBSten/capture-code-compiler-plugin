@@ -100,15 +100,165 @@ val block = @Marker run { ... }
 
 ---
 
+## Quick Start
+
+### JVM project
+
+```kotlin
+// settings.gradle.kts
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+// build.gradle.kts
+plugins {
+    kotlin("jvm") version "2.1.0"
+    id("me.tbsten.capture.code") version "<plugin-version>"
+}
+
+captureCode {
+    includeKdoc = true        // default: true
+    includeImports = false    // default: false (only affects @file: captures)
+    includeAnnotationLines = false  // default: false
+    dedent = true             // default: true
+    includeLineInfo = true    // default: true
+}
+
+repositories { mavenCentral() }
+```
+
+The Gradle plugin automatically adds the `me.tbsten.capture.code:annotation`
+runtime to your `implementation` configuration in `afterEvaluate`. You only
+need to apply the plugin.
+
+### Kotlin Multiplatform project
+
+```kotlin
+plugins {
+    kotlin("multiplatform") version "2.1.0"
+    id("me.tbsten.capture.code") version "<plugin-version>"
+}
+
+kotlin {
+    jvm()
+    js(IR) { browser(); nodejs() }
+    wasmJs { browser(); nodejs() }
+    linuxX64()
+    // Apple targets require Xcode; see below.
+}
+
+captureCode {
+    dedent = true
+}
+```
+
+For KMP projects, the annotation runtime is added to `commonMainImplementation`
+automatically.
+
+> [!IMPORTANT]
+> Marker definitions, use sites, and `capturedSources<T>()` calls must all
+> live in **the same Kotlin compilation invocation** (the same source-set
+> tree). The plugin's in-process registries are scoped to a single
+> invocation. For test fixtures, that means placing all three in the test
+> source sets (`commonTest` / `jvmTest` / …). See
+> [docs/known-limitations.md](docs/known-limitations.md) for details.
+
+### Samples
+
+Runnable samples will live under [`samples/`](samples/):
+
+- [`samples/jvm-sample/`](samples/jvm-sample/) — minimum JVM setup.
+- [`samples/kmp-sample/`](samples/kmp-sample/) — KMP setup that captures
+  inside test source sets.
+
+---
+
+## Architecture overview
+
+The plugin is split into a runtime stub, a compiler plugin, a thin Gradle
+plugin and a compat layer that absorbs Kotlin compiler API drift.
+
+```
+:annotation                     // @CaptureCode, filler types, capturedSources<T>() stub
+:compiler-plugin                // FIR + IR extensions
+  :compiler-plugin:compat       // CompatContext interface
+  :compiler-plugin:compat-k200  // Kotlin 2.0.x impl
+  :compiler-plugin:compat-k210  // Kotlin 2.1.x impl
+:gradle-plugin                  // KotlinCompilerPluginSupportPlugin
+```
+
+The FIR phase discovers `@CaptureCode`-meta-annotated markers, checks the
+constraints on them, and records every annotated declaration / expression
+into in-process registries. The IR phase reads those registries, extracts
+the raw source text via `IrFileEntry`, normalises it, and rewrites every
+`capturedSources<T>()` call into a `listOf(MarkerCtor(...), ...)` literal —
+before inline expansion runs, so that expression-level annotations on
+inline-function arguments survive.
+
+For the full design, see [docs/architecture.md](docs/architecture.md).
+
+---
+
+## Supported Kotlin versions
+
+| Kotlin | Status | Compat module |
+| ------ | ------ | ------------- |
+| 2.0.x  | Supported (verified in CI) | `compat-k200` |
+| 2.1.x  | Supported (verified in CI) | `compat-k210` |
+| 2.2.x  | Not yet verified — falls back to `compat-k210` with a warning | — |
+| < 2.0  | **Not supported.** Build fails with a clear message. | — |
+
+The Gradle plugin reads `KotlinGradlePlugin.getKotlinPluginVersion()` from
+the consumer project and emits an error below the minimum supported version
+or a warning above the highest tested version. The actual dispatch happens
+at compile time via `ServiceLoader` inside the bundled compiler plugin JAR.
+
+To add a new minor version locally, see
+[docs/adding-kotlin-version-support.md](docs/adding-kotlin-version-support.md).
+
+---
+
 ## Constraints
 
 - Kotlin **2.x (K2)** only
 - Marker annotations must be **`internal` or `private`** — by design, capture stays confined to a single module
 - **KMP support** — JVM / JS / Native / WASM. Marker definitions, use sites, and retrieval all work in `commonMain` and in each platform source set
 
+### Known limitations (excerpt)
+
+The K2 compiler introduces a handful of constraints that the plugin does
+not paper over:
+
+1. `@Marker (expr)` requires explicit parentheses on the marker
+   (`@Marker() (expr)`).
+2. `@Marker () ({ ... })` captures the lambda **without** the outer
+   parentheses; prefer `@Marker() run { ... }`.
+3. KMP `expect` / `actual` — annotation on the `expect` side is invisible to
+   the IR phase. Only the `actual` site is captured.
+4. Markers, use sites and `capturedSources<T>()` must live in the same
+   Kotlin compilation invocation.
+5. Apple-native targets are opt-in via `-PenableAppleTargets=true`.
+
+Full list with reproductions and root-cause analysis:
+[docs/known-limitations.md](docs/known-limitations.md).
+
 ---
 
-For the design and internal implementation, see the internal design notes. The test catalog lives in [test-cases.md](test-cases.md), with 100 cases.
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) — module layout, FIR / IR
+  pipeline, and the Logic A – H catalogue.
+- [docs/known-limitations.md](docs/known-limitations.md) — K2-imposed
+  constraints that the plugin deliberately accepts.
+- [docs/adding-kotlin-version-support.md](docs/adding-kotlin-version-support.md)
+  — how to add a new `compat-kXYZ` module.
+- [compiler-plugin/compat/README.md](compiler-plugin/compat/README.md) —
+  compat layer architecture in depth.
+
+The test catalog lives in [test-cases.md](test-cases.md), with 100 cases.
 
 ---
 
