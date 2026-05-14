@@ -186,13 +186,30 @@ jobs:
           echo "--- libs.versions.toml (after override) ---"
           head -20 gradle/libs.versions.toml
 
+      # ---------------------------------------------------------------------
+      # plugin 本体 (`:compiler-plugin:test`) は kctfork 0.5.1 が
+      # kotlin-compiler-embeddable:2.0.0 を transitive に持つため、 Kotlin
+      # 2.1.0+ の native classpath では `NoSuchMethodError` が発生する。
+      # baseline (2.0.x) では従来通り `:compiler-plugin:test` +
+      # `:compiler-plugin:compat-k200:test` (compat module の ServiceLoader
+      # sanity) を実行し、 2.1.0+ では `:compiler-plugin:compat-k210:test`
+      # に限定して compat-k210 の API 整合を検証する。
+      # task-065 で `compat-k200/test` と `compat-k210/test` が独立に走る
+      # ように分離済み → 本 step ではその切替を Kotlin minor で行う。
+      # ---------------------------------------------------------------------
       - name: Run unit + KMP integration tests (jvm target)
         continue-on-error: ${{ matrix.experimental }}
         run: |
+          case "${{ matrix.kotlin }}" in
+            2.0.*)
+              plugin_tests=":compiler-plugin:test :compiler-plugin:compat-k200:test"
+              ;;
+            *)
+              plugin_tests=":compiler-plugin:compat-k210:test"
+              ;;
+          esac
           ./gradlew \
-            :compiler-plugin:test \
-            :compiler-plugin:compat:test \
-            :compiler-plugin:compat-k200:build \
+            $plugin_tests \
             :gradle-plugin:test \
             :integration-test:test-jvm:test \
             :integration-test:test-kmp:jvmTest \
