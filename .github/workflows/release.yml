@@ -1,0 +1,180 @@
+# ----------------------------------------------------------------------------
+# Capture-Code-compiler-plugin Release workflow
+#
+# 本 workflow は **impl-plan.md §2 Phase 5 task 5.6 (task-038)** に従い、
+# `vX.Y.Z` 形式の tag push を契機に以下を自動実行する:
+#
+#   1. checkout (fetch-depth: 0 で tag 履歴を取得)
+#   2. JDK 21 + Gradle wrapper setup
+#   3. release 前の smoke test (`jvmTest` 相当)
+#   4. Maven Central publish (vanniktech-maven-publish 経由)
+#      - :annotation / :compiler-plugin / :gradle-plugin の 3 module
+#      - `publishAndReleaseToMavenCentral` で staging repo の close / release まで自動化
+#   5. GitHub Release 作成 (`softprops/action-gh-release`)
+#      - `body_path` で CHANGELOG.md (task-039) の該当 version section を抜粋
+#      - 抽出に失敗した場合は `generate_release_notes: true` の fallback
+#
+# ## Trigger
+#
+# - `push: tags: ['v*.*.*']` — 正式 release 用
+# - `workflow_dispatch` — manual trigger。 `dryRun: true` の時は publish step を skip
+#   して build / test のみ走る (release 前の動作確認用)
+#
+# ## Secrets
+#
+# 以下を GitHub repository secrets に設定済であること
+# (詳細は `docs/publishing.md` 参照):
+#
+#   - ORG_GRADLE_PROJECT_mavenCentralUsername       (Sonatype Central Portal User Token)
+#   - ORG_GRADLE_PROJECT_mavenCentralPassword       (Sonatype Central Portal User Token)
+#   - ORG_GRADLE_PROJECT_signingInMemoryKey         (ASCII-armored GPG private key)
+#   - ORG_GRADLE_PROJECT_signingInMemoryKeyId       (任意: GPG key id 下 8 桁)
+#   - ORG_GRADLE_PROJECT_signingInMemoryKeyPassword (任意: GPG passphrase)
+#
+# secret 名は publishing.md と完全一致 (SSOT)。 `ORG_GRADLE_PROJECT_*` prefix の
+# 環境変数は Gradle が自動的に project property として認識するため、 別 mapping
+# を介さず直接 env: に流し込む (= mapping table を増やさない設計)。
+#
+# ## ci.yml との衝突回避
+#
+# `ci.yml` は `on: push: branches: [main, master]` + `on: pull_request` のため、
+# tag push 時は trigger されない。 release.yml と ci.yml の trigger 条件は素直に
+# 排他なので、 ci.yml 側の追加修正は不要。
+#
+# ## Apple native target
+#
+# 本 workflow は ubuntu-latest 単独で publish する。 KMP iOS/macOS target は
+# `enableAppleTargets=false` の default 設定では publish されない (= Apple
+# 向け artifact が必要になったら macos runner job を追加する)。 task-038 スコープ
+# 外。
+# ----------------------------------------------------------------------------
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Skip publish step (build/test only)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  release:
+    name: Release (publish + GitHub Release)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write  # GitHub Release の作成に必要
+
+    steps:
+      - name: Checkout (with tag history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      # release 前の最終 smoke test。 ci.yml と同等の Kotlin 2.0.0 stable tier
+      # 相当を ubuntu-latest / JDK 21 で実行する。 `./gradlew check` を避ける
+      # 理由は ci.yml header 参照 (mingwX64 / xcodeVersion 問題)。
+      - name: Run smoke tests (JVM)
+        run: |
+          ./gradlew \
+            :compiler-plugin:test \
+            :compiler-plugin:compat:test \
+            :compiler-plugin:compat-k200:build \
+            :gradle-plugin:test \
+            :integration-test:test-jvm:test \
+            :integration-test:test-kmp:jvmTest \
+            :integration-test:test-gradle-plugin:test \
+            --no-configuration-cache \
+            --stacktrace
+
+      # dryRun 時は publish を skip する。 secrets が設定済でも、 動作確認用 manual
+      # trigger では Maven Central に release してしまわないようガード。
+      - name: Publish to Maven Central
+        if: github.event_name == 'push' || github.event.inputs.dryRun == 'false'
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.ORG_GRADLE_PROJECT_mavenCentralUsername }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.ORG_GRADLE_PROJECT_mavenCentralPassword }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKey }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKeyId }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKeyPassword }}
+        run: |
+          ./gradlew \
+            :annotation:publishAndReleaseToMavenCentral \
+            :compiler-plugin:publishAndReleaseToMavenCentral \
+            :gradle-plugin:publishAndReleaseToMavenCentral \
+            --no-configuration-cache \
+            --stacktrace
+
+      # tag に対応する CHANGELOG.md (task-039) entry を抜粋して release notes 用
+      # ファイルに書き出す。 CHANGELOG.md が無い / 該当 section が見つからない場合
+      # は空ファイルにして fallback (`generate_release_notes: true`) に委ねる。
+      #
+      # CHANGELOG.md の section 形式 (task-039 の Keep a Changelog ベース) を想定:
+      #
+      #   ## [0.1.0] - 2026-05-14
+      #   ...本文...
+      #
+      #   ## [0.0.9] - 2026-05-01
+      #
+      # tag `v0.1.0` → version `0.1.0` を抽出し、 `## [0.1.0]` から次の `## [` まで
+      # を抜き出す。
+      - name: Extract release notes from CHANGELOG.md
+        if: github.event_name == 'push'
+        id: extract_notes
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          notes_file="${RUNNER_TEMP}/release-notes.md"
+          : > "${notes_file}"
+
+          if [ -f CHANGELOG.md ]; then
+            # `## [VERSION]` から 次の `## [` 直前までを抜き出し
+            awk -v ver="${version}" '
+              $0 ~ "^## \\[" ver "\\]" { inside=1; next }
+              inside && $0 ~ /^## \[/   { inside=0 }
+              inside                     { print }
+            ' CHANGELOG.md > "${notes_file}"
+            echo "--- extracted release notes (${version}) ---"
+            cat "${notes_file}"
+            echo "--- end ---"
+          else
+            echo "CHANGELOG.md not found; falling back to auto-generated notes"
+          fi
+
+          # GITHUB_OUTPUT に path を流す
+          echo "notes_file=${notes_file}" >> "${GITHUB_OUTPUT}"
+          # 抜粋が空かどうかも返す (空なら action-gh-release の generate_release_notes に任せる)
+          if [ -s "${notes_file}" ]; then
+            echo "has_notes=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "has_notes=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: ${{ steps.extract_notes.outputs.has_notes == 'true' && steps.extract_notes.outputs.notes_file || '' }}
+          generate_release_notes: ${{ steps.extract_notes.outputs.has_notes != 'true' }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
