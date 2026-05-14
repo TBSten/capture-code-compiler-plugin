@@ -23,14 +23,11 @@ import java.io.File
  *   - `:gradle-plugin:test` = ProjectBuilder ベースの DSL 配線高速 sanity
  *   - 本 test = TestKit + 実 Gradle build によるユーザ実利用形態の真の E2E
  *
- * ## KMP fixture のスコープ
- * 当初は JVM + KMP の 2 fixture を予定していたが、 KMP fixture の
- * `:jvmTest` で `capturedSources<T>()` の `error("...is not applied")` が rewrite
- * されない問題が判明した (commonTest 起点の use site が IR transform の rewrite を
- * 受けないケース)。 `:gradle-plugin` DSL 経由の attach パスと、 KMP の commonTest →
- * jvmTest hierarchy 間の compilation 配線の整合性に関わる可能性があるため、 本モジュール
- * のスコープ外として別途調査する。 既存の `:integration-test:test-kmp:jvmTest` で
- * KMP の主要シナリオは CI で継続検証されているので、 KMP の真の E2E カバレッジは保たれている。
+ * ## KMP fixture
+ * task-070 で KMP fixture (`kmp-sample`) を別 spec (`KmpE2eTest`) として追加済。
+ * 当初 task-040 で観測した「commonTest 起点 `capturedSources<T>()` が rewrite され
+ * ない」事象は再現せず、 `:gradle-plugin` DSL apply 経路でも KMP project の jvm
+ * target test compile で IR rewrite が機能することが verify された。
  *
  * ## 速度
  * TestKit が起動する子 Gradle build は 1 件あたり 20-90 秒。
