@@ -129,7 +129,7 @@ ls ~/.m2/repository/me/tbsten/capture/code/
 2. JDK 21 + Gradle wrapper setup
 3. release 前 smoke test (`:compiler-plugin:test` / `:gradle-plugin:test` / `:integration-test:test-*` の JVM 系)
 4. Maven Central publish (`:annotation` / `:compiler-plugin` / `:gradle-plugin` × `publishAndReleaseToMavenCentral`)
-5. GitHub Release 作成 (CHANGELOG.md の該当 version section を release notes に埋め込み、 fallback で auto-generate)
+5. GitHub Release 作成 (`generate_release_notes: true` で commit log から自動生成)
 
 ### GitHub Secrets 設定
 
@@ -149,20 +149,17 @@ GitHub repository の **Settings → Secrets and variables → Actions → New r
 
 実 release は以下の手順で実施する:
 
-1. **CHANGELOG.md (task-039) の準備**:
-   - `## [Unreleased]` の内容を `## [0.1.0] - YYYY-MM-DD` に書き換える
-   - 新規 `## [Unreleased]` section を上に追加 (次回向け template)
-2. **`gradle.properties` の `VERSION_NAME` から `-SNAPSHOT` を外す** (例: `0.1.0-SNAPSHOT` → `0.1.0`)
-3. **release commit を main にマージ** (PR 経由推奨)
-4. **tag を push**:
+1. **`gradle.properties` の `VERSION_NAME` から `-SNAPSHOT` を外す** (例: `0.1.0-SNAPSHOT` → `0.1.0`)
+2. **release commit を main にマージ** (PR 経由推奨)
+3. **tag を push**:
 
    ```shell
    git tag v0.1.0
    git push origin v0.1.0
    ```
 
-5. GitHub Actions の **Release** workflow が起動し、 上記 1〜5 のステップを自動実行する。
-6. **完了後**: `gradle.properties` の `VERSION_NAME` を次の SNAPSHOT (例: `0.2.0-SNAPSHOT`) に bump して commit。
+4. GitHub Actions の **Release** workflow が起動し、 上記 1〜5 のステップを自動実行する。
+5. **完了後**: `gradle.properties` の `VERSION_NAME` を次の SNAPSHOT (例: `0.2.0-SNAPSHOT`) に bump して commit。
 
 ### Dry-run (動作確認)
 
@@ -173,7 +170,6 @@ GitHub repository の **Settings → Secrets and variables → Actions → New r
 - 形式: `vMAJOR.MINOR.PATCH` (例: `v0.1.0`, `v1.0.0`, `v0.1.0-rc1`)
 - `v` prefix を含む tag のみが release workflow を trigger する (`on.push.tags: ['v*.*.*']`)
 - `-` を含む tag (例: `v0.1.0-rc1`, `v1.0.0-beta`) は GitHub Release で **prerelease flag が自動で立つ**
-- CHANGELOG.md の section 見出しは tag から `v` を外した形式 (例: `## [0.1.0]`)
 
 ### Trouble shooting (release workflow)
 
@@ -181,7 +177,6 @@ GitHub repository の **Settings → Secrets and variables → Actions → New r
 - **publish step が `401 Unauthorized`**: `ORG_GRADLE_PROJECT_mavenCentralUsername` / `ORG_GRADLE_PROJECT_mavenCentralPassword` が User Token (Bearer) と一致していない。 Sonatype Central Portal で再発行
 - **signing step で `BAD_PASSPHRASE`**: `ORG_GRADLE_PROJECT_signingInMemoryKeyPassword` が key 生成時の passphrase と不一致
 - **GitHub Release が作成されない**: `permissions: contents: write` が job に付与されているか確認 (workflow の `permissions:` block)
-- **CHANGELOG.md の release notes 抽出が空**: tag `v0.1.0` に対し CHANGELOG.md に `## [0.1.0]` 見出しが無い。 抽出失敗時は `generate_release_notes: true` で auto-fallback するが、 release notes の品質を保つため tag push 前に CHANGELOG.md を整える
 
 ## Gradle Plugin Portal
 

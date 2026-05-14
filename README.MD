@@ -261,8 +261,6 @@ Full list with reproductions and root-cause analysis:
   credentials, and release workflow.
 - [docs/versioning.md](docs/versioning.md) — semver policy, pre-1.0
   guarantees, release artefacts, and SNAPSHOT handling.
-- [CHANGELOG.md](CHANGELOG.md) — release notes per version
-  (Keep a Changelog format).
 
 The test catalog lives in [test-cases.md](test-cases.md), with 100 cases.
 

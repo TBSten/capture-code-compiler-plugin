@@ -58,11 +58,10 @@ While the project is on `0.x.y`, the public API is **not frozen**:
 - Diagnostic message ids and wording can change without a bump —
   diagnostic stability is a `1.0.0` commitment.
 
-In practice, the `0.x.y` line will move forward conservatively: every
-breaking change is still called out in the [CHANGELOG](../CHANGELOG.md)
-under a clear `### Changed` / `### Removed` section, so consumers can
-plan upgrades. The lack of strict semver enforcement is an explicit
-signal that the API is still being shaped.
+In practice, the `0.x.y` line will move forward conservatively: breaking
+changes are called out in the GitHub Release notes for the affected
+version, so consumers can plan upgrades. The lack of strict semver
+enforcement is an explicit signal that the API is still being shaped.
 
 ## 1.0.0 and beyond
 
@@ -91,9 +90,8 @@ A `1.0.0` release will be cut once:
     bundles `compat-*`).
   - `me.tbsten.capture.code:gradle-plugin:X.Y.Z` (Gradle plugin
     marker).
-- GitHub release: the body is sourced from the matching `## [X.Y.Z]`
-  section of [CHANGELOG.md](../CHANGELOG.md) via
-  [`scripts/extract-changelog.sh`](../scripts/extract-changelog.sh).
+- GitHub release: the body is auto-generated from commit log via
+  `softprops/action-gh-release@v2` (`generate_release_notes: true`).
 
 The actual release process (signing, staging, promotion) is documented
 in [docs/publishing.md](publishing.md).
