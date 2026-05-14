@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp
+package me.tbsten.capture.code.testapp.scenarios
 
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
@@ -7,7 +7,7 @@ import me.tbsten.capture.code.CaptureKind
 import me.tbsten.capture.code.Source
 import me.tbsten.capture.code.SourceLocation
 import me.tbsten.capture.code.capturedSources
-import me.tbsten.capture.code.testapp.ordered.OrderedSnippet
+import me.tbsten.capture.code.testapp.scenarios.ordered.OrderedSnippet
 import kotlin.reflect.KClass
 
 // ============================================================================
@@ -737,7 +737,7 @@ class ScenarioCasesTest : StringSpec({
     "marker annotation 自身を SourceLocation のみで使う (軽量 location 収集)" {
         val captured = capturedSources<LocationOnlyMarker>()
         captured.size shouldBe 3
-        captured.forEach { it.location.packageName shouldBe "me.tbsten.capture.code.testapp" }
+        captured.forEach { it.location.packageName shouldBe "me.tbsten.capture.code.testapp.scenarios" }
     }
 
     "順序が保たれることの検証 (interleaved な順序)" {

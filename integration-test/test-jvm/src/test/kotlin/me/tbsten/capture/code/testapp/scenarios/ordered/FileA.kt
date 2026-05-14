@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp.ordered
+package me.tbsten.capture.code.testapp.scenarios.ordered
 
 import me.tbsten.capture.code.CaptureCode
 import me.tbsten.capture.code.Source
