@@ -600,7 +600,7 @@ class BasicCasesTest : StringSpec({
         captured[1].source shouldBe Source(value = "fun case24_fromB() = \"B\"")
     }
 
-    "ケース25: キャプチャ対象が 0 件".config(enabled = false) {
+    "ケース25: キャプチャ対象が 0 件" {
         capturedSources<Unused_Case25>() shouldBe emptyList()
     }
 })
