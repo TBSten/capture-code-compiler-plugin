@@ -9,9 +9,7 @@ import me.tbsten.capture.code.Source
 internal annotation class Snippets_Case98(val source: Source = Source())
 
 @Snippets_Case98
-fun case98_a1() {
-}
+fun case98_a1() {}
 
 @Snippets_Case98
-fun case98_a2() {
-}
+fun case98_a2() {}

@@ -525,7 +525,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース83: ドキュメント用のサンプル収集".config(enabled = false) {
+    "ケース83: ドキュメント用のサンプル収集" {
         capturedSources<DocSample_Case83>() shouldBe listOf(
             DocSample_Case83(
                 title = "Hello World",
@@ -550,7 +550,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース85: schema 宣言の収集".config(enabled = false) {
+    "ケース85: schema 宣言の収集" {
         capturedSources<Table_Case85>() shouldBe listOf(
             Table_Case85(
                 name = "users",
@@ -582,7 +582,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース87: コードレビュー チェックリスト項目の収集".config(enabled = false) {
+    "ケース87: コードレビュー チェックリスト項目の収集" {
         capturedSources<ChecklistItem_Case87>() shouldBe listOf(
             ChecklistItem_Case87(
                 category = ChecklistItem_Case87.Category.Naming,
@@ -619,7 +619,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース89: REST controller (Spring 風) の API カタログ".config(enabled = false) {
+    "ケース89: REST controller (Spring 風) の API カタログ" {
         val captured = capturedSources<RestRoute_Case89>()
         captured.size shouldBe 2
         captured[0].method shouldBe RestRoute_Case89.HttpVerb.GET
@@ -678,7 +678,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース93: ユーザーシナリオ (BDD 風) のキャプチャ".config(enabled = false) {
+    "ケース93: ユーザーシナリオ (BDD 風) のキャプチャ" {
         capturedSources<Scenario_Case93>() shouldBe listOf(
             Scenario_Case93(
                 feature = "Login",
@@ -710,7 +710,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース95: enum エントリの宣言キャプチャ".config(enabled = false) {
+    "ケース95: enum エントリの宣言キャプチャ" {
         capturedSources<Snippets_Case95>() shouldBe listOf(
             Snippets_Case95(
                 source = Source(
@@ -720,7 +720,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース96: クラス + その内部メンバ関数 (両方が別 marker でキャプチャ - Type 側)".config(enabled = false) {
+    "ケース96: クラス + その内部メンバ関数 (両方が別 marker でキャプチャ - Type 側)" {
         capturedSources<CaptureType_Case96>() shouldBe listOf(
             CaptureType_Case96(
                 source = Source(value = "class Case96_Service {\n    @CaptureFn_Case96\n    fun execute() = 42\n}"),
@@ -728,7 +728,7 @@ class ScenarioCasesTest : StringSpec({
         )
     }
 
-    "ケース96: クラス + その内部メンバ関数 (両方が別 marker でキャプチャ - Fn 側)".config(enabled = false) {
+    "ケース96: クラス + その内部メンバ関数 (両方が別 marker でキャプチャ - Fn 側)" {
         capturedSources<CaptureFn_Case96>() shouldBe listOf(
             CaptureFn_Case96(source = Source(value = "fun execute() = 42")),
         )
@@ -740,7 +740,7 @@ class ScenarioCasesTest : StringSpec({
         captured.forEach { it.location.packageName shouldBe "me.tbsten.capture.code.testapp" }
     }
 
-    "ケース98: 順序が保たれることの検証 (interleaved な順序)".config(enabled = false) {
+    "ケース98: 順序が保たれることの検証 (interleaved な順序)" {
         // marker と sites は case98/FileA.kt / case98/FileB.kt / case98/FileA2.kt に配置
         val captured = capturedSources<Snippets_Case98>()
         captured.size shouldBe 4
