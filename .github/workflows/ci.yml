@@ -13,9 +13,13 @@
 # 列挙対象:
 #   - :compiler-plugin:test                  : FIR/IR extension の unit test
 #   - :compiler-plugin:compat:test           : compat layer (capability)
-#   - :compiler-plugin:compat-k2000:test     : compat-k2000 (実装)
+#   - :compiler-plugin:compat-k200:build     : Kotlin 2.0.x 用 IR / FIR 実装の compile (task-030 v2)
+#   - :compiler-plugin:compat-k210:build     : Kotlin 2.1.x 用 IR / FIR 実装の compile (task-031)
+#                                              本 step で **2.1.0 native API での compile-only** を保証する。
+#                                              実 dispatch が走る full integration test は task-032 で
+#                                              CI matrix を完備した後に追加する。
 #   - :gradle-plugin:test                    : Gradle plugin の sanity test
-#                                              (ProjectBuilder で DSL 配線を verify)
+#                                              (ProjectBuilder で DSL 配線 + Kotlin version guard を verify)
 #   - :integration-test:test-gradle-plugin:test
 #                                            : TestKit + fixture project による
 #                                              ユーザ実利用形態の真の E2E (task-040)
@@ -29,6 +33,14 @@
 #
 # Apple target は `enableAppleTargets=false` (default) のため Xcode 不要。
 # 完全な Apple verify は Phase 4 task-032 (CI matrix で macos-latest 追加) で対応予定。
+#
+# ## Kotlin version matrix (task-031 で土台を整備、 task-032 で本運用)
+#
+# 現状 CI は **base project の Kotlin = 2.0.0** だけで全 test を回す。 [[task-031]] で
+# `compat-k210` (Kotlin 2.1.x 向け) module を追加したため、 本 workflow には
+# `:compiler-plugin:compat-k210:build` を含めて **compile-only での 2.1.x API 整合性** を保証する。
+# 実 dispatch (= base project の Kotlin を 2.1.x に切り替えて全 105 ケースを通す) は
+# kctfork 0.5.1 互換確認 + matrix job 追加が必要なため task-032 で対応する。
 # ----------------------------------------------------------------------------
 name: CI
 
@@ -63,10 +75,23 @@ jobs:
           ./gradlew \
             :compiler-plugin:test \
             :compiler-plugin:compat:test \
-            :compiler-plugin:compat-k2000:test \
+            :compiler-plugin:compat-k200:build \
             :gradle-plugin:test \
             :integration-test:test-jvm:test \
             :integration-test:test-kmp:jvmTest \
+            --no-configuration-cache \
+            --stacktrace
+
+      # task-031: Kotlin 2.1.x 向け compat module の compile-only check。 本 step は
+      # `:compiler-plugin:compat-k210:build` のみを実行し、 2.1.x native API (top-level
+      # `IrCallImpl(...)` factory / `IrConstructorCallImpl.Companion.fromSymbolOwner` 拡張 /
+      # `IrConstKind` 非ジェネリック化 など) との API 整合を CI で保証する。
+      # 実 dispatch (= base project の Kotlin を 2.1.x に切り替えた full integration test) は
+      # kctfork 互換確認とともに task-032 で追加する。
+      - name: Compile-check compat-k210 (Kotlin 2.1.x)
+        run: |
+          ./gradlew \
+            :compiler-plugin:compat-k210:build \
             --no-configuration-cache \
             --stacktrace
 
