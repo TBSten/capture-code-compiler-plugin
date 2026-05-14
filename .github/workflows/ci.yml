@@ -6,6 +6,20 @@ on:
   pull_request:
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # core-matrix: Kotlin × JDK の全 stable + 最新 pre-release を回す主要 matrix。
+  #
+  # task-044 で拡張: Kotlin 2.0.0 以降の全 minor track (initial + latest patch
+  # = 代表 2 cell × 4 tracks = 8 stable) + 最新 pre-release 1 つを含める。
+  # 各 minor track の patch level 全数 (例 2.0.10/2.0.20) は CI コストの観点
+  # から省略する (代表 patch level だけで drift 観察として十分)。
+  #
+  # JDK は 17 を stable tier、 21 は experimental tier (代表 versions のみ)。
+  #
+  # 各 cell の `ksp` 値は Kotlin version に追従する必要がある (Kotlin 2.0.0
+  # baseline 用 KSP は 2.2.x 以降では `too old` エラーで refuse される) ため、
+  # matrix `include` で kotlin → ksp の version mapping を明示する。
+  # ---------------------------------------------------------------------------
   core-matrix:
     name: "core (kotlin=${{ matrix.kotlin }}, jdk=${{ matrix.jdk }})"
     runs-on: ${{ matrix.os }}
@@ -14,17 +28,98 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest"]
-        jdk: ["17", "21"]
-        kotlin: ["2.0.0", "2.1.0"]
+        jdk: ["17"]
+        kotlin:
+          # === 2.0.x track ===
+          - "2.0.0"   # base — SSOT, libs.versions.toml に固定
+          - "2.0.21"  # latest 2.0.x patch
+          # === 2.1.x track ===
+          - "2.1.0"
+          - "2.1.21"  # latest 2.1.x patch
+          # === 2.2.x track (compat-k210 が 2.2.x で compile 通ることを検証) ===
+          - "2.2.0"
+          - "2.2.21"
+          # === 2.3.x track (latest stable minor on 2026-05-14) ===
+          - "2.3.0"
+          - "2.3.21"
+          # === pre-release (1 つだけ) ===
+          - "2.4.0-RC"
         include:
-          # Kotlin 2.0.0 は stable tier (失敗で fail)
+          # ------------------------------------------------------------------
+          # Stable tier (failable=false) — Kotlin 2.0.0 baseline のみ厳密
+          # PASS を要求する。 それ以外の version は experimental (= continue-
+          # on-error で fail を許容、 ただし matrix の継続には影響しない)。
+          #
+          # 2.0.21+ を stable から外す理由:
+          #   - D1 drift (FirLiteralExpression<T> → FirLiteralExpression) が
+          #     2.0.21 で発生。 `compat-k200` の compile が 2.0.21 native
+          #     classpath では落ちる (本ローカルで実機確認済)。
+          #   - これは task-028 で catalog 済の既知 drift で、 `compat-k210`
+          #     側が 2.1.x baseline として既に absorb 済。
+          #   - 既存 plugin の出荷 artifact は **shadowJar 内に
+          #     `compat-k200` (2.0.0 baseline) + `compat-k210` (2.1.0 baseline)
+          #     を bundle して** いるため、 consumer の Kotlin が 2.0.21 でも
+          #     `compat-k210` が選ばれる (resolveFactory の minVersion 選択
+          #     ロジック)。 つまり **plugin の出荷 artifact 自体は 2.0.21+
+          #     consumer で動く**。 ただし CI 上で `compat-k200` を 2.0.21
+          #     native でビルドしようとすると drift が露呈する、 という
+          #     CI 用の構造的制約 (= experimental tier で許容)。
+          # ------------------------------------------------------------------
           - kotlin: "2.0.0"
+            ksp: "2.0.0-1.0.24"
             experimental: false
-          # Kotlin 2.1.0 は experimental tier (continue-on-error)
-          # task-031 完了メモ: kctfork 0.5.1 が kotlin-compiler-embeddable:2.0.0
-          # を transitive に持つため、 Kotlin 2.1.0 base では classpath 衝突
-          # リスクあり。 kctfork bump は別 ticket。
+
+          # ------------------------------------------------------------------
+          # Experimental tier (failable=true) — drift 観察用。
+          # task-031 完了メモにある通り kctfork 0.5.1 は kotlin-compiler-
+          # embeddable:2.0.0 を transitive に持つため、 newer Kotlin baseline
+          # では test classpath 上の compiler-embeddable 2.0.0 と Gradle 側の
+          # Kotlin (matrix value) が混在する。 大部分の build/test は
+          # それでも動くが、 一部 spike テスト等で fail することがある。
+          # ------------------------------------------------------------------
+          - kotlin: "2.0.21"
+            ksp: "2.0.21-1.0.28"
+            experimental: true
           - kotlin: "2.1.0"
+            ksp: "2.1.0-1.0.29"
+            experimental: true
+          - kotlin: "2.1.21"
+            ksp: "2.1.21-2.0.2"
+            experimental: true
+          - kotlin: "2.2.0"
+            ksp: "2.2.0-2.0.2"
+            experimental: true
+          - kotlin: "2.2.21"
+            ksp: "2.2.21-2.0.5"
+            experimental: true
+          - kotlin: "2.3.0"
+            ksp: "2.3.0"
+            experimental: true
+          - kotlin: "2.3.21"
+            ksp: "2.3.8"
+            experimental: true
+          - kotlin: "2.4.0-RC"
+            ksp: "2.3.8"  # KSP 2.4.x 未 release のため最新 2.3.x で代用
+            experimental: true
+
+          # ------------------------------------------------------------------
+          # JDK 21 の代表 cell (各 minor track の latest patch + pre-release)。
+          # core stable tier (2.0.x) は jdk 17 only、 21 は experimental 扱い。
+          # ------------------------------------------------------------------
+          - os: "ubuntu-latest"
+            jdk: "21"
+            kotlin: "2.0.21"
+            ksp: "2.0.21-1.0.28"
+            experimental: true
+          - os: "ubuntu-latest"
+            jdk: "21"
+            kotlin: "2.1.21"
+            ksp: "2.1.21-2.0.2"
+            experimental: true
+          - os: "ubuntu-latest"
+            jdk: "21"
+            kotlin: "2.3.21"
+            ksp: "2.3.8"
             experimental: true
     steps:
       - uses: actions/checkout@v4
@@ -38,16 +133,18 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      # Kotlin 2.0.0 cell では libs.versions.toml を一切触らない (= SSOT)。
-      # 2.1.0 cell でのみ kotlin version を sed で書き換える。
-      # ksp version は kotlin に追従する必要があるが、 本 plugin は
-      # compiler-plugin module で AutoService を使うのみで KSP version が
-      # 古くても 2.1.0 Kotlin と互換 (KSP 2.0.0-1.0.24 は kotlin 2.1.x で
-      # 動作するため). 明示的に bump はしない。
-      - name: Override Kotlin version for matrix cell
+      # ---------------------------------------------------------------------
+      # libs.versions.toml の `kotlin` と `ksp` を matrix cell に追従させる。
+      # SSOT 維持の観点で 2.0.0 base (= 現状値) の cell では編集しない。
+      # 正規表現は **任意の version 文字列** に generalize し、 将来 patch
+      # level を増やす際の編集を不要にする (例: "2\.0\.0" 固定 → ".*")。
+      # ---------------------------------------------------------------------
+      - name: Override Kotlin / KSP version for matrix cell
         if: matrix.kotlin != '2.0.0'
         run: |
-          sed -i "s/^kotlin = \"2\.0\.0\"$/kotlin = \"${{ matrix.kotlin }}\"/" gradle/libs.versions.toml
+          set -eu
+          sed -i -E "s/^kotlin = \"[0-9].*\"$/kotlin = \"${{ matrix.kotlin }}\"/" gradle/libs.versions.toml
+          sed -i -E "s/^ksp = \"[0-9].*\"$/ksp = \"${{ matrix.ksp }}\"/" gradle/libs.versions.toml
           echo "--- libs.versions.toml (after override) ---"
           head -20 gradle/libs.versions.toml
 
