@@ -348,7 +348,7 @@ class DeclarationVariantsTest : StringSpec({
         )
     }
 
-    "ケース38: inline value class のキャプチャ".config(enabled = false) {
+    "ケース38: inline value class のキャプチャ" {
         capturedSources<Snippets_Case38>() shouldBe listOf(
             Snippets_Case38(
                 source = Source(value = "@JvmInline\nvalue class Case38_UserId(val raw: Long)"),

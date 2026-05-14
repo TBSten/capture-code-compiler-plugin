@@ -195,7 +195,90 @@ class AllDeclarationTargetsTest : FunSpec({
     }
 
     // ----------------------------------------------------------------
-    // 5. filler-less marker (ケース #8 相当) — 0-arg Marker() の list literal に書き換わる
+    // 5. inline value class (`@JvmInline value class`) のキャプチャ (task-041)
+    //
+    // task-041 で skipLeadingAnnotationLines が marker annotation だけを skip するように変更され、
+    // `@JvmInline` のような **semantic-significant な Kotlin 標準 annotation** は source に残る
+    // 仕様になった。inline value class は `@JvmInline` 無しでは valid な定義にならないため、
+    // source として `@JvmInline\nvalue class Foo(...)` の形を保つ必要がある。
+    // ----------------------------------------------------------------
+    test("inline value class declaration is captured with @JvmInline preserved") {
+        val result = compile(
+            SourceFile.kotlin(
+                "ValueClassMarker.kt",
+                """
+                package example
+
+                import me.tbsten.capture.code.CaptureCode
+                import me.tbsten.capture.code.Source
+                import me.tbsten.capture.code.capturedSources
+
+                @CaptureCode
+                @Target(AnnotationTarget.CLASS)
+                @Retention(AnnotationRetention.SOURCE)
+                internal annotation class ValueClassSnippets(val source: Source = Source())
+
+                @ValueClassSnippets
+                @JvmInline
+                internal value class UserId(val raw: Long)
+
+                internal object Main {
+                    fun captured(): List<ValueClassSnippets> = capturedSources<ValueClassSnippets>()
+                }
+                """.trimIndent(),
+            ),
+        )
+        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+
+        val captured = loadCaptured(result)
+        captured.size shouldBe 1
+        captureSourceValue(captured[0] as Annotation) shouldBe
+            "@JvmInline\ninternal value class UserId(val raw: Long)"
+    }
+
+    // ----------------------------------------------------------------
+    // 6. annotation の重ね合わせ: marker → `@Suppress` の順で並んでも `@Suppress` を保持
+    //
+    // 線形 skip 実装の都合上、 先頭の marker 行群を skip した後に出現する非 marker annotation
+    // (`@Suppress("unused")` 等) はそのまま source に残る。 spec 上「marker 行のみ drop し、
+    // それ以外の annotation は意味を持つので残す」が task-041 の合意。
+    // ----------------------------------------------------------------
+    test("non-marker annotations following the marker are preserved") {
+        val result = compile(
+            SourceFile.kotlin(
+                "MarkerThenSuppress.kt",
+                """
+                package example
+
+                import me.tbsten.capture.code.CaptureCode
+                import me.tbsten.capture.code.Source
+                import me.tbsten.capture.code.capturedSources
+
+                @CaptureCode
+                @Target(AnnotationTarget.FUNCTION)
+                @Retention(AnnotationRetention.SOURCE)
+                internal annotation class FunSnippetsKeepAnnot(val source: Source = Source())
+
+                @FunSnippetsKeepAnnot
+                @Suppress("unused")
+                internal fun keep(): Int = 1
+
+                internal object Main {
+                    fun captured(): List<FunSnippetsKeepAnnot> = capturedSources<FunSnippetsKeepAnnot>()
+                }
+                """.trimIndent(),
+            ),
+        )
+        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+
+        val captured = loadCaptured(result)
+        captured.size shouldBe 1
+        captureSourceValue(captured[0] as Annotation) shouldBe
+            "@Suppress(\"unused\")\ninternal fun keep(): Int = 1"
+    }
+
+    // ----------------------------------------------------------------
+    // 7. filler-less marker (ケース #8 相当) — 0-arg Marker() の list literal に書き換わる
     // ----------------------------------------------------------------
     test("filler-less marker yields zero-arg constructor calls") {
         val result = compile(
