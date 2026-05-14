@@ -4,42 +4,38 @@ plugins {
 }
 
 // ----------------------------------------------------------------------------
-// task-026: Gradle plugin の sanity test (ProjectBuilder ベース)。
+// :gradle-plugin:test の役割 — ProjectBuilder ベースの sanity test
 //
-// **設計判断 (縮退方針)**:
-// 当初は Gradle TestKit + fixture KMP project (`src/functionalTest/resources/`) で
-// `:gradle-plugin` 経由の plugin 適用を E2E 検証する方針だったが、 以下の理由で
-// **ProjectBuilder ベースの unit test** に縮退した:
+// 本 test task は **`ProjectBuilder` (高速)** で Gradle plugin の DSL 配線を verify する
+// sanity test レイヤ。 全シナリオを ProjectBuilder 内に閉じ込めて instant に走るので、
+// PR 毎に毎回回す。
 //
-//   1. fixture project は `includeBuild` で本 build を参照する構成だが、
-//      KMP の root publication (`kotlinMultiplatform` variant) と
-//      `available-at` 経由の platform-specific module (annotation-jvm 等) の
-//      組み合わせで `dependencySubstitution` が期待通りに効かず、 fixture の
-//      `jvmTestRuntimeClasspath` 解決が `me.tbsten.capture.code:annotation:0.1.0-SNAPSHOT`
-//      を MavenCentral に探しに行って失敗する (task-026 5 回試行で再現)。
-//   2. `:annotation` を `publishToMavenLocal` で先回りする回避策は可能だが、
-//      `:compiler-plugin` 側に maven-publish 設定が無く、 全モジュール publish の
-//      準備が必要 (task-037 の領域 — Phase 5)。
-//   3. **より重要**: `#101-#105 の挙動検証** は既存の `:integration-test:test-kmp:jvmTest`
-//      (target 5 + intermediate test sourceset + 5 ケース PASS) が「integration test の
-//      本体」として既に存在する。 TestKit fixture で再検証してもカバレッジは増えない。
-//      Gradle plugin 側で verify したいのは **「plugin の DSL 配線 (extension /
-//      dependency 自動追加 / SubpluginOption 変換)」** のみで、 これは
-//      `ProjectBuilder` で十分検証可能。
-//
-// 本 ticket の検証スコープ:
+// ## 検証スコープ (ここでカバー)
 //   - `CaptureCodeGradlePlugin.apply` で `captureCode { ... }` extension が登録される
 //   - `afterEvaluate` で JVM project には `implementation` に、 KMP project には
 //     `commonMainImplementation` に `:annotation` runtime 依存が追加される
 //   - `applyToCompilation` が DSL の値を `SubpluginOption` (5 個) に変換する
 //   - `getPluginArtifact` / `getCompilerPluginId` が期待値を返す
 //
-// scope 外 (jvmTest が責任を持つ):
+// ## ユーザ実利用形態の真の E2E (別レイヤ)
+//
+// 「`plugins { id("me.tbsten.capture.code") }` を実 Gradle build で apply して
+// compiler plugin が attach され、 capturedSources の rewrite が実際に走る」 までを
+// verify する真の E2E は **`:integration-test:test-gradle-plugin:test`** (task-040 で追加)
+// に分離。 そちらは `Gradle TestKit + fixture project` を起動するため遅いが、
+// includeBuild + dependencySubstitution の罠を踏まずに実利用形態を検証できる。
+//
+// ## scope 外 (test-kmp jvmTest が責任を持つ)
 //   - 実 KMP build での compiler plugin 適用結果 (#101〜#105 の Source 値検証)
 //   - 全 target (jvm/js/wasmJs/linuxX64/mingwX64) での IR transformer 動作
 //
-// 上記 scope 外の検証は `:integration-test:test-kmp:jvmTest` で完結する。 詳細は
-// `.local/ticket/task-026-kmp-integration-test.md` 末尾の完了メモ参照。
+// ## 経緯
+// task-026 で当初 TestKit + KMP fixture を試したが、 `includeBuild` の
+// `dependencySubstitution` 周りで罠を踏み 5 回 retry も解決せず、 一旦本レイヤ
+// (ProjectBuilder) で縮退した。 task-040 で **`project.group` を統一する**
+// (root build.gradle.kts の `allprojects { group = ... }`) ことで substitution が
+// 期待通りに動作することを発見し、 真の E2E は `:integration-test:test-gradle-plugin`
+// で実現した。 詳細は `.local/ticket/done/task-040-*` を参照。
 // ----------------------------------------------------------------------------
 
 dependencies {

@@ -16,6 +16,9 @@
 #   - :compiler-plugin:compat-k2000:test     : compat-k2000 (実装)
 #   - :gradle-plugin:test                    : Gradle plugin の sanity test
 #                                              (ProjectBuilder で DSL 配線を verify)
+#   - :integration-test:test-gradle-plugin:test
+#                                            : TestKit + fixture project による
+#                                              ユーザ実利用形態の真の E2E (task-040)
 #   - :integration-test:test-jvm:test        : JVM-only 統合テスト (1〜100 ケース)
 #   - :integration-test:test-kmp:jvmTest     : KMP 統合テスト (#101〜#105)
 #   - :integration-test:test-kmp:linuxX64Test: linuxX64 sanity (ubuntu 上で実行可)
@@ -64,6 +67,17 @@ jobs:
             :gradle-plugin:test \
             :integration-test:test-jvm:test \
             :integration-test:test-kmp:jvmTest \
+            --no-configuration-cache \
+            --stacktrace
+
+      # task-040: TestKit + fixture project による真の E2E (`plugins { id(...) }` で
+      # plugin apply するユーザ実利用形態を実 Gradle build で verify)。 子 Gradle build
+      # を起動するため上の step より遅い (1 ケース 20-90 秒)。 別 step に分離して
+      # CI ログを読みやすくする。
+      - name: Run Gradle plugin E2E tests (TestKit)
+        run: |
+          ./gradlew \
+            :integration-test:test-gradle-plugin:test \
             --no-configuration-cache \
             --stacktrace
 

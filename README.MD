@@ -123,6 +123,9 @@ The project ships with three layers of tests; they run together in CI (`.github/
 # Gradle plugin sanity test (ProjectBuilder; DSL wiring only — fast)
 ./gradlew :gradle-plugin:test
 
+# Gradle plugin E2E (TestKit + fixture project; real `plugins { id(...) }` apply — slower)
+./gradlew :integration-test:test-gradle-plugin:test
+
 # JVM-only integration test suite (cases #1 - #100)
 ./gradlew :integration-test:test-jvm:test
 

@@ -123,6 +123,9 @@ val block = @Marker run { ... }
 # Gradle plugin の sanity test (ProjectBuilder で DSL 配線のみ — 高速)
 ./gradlew :gradle-plugin:test
 
+# Gradle plugin の真の E2E (TestKit + fixture project で `plugins { id(...) }` を実行 — やや遅い)
+./gradlew :integration-test:test-gradle-plugin:test
+
 # JVM-only 統合テスト (ケース #1〜#100)
 ./gradlew :integration-test:test-jvm:test
 
