@@ -561,9 +561,20 @@ internal class K200CapturedSourcesCollector(
     private fun extractKdocPrefix(fullText: String, startOffset: Int): String {
         val kdocStart = findKDocExtendedStartOffset(fullText, startOffset)
         if (kdocStart >= startOffset) return ""
-        // kdocStart..startOffset の範囲には KDoc + 末尾空白行が含まれる。
+        // KDoc 開始行の **行頭** (leading whitespace を含む) まで遡る。 そうすることで
+        // KDoc の各行が同一の base indent を共有し、 normalize の dedent ステップが
+        // body と整合的に動作する (= class 内 KDoc などインデント付きケースで誤動作しない)。
+        var lineStart = kdocStart
+        while (lineStart > 0 && fullText[lineStart - 1] != '\n') {
+            // 行頭まで遡るのは KDoc 開始位置の直前が whitespace のときのみ
+            // (= 同じ行に他のコードがある場合は遡らない)
+            val ch = fullText[lineStart - 1]
+            if (ch != ' ' && ch != '\t') break
+            lineStart--
+        }
+        // lineStart..startOffset の範囲には [base indent +] KDoc 本体 + 末尾空白行 が含まれる。
         // 末尾の whitespace / newline は trim して KDoc 本体だけを返す。
-        return fullText.substring(kdocStart, startOffset).trimEnd()
+        return fullText.substring(lineStart, startOffset).trimEnd()
     }
 
     /**

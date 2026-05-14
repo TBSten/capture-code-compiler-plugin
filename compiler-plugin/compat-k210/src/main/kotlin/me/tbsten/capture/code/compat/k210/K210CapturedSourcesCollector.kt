@@ -537,18 +537,44 @@ internal class K210CapturedSourcesCollector(
         if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) return null
         if (endOffset > fullText.length) return null
 
-        // task-042: `includeKdoc = true` (デフォルト) の場合、 declaration の startOffset を
-        // 直前の KDoc コメント (`/** ... */`) を含むように前方拡張する。
-        // KDoc が無い宣言には影響しない (= startOffset そのまま返却)。
-        val kdocAwareStart = if (config.includeKdoc) {
-            findKDocExtendedStartOffset(fullText, startOffset)
-        } else {
-            startOffset
-        }
+        // task-042: `includeKdoc = true` (デフォルト) の場合、 declaration の startOffset の
+        // 直前にある KDoc を別途抽出する。 KDoc は `@Marker` 行より手前にあるため、
+        // 単純に startOffset を前方拡張すると `@Marker` 行が skip されない問題がある
+        // (skipLeadingAnnotationLines は連続する `@` 行のみ skip するため、 KDoc 行で中断する)。
+        // そこで KDoc 抽出と body 抽出を **分離** し、 後で連結する戦略を採る。
+        val kdocPrefix = if (config.includeKdoc) extractKdocPrefix(fullText, startOffset) else ""
 
-        val rawStart = skipLeadingAnnotationLines(fullText, kdocAwareStart, endOffset)
-        val rawText = SourceTextExtractor.substringOrNull(fullText, rawStart, endOffset) ?: return null
+        val rawStart = skipLeadingAnnotationLines(fullText, startOffset, endOffset)
+        val rawBody = SourceTextExtractor.substringOrNull(fullText, rawStart, endOffset) ?: return null
+        val rawText = if (kdocPrefix.isNotEmpty()) kdocPrefix + "\n" + rawBody else rawBody
         return normalize(rawText, normalizeOptions)
+    }
+
+    /**
+     * declaration の `startOffset` 直前に位置する KDoc コメントブロック (`/** ... */`) を
+     * raw text として抽出する。 KDoc が見つからない場合は空文字列を返す。
+     *
+     * 例:
+     * - `text` = `"/**\n * doc\n */\n@Marker\nfun foo()"` , startOffset = `@Marker` 行頭
+     * - 戻り値 = `"/**\n * doc\n */"` (末尾 `\n` は含めない)
+     */
+    private fun extractKdocPrefix(fullText: String, startOffset: Int): String {
+        val kdocStart = findKDocExtendedStartOffset(fullText, startOffset)
+        if (kdocStart >= startOffset) return ""
+        // KDoc 開始行の **行頭** (leading whitespace を含む) まで遡る。 そうすることで
+        // KDoc の各行が同一の base indent を共有し、 normalize の dedent ステップが
+        // body と整合的に動作する (= class 内 KDoc などインデント付きケースで誤動作しない)。
+        var lineStart = kdocStart
+        while (lineStart > 0 && fullText[lineStart - 1] != '\n') {
+            // 行頭まで遡るのは KDoc 開始位置の直前が whitespace のときのみ
+            // (= 同じ行に他のコードがある場合は遡らない)
+            val ch = fullText[lineStart - 1]
+            if (ch != ' ' && ch != '\t') break
+            lineStart--
+        }
+        // lineStart..startOffset の範囲には [base indent +] KDoc 本体 + 末尾空白行 が含まれる。
+        // 末尾の whitespace / newline は trim して KDoc 本体だけを返す。
+        return fullText.substring(lineStart, startOffset).trimEnd()
     }
 
     /**
