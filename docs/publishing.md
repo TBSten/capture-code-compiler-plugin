@@ -121,32 +121,67 @@ ls ~/.m2/repository/me/tbsten/capture/code/
 4. https://central.sonatype.com/ で release status を確認。
 5. release 後、 `VERSION_NAME` を次の SNAPSHOT (例: `0.2.0-SNAPSHOT`) に bump して commit。
 
-## CI からの自動 release
+## CI からの自動 release (task-038)
 
-GitHub Actions から release する場合、 以下の Secret を設定:
+`.github/workflows/release.yml` に **tag push を契機とする自動 release workflow** を整備してある。 `vX.Y.Z` 形式の tag を push すると以下が自動実行される:
 
-| Secret 名                                              | 値                                          |
-|--------------------------------------------------------|---------------------------------------------|
-| `ORG_GRADLE_PROJECT_mavenCentralUsername`              | Sonatype User Token username                |
-| `ORG_GRADLE_PROJECT_mavenCentralPassword`              | Sonatype User Token password                |
-| `ORG_GRADLE_PROJECT_signingInMemoryKey`                | ASCII-armored GPG private key 全体          |
-| `ORG_GRADLE_PROJECT_signingInMemoryKeyId`              | (任意) GPG key id 下 8 桁                    |
-| `ORG_GRADLE_PROJECT_signingInMemoryKeyPassword`        | (任意) GPG passphrase                       |
+1. checkout (tag 履歴付き)
+2. JDK 21 + Gradle wrapper setup
+3. release 前 smoke test (`:compiler-plugin:test` / `:gradle-plugin:test` / `:integration-test:test-*` の JVM 系)
+4. Maven Central publish (`:annotation` / `:compiler-plugin` / `:gradle-plugin` × `publishAndReleaseToMavenCentral`)
+5. GitHub Release 作成 (CHANGELOG.md の該当 version section を release notes に埋め込み、 fallback で auto-generate)
 
-workflow 内では:
+### GitHub Secrets 設定
 
-```yaml
-- name: Publish to Maven Central
-  run: ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache
-  env:
-    ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.ORG_GRADLE_PROJECT_mavenCentralUsername }}
-    ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.ORG_GRADLE_PROJECT_mavenCentralPassword }}
-    ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKey }}
-    ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKeyId }}
-    ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKeyPassword }}
-```
+GitHub repository の **Settings → Secrets and variables → Actions → New repository secret** から以下を設定する。 secret 名は workflow が直接 `ORG_GRADLE_PROJECT_*` を Gradle に env 経由で渡す設計 (= mapping を介さず SSOT 一致)。
 
-(release workflow の完全形は task-038 で実装予定。)
+| Secret 名                                              | 値                                          | 必須 |
+|--------------------------------------------------------|---------------------------------------------|------|
+| `ORG_GRADLE_PROJECT_mavenCentralUsername`              | Sonatype Central Portal User Token username | 必須 |
+| `ORG_GRADLE_PROJECT_mavenCentralPassword`              | Sonatype Central Portal User Token password | 必須 |
+| `ORG_GRADLE_PROJECT_signingInMemoryKey`                | ASCII-armored GPG private key 全体          | 必須 |
+| `ORG_GRADLE_PROJECT_signingInMemoryKeyId`              | GPG key id 下 8 桁                          | 任意 |
+| `ORG_GRADLE_PROJECT_signingInMemoryKeyPassword`        | GPG passphrase                              | 任意 |
+
+> GPG private key は改行を含むため、 `gpg --armor --export-secret-keys <KEY_ID>` の **出力全体をそのまま貼り付ける** (`-----BEGIN PGP PRIVATE KEY BLOCK-----` から `-----END PGP PRIVATE KEY BLOCK-----` まで)。 GitHub Secrets は multi-line 値をサポートする。
+
+### Release 手順
+
+実 release は以下の手順で実施する:
+
+1. **CHANGELOG.md (task-039) の準備**:
+   - `## [Unreleased]` の内容を `## [0.1.0] - YYYY-MM-DD` に書き換える
+   - 新規 `## [Unreleased]` section を上に追加 (次回向け template)
+2. **`gradle.properties` の `VERSION_NAME` から `-SNAPSHOT` を外す** (例: `0.1.0-SNAPSHOT` → `0.1.0`)
+3. **release commit を main にマージ** (PR 経由推奨)
+4. **tag を push**:
+
+   ```shell
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+5. GitHub Actions の **Release** workflow が起動し、 上記 1〜5 のステップを自動実行する。
+6. **完了後**: `gradle.properties` の `VERSION_NAME` を次の SNAPSHOT (例: `0.2.0-SNAPSHOT`) に bump して commit。
+
+### Dry-run (動作確認)
+
+実 release をせず workflow の挙動だけ確認したい場合は **Actions タブ → Release → Run workflow** から手動起動できる。 `dryRun: true` (default) の状態では smoke test のみ実行され、 publish / GitHub Release 作成は skip される。
+
+### Tag 命名規約
+
+- 形式: `vMAJOR.MINOR.PATCH` (例: `v0.1.0`, `v1.0.0`, `v0.1.0-rc1`)
+- `v` prefix を含む tag のみが release workflow を trigger する (`on.push.tags: ['v*.*.*']`)
+- `-` を含む tag (例: `v0.1.0-rc1`, `v1.0.0-beta`) は GitHub Release で **prerelease flag が自動で立つ**
+- CHANGELOG.md の section 見出しは tag から `v` を外した形式 (例: `## [0.1.0]`)
+
+### Trouble shooting (release workflow)
+
+- **`Could not resolve all files for configuration ':classpath'`**: gradle/actions/setup-gradle@v3 の cache 不整合。 Actions UI の Re-run all jobs で解消することが多い
+- **publish step が `401 Unauthorized`**: `ORG_GRADLE_PROJECT_mavenCentralUsername` / `ORG_GRADLE_PROJECT_mavenCentralPassword` が User Token (Bearer) と一致していない。 Sonatype Central Portal で再発行
+- **signing step で `BAD_PASSPHRASE`**: `ORG_GRADLE_PROJECT_signingInMemoryKeyPassword` が key 生成時の passphrase と不一致
+- **GitHub Release が作成されない**: `permissions: contents: write` が job に付与されているか確認 (workflow の `permissions:` block)
+- **CHANGELOG.md の release notes 抽出が空**: tag `v0.1.0` に対し CHANGELOG.md に `## [0.1.0]` 見出しが無い。 抽出失敗時は `generate_release_notes: true` で auto-fallback するが、 release notes の品質を保つため tag push 前に CHANGELOG.md を整える
 
 ## Gradle Plugin Portal
 
