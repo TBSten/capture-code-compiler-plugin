@@ -3,8 +3,13 @@ package me.tbsten.capture.code.compat.k210
 import com.google.auto.service.AutoService
 import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.compat.CompatContext
+import me.tbsten.capture.code.compat.k210.checker.K210CapturedSourcesCallCheckersExtension
+import me.tbsten.capture.code.compat.k210.checker.K210ExpressionAnnotationCheckersExtension
+import me.tbsten.capture.code.compat.k210.checker.K210MarkerAnnotationCheckersExtension
+import me.tbsten.capture.code.compat.k210.checker.K210MarkerCheckersExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.fir.FirSession
+import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
@@ -75,6 +80,14 @@ public class CompatContextImpl : CompatContext {
     ): FirRegularClassSymbol? = type.toRegularClassSymbol(session)
 
     override fun classIdOf(symbol: FirRegularClassSymbol): ClassId? = symbol.classId
+
+    override fun firAdditionalCheckersExtensions():
+        List<(FirSession) -> FirAdditionalCheckersExtension> = listOf(
+        ::K210MarkerCheckersExtension,
+        ::K210MarkerAnnotationCheckersExtension,
+        ::K210CapturedSourcesCallCheckersExtension,
+        ::K210ExpressionAnnotationCheckersExtension,
+    )
 
     @AutoService(CompatContext.Factory::class)
     public class Factory : CompatContext.Factory {
