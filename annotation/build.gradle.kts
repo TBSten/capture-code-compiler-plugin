@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.targets.js.dsl.ExperimentalWasmDsl
 
 plugins {
     kotlin("multiplatform")
-    alias(libs.plugins.maven.publish)
+    id("buildsrc.convention.publish")
 }
 
 @OptIn(ExperimentalWasmDsl::class)
@@ -32,33 +32,18 @@ kotlin {
 
 // Publishing to Maven Central
 // https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-publish-libraries.html
+//
+// 共通設定 (publishToMavenCentral / pom の license / developer / scm / signing 条件)
+// は `buildsrc.convention.publish` convention plugin が提供。 ここでは KMP 固有の
+// coordinates と module-specific な name / description のみ override する。
+// coordinates は vanniktech が `project.group:project.name:project.version` を
+// 既定で使うため、 root の `allprojects { group = GROUP; version = VERSION_NAME }`
+// と settings.gradle.kts の `include(":annotation")` で決まる
+// `me.tbsten.capture.code:annotation:<VERSION_NAME>` がそのまま使われる。
+// SSOT を破壊しないため `coordinates(...)` の明示呼び出しはしない。
 mavenPublishing {
-    publishToMavenCentral()
-    coordinates("me.tbsten.capture.code", "annotation", "0.1.0-SNAPSHOT")
-
     pom {
-        name = "Capture Code annotation"
-        description = "Runtime API declarations for Capture Code compiler plugin"
-        url = "https://github.com/tbsten/Capture-Code-compiler-plugin"
-
-        licenses {
-            license {
-                name = "MIT"
-                url = "https://opensource.org/licenses/MIT"
-            }
-        }
-
-        developers {
-            developer {
-                id = "tbsten"
-                name = "tbsten"
-                email = "programmingcafeteria@gmail.com"
-            }
-        }
-
-        scm {
-            url = "https://github.com/tbsten/Capture-Code-compiler-plugin"
-        }
+        name.set("Capture Code annotation")
+        description.set("Runtime API declarations for Capture Code compiler plugin")
     }
-    if (project.hasProperty("signing.keyId")) signAllPublications()
 }
