@@ -92,7 +92,7 @@ public interface CompatContext {
      * **Sample call**: `compat.toRegularClassSymbolOrNull(coneType, session)`
      *
      * **Result**: the `FirRegularClassSymbol` for `coneType` (e.g. resolves
-     * `Snippets_Case24` to its `FirRegularClassSymbol`), or `null`.
+     * `com.example.MySnippet` to its `FirRegularClassSymbol`), or `null`.
      */
     public fun toRegularClassSymbolOrNull(
         type: ConeKotlinType,

@@ -3,7 +3,7 @@
 A Kotlin compiler plugin that **captures the source string at compile time** simply by marking code with an annotation you define yourself, then lets you read it back as data at runtime. No reflection, zero runtime cost.
 
 ```kotlin
-import io.github.tbsten.capturecode.*
+import me.tbsten.capture.code.*
 
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
@@ -208,11 +208,13 @@ automatically.
 
 ### Samples
 
-Runnable samples will live under [`samples/`](samples/):
+Runnable samples are available under [`samples/`](samples/):
 
-- [`samples/jvm-sample/`](samples/jvm-sample/) — minimum JVM setup.
+- [`samples/jvm-sample/`](samples/jvm-sample/) — minimum JVM setup with a
+  5-case cookbook covering markers, fillers, user-defined parameters,
+  every declaration target, and `@file:` capture.
 - [`samples/kmp-sample/`](samples/kmp-sample/) — KMP setup that captures
-  inside test source sets.
+  inside test source sets across `jvm` / `js` / `linuxX64` / `mingwX64`.
 
 ---
 
@@ -302,7 +304,6 @@ Full list with reproductions and root-cause analysis:
 - [docs/versioning.md](docs/versioning.md) — semver policy, pre-1.0
   guarantees, release artefacts, and SNAPSHOT handling.
 
-The test catalog lives in [test-cases.md](test-cases.md), with 100 cases.
 
 ---
 

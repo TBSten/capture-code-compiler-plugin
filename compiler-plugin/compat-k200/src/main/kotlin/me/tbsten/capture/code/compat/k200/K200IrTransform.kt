@@ -40,10 +40,9 @@ internal fun runK200IrTransform(
     // パス 2 (rewrite): 全 IrFile を transform して `capturedSources<T>()` を list literal に書き換える。
     //
     // **このパス分離が必要な理由**: marker と use site が異なる file にある場合
-    // (例: ケース24: marker は `case24/FileA.kt`、`capturedSources<Snippets_Case24>()` の
-    // 呼び出しは `BasicCasesTest.kt`)、 1 パスで `visitFile` → `visitCall` の順に走らせると、
-    // `BasicCasesTest.kt` の rewrite を行う時点で `case24/FileB.kt` の use site が未収集に
-    // なる可能性がある。
+    // (例: marker class が file A、 `capturedSources<MyMarker>()` の呼び出しが file B、
+    //  marker 付き use site が file C)、 1 パスで `visitFile` → `visitCall` の順に走らせると、
+    // file B の rewrite を行う時点で file C の use site が未収集になる可能性がある。
     // 2 パスにすることで rewrite phase では capturedSites が **module 全体のスナップショット** に
     // なっていることが保証される。
     val transformer = K200CapturedSourcesTransformer(pluginContext, config)

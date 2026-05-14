@@ -21,11 +21,11 @@ Capture Code compiler plugin の **エンドユーザ向け cookbook** をまと
 
 | ファイル | 例 |
 | --- | --- |
-| `Case01SimpleMarker.kt` | 単純な marker + `Source` filler |
-| `Case02AllFillers.kt` | `Source` + `SourceLocation` + `CaptureKind` の 3 種を同時に使う |
-| `Case03UserDefinedParams.kt` | user-defined parameter (`method`, `path` 等) を持つ marker |
-| `Case04AllDeclTargets.kt` | class / object / function / typealias の全宣言ターゲット |
-| `Case05FileAnnotation.kt` | `@file:` annotation で **ファイル全体** の source を取得 |
+| `SimpleMarker.kt` | 単純な marker + `Source` filler |
+| `AllFillersSnippet.kt` | `Source` + `SourceLocation` + `CaptureKind` の 3 種を同時に使う |
+| `UserDefinedParamsSnippet.kt` | user-defined parameter (`method`, `path` 等) を持つ marker |
+| `AllDeclarationTargets.kt` | class / object / function / typealias の全宣言ターゲット |
+| `FileAnnotationSample.kt` | `@file:` annotation で **ファイル全体** の source を取得 |
 
 `Main.kt` で 5 ケースを順に `capturedSources<T>()` で集めて stdout に出力します。 各 marker は `Markers.kt` で宣言。
 

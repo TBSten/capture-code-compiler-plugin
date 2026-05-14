@@ -27,7 +27,7 @@ import kotlin.io.path.createTempDirectory
  * を使うことで、 ユーザ実利用形態の path 全体を verify する。
  *
  * ## 速度
- * TestKit が起動する子 Gradle build は 1 ケース 20-90 秒。 dedent option ごとに 1 build
+ * TestKit が起動する子 Gradle build は 1 件あたり 20-90 秒。 dedent option ごとに 1 build
  * 走らせるので合計 2 build。
  */
 class DslOptionsE2eTest : StringSpec({

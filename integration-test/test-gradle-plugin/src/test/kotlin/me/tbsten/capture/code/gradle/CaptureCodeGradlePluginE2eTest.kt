@@ -33,7 +33,7 @@ import java.io.File
  * KMP の主要シナリオは CI で継続検証されているので、 KMP の真の E2E カバレッジは保たれている。
  *
  * ## 速度
- * TestKit が起動する子 Gradle build は 1 ケース 20-90 秒。
+ * TestKit が起動する子 Gradle build は 1 件あたり 20-90 秒。
  */
 class CaptureCodeGradlePluginE2eTest : StringSpec({
 

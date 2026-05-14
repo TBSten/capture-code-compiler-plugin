@@ -14,7 +14,7 @@ package me.tbsten.capture.code.compat
  * filler の自動値埋めに使われる。後方互換のためデフォルト値を持つ。
  *
  * @property markerFqn キャプチャ対象に付与された marker annotation の完全修飾名
- *                     (例: `me.tbsten.capture.code.testapp.Snippets_Case1`)
+ *                     (例: `com.example.MySnippet`)
  * @property source 抽出されたソースコード文字列 (annotation 行は除外、dedent は未実施)
  * @property kind サイトの種別 ([CaptureKind] のいずれか)
  * @property packageFqn declaration を内包する Kotlin package の FqN (例: `me.tbsten.capture.code.testapp`)。

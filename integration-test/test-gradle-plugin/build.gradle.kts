@@ -51,6 +51,6 @@ tasks.withType<Test>().configureEach {
     // includeBuild + dependencySubstitution は configuration-cache と相性問題が出る場合があるため、
     // fixture 側で `--no-configuration-cache` を渡す方針 (test code で明示)。
 
-    // TestKit 経由の Gradle build は遅い (1 ケース 30-90 秒程度)。 timeout を伸ばす。
+    // TestKit 経由の Gradle build は遅い (1 件あたり 30-90 秒程度)。 timeout を伸ばす。
     timeout.set(Duration.ofMinutes(15L))
 }
