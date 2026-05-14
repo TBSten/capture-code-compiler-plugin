@@ -37,27 +37,26 @@ import org.jetbrains.kotlin.name.Name
  * [K210CapturedSourcesCollector] が収集した [K210CapturedSiteData] のリストから組み立てた
  * `listOf(Marker(...))` 相当の [IrCall] (`kotlin.collections.listOf`) に書き換える。
  *
- * ## task-013 で対応した変更点
+ * ## 構築方針
  *
- * - **filler 3 種すべての自動値埋め**: 旧版は `source: Source` のみ inline で構築していたが、
- *   `source` / `location: SourceLocation` / `kind: CaptureKind` の filler 3 種を統一的に扱う
- *   ように `filler/` パッケージ配下の builder クラス群に切り出した。`buildSnippetsCall` は
- *   marker constructor の各 parameter を順に走査し、その type が filler 型に該当すれば対応する
- *   [FillerBuilder] に dispatch する。
- * - **filler 識別は型ベース**: ユーザ定義パラメータ (task-014) との境界はここで明確にしている。
+ * - **filler 3 種すべての自動値埋め**: `source: Source` / `location: SourceLocation` /
+ *   `kind: CaptureKind` の filler 3 種を統一的に扱うため、 `filler/` パッケージ配下の builder
+ *   クラス群に切り出している。 `buildSnippetsCall` は marker constructor の各 parameter を順に
+ *   走査し、 その type が filler 型に該当すれば対応する [FillerBuilder] に dispatch する。
+ * - **filler 識別は型ベース**: ユーザ定義パラメータとの境界はここで明確にしている。
  *   parameter の `type` が `me.tbsten.capture.code.{Source, SourceLocation, CaptureKind}` の
- *   いずれかと **等しい** 場合のみ filler、それ以外はユーザ定義扱い。design §3.2 / §3.3。
+ *   いずれかと **等しい** 場合のみ filler、 それ以外はユーザ定義扱い。 design §3.2 / §3.3。
  * - **SourceNormalizer の wire up**: 生 source 取得は [K210CapturedSourcesCollector] 内で
- *   [me.tbsten.capture.code.feature.captured_sources.normalize.normalize] を経由するようになった
- *   (task-015 ↔ task-013 の合流地点)。本 rewriter は normalize 済の `site.source` をそのまま使う。
+ *   [me.tbsten.capture.code.feature.captured_sources.normalize.normalize] を経由する。
+ *   本 rewriter は normalize 済の `site.source` をそのまま使う。
  *
- * ## task-014 で追加されたユーザ定義パラメータの保持
+ * ## ユーザ定義パラメータの保持
  *
- * filler ではない parameter (= ユーザが call site で値を指定する parameter、例 `id: Id` /
- * `label: String` / `target: KClass<*>` 等) について、collector が保持した marker `IrConstructorCall`
- * から `getValueArgument(i)` で IR 式を取り出し、[UserArgIrBuilder] が deepCopy して新 marker
- * instance に再投入する。call site で省略されている場合は marker class の primary constructor の
- * `IrValueParameter.defaultValue` を使う。design §5 Logic H / §7.9 / 開発タスク順序 #4。
+ * filler ではない parameter (= ユーザが call site で値を指定する parameter、 例 `id: Id` /
+ * `label: String` / `target: KClass<*>` 等) について、 collector が保持した marker `IrConstructorCall`
+ * から `getValueArgument(i)` で IR 式を取り出し、 [UserArgIrBuilder] が deepCopy して新 marker
+ * instance に再投入する。 call site で省略されている場合は marker class の primary constructor の
+ * `IrValueParameter.defaultValue` を使う。 design §5 Logic H / §7.9。
  */
 internal object K210CapturedSourcesRewriter {
 
@@ -104,7 +103,7 @@ internal object K210CapturedSourcesRewriter {
         val listType = pluginContext.irBuiltIns.listClass.typeWith(markerType)
         val varargType = pluginContext.irBuiltIns.arrayClass.typeWith(markerType)
 
-        // task-031 (D6): 2.1.0 では `IrCallImpl(...)` constructor が internal 化され、 top-level
+        // IR drift D6: 2.1.0 では `IrCallImpl(...)` constructor が internal 化され、 top-level
         // factory function (`org.jetbrains.kotlin.ir.expressions.impl.IrCallImpl(...)`) を経由する。
         // 新 factory は `valueArgumentsCount` を引数で受け取らず、 symbol.owner.valueParameters.size
         // から自動で初期化する (`listOf` は vararg 1 引数なので size=1 が暗黙に設定される)。
@@ -186,7 +185,7 @@ internal object K210CapturedSourcesRewriter {
                     bindings[index] = builder
                 }
                 else -> {
-                    // ユーザ定義パラメータ。`UserArgIrBuilder` で別経路で値を埋める (task-014)。
+                    // ユーザ定義パラメータ。`UserArgIrBuilder` で別経路で値を埋める。
                 }
             }
         }
@@ -201,10 +200,8 @@ internal object K210CapturedSourcesRewriter {
      * - filler 型 (= [FillerPlan.bindings] に含まれる index) → [FillerBuilder] で値を生成
      * - それ以外 (ユーザ定義) → [UserArgIrBuilder] で call site 値 or default 値を deepCopy
      *
-     * task-014 でユーザ定義 parameter サポートを追加。それ以前は filler 以外を default 値に任せる
-     * (`putValueArgument` しない) 形だったが、Kotlin の primary constructor は **value argument を
-     * 全部 explicit に指定しなければ instance を生成できない** ことが分かったため、
-     * 全 parameter を埋めるよう変更。
+     * Kotlin の primary constructor は **value argument を全部 explicit に指定しなければ
+     * instance を生成できない** ため、 filler に該当しない parameter も含めて全 parameter を埋める。
      */
     private fun buildMarkerInstance(
         data: K210CapturedSiteData,

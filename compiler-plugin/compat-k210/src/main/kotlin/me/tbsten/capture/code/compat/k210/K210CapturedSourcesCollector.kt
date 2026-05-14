@@ -27,8 +27,8 @@ import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 /**
  * collector が収集する 1 件分のキャプチャ情報。
  *
- * 公開 API である [CapturedSite] に加えて、marker annotation 自身の [IrConstructorCall] を
- * 保持する。これにより rewriter (task-014) は call site でユーザが渡した argument
+ * 公開 API である [CapturedSite] に加えて、 marker annotation 自身の [IrConstructorCall] を
+ * 保持する。 これにより rewriter は call site でユーザが渡した argument
  * (例: `@Foo(id = X, label = "y")` の `X` / `"y"`) を IR 上の式として直接取り出して
  * 新しい marker instance に詰め直すことができる。
  *
@@ -39,10 +39,9 @@ import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 internal data class K210CapturedSiteData(
     val site: CapturedSite,
     /**
-     * `@Marker(...)` 自身に対応する IR コンストラクタ呼び出し。declaration / file 起源では
-     * 必ず IR の `IrConstructorCall` が存在する (task-005 / task-016 で確認済) ので non-null だが、
-     * **EXPRESSION 起源 (task-017)** では IR phase に annotation が残らない (task-009 spike) ため
-     * **`null`** になる。
+     * `@Marker(...)` 自身に対応する IR コンストラクタ呼び出し。 declaration / file 起源では
+     * 必ず IR の `IrConstructorCall` が存在するため non-null だが、
+     * **EXPRESSION 起源** では IR phase に annotation が残らないため **`null`** になる。
      *
      * rewriter は markerCall == null の場合、ユーザ定義 parameter について
      * [me.tbsten.capture.code.compat.k210.userargs.UserArgIrBuilder.buildOrDefault] の
@@ -60,8 +59,8 @@ internal data class K210CapturedSiteData(
      * EXPRESSION 起源では FIR phase で抜き出した primitive / enum FqN を name → value で持ち、
      * rewriter が IR const へ変換して marker constructor へ詰める。
      *
-     * 本 ticket scope では filler のみが入った marker (ケース #7, #67 等) を主にサポート。
-     * primitive 引数を持つ marker のキャプチャは将来 task で拡張。
+     * 現在は filler のみが入った marker (ケース #7, #67 等) を主にサポート。
+     * primitive 引数を持つ marker のキャプチャは将来拡張する。
      */
     val expressionUserArgs: Map<String, Any?> = emptyMap(),
 )
@@ -70,12 +69,12 @@ internal data class K210CapturedSiteData(
  * `@CaptureCode` メタ付き marker annotation (= [CaptureCodeMarkerRegistry] に登録された FqN) を
  * 持つ宣言を IR 走査で収集する visitor。
  *
- * task-008 (Logic A) で hardcoded marker FqN list が撤廃され、本 collector は
+ * Logic A (動的検出) により hardcoded marker FqN list は撤廃済みで、 本 collector は
  * [CaptureCodeMarkerRegistry] (FIR phase で動的検出された marker FqN の集合) を参照する。
  *
  * ## サポート対象 (Logic B-ir)
  *
- * task-005 では `visitProperty` のみだったが、task-012 で **宣言レベル 5 種類** に拡張した:
+ * **宣言レベル 5 種類** をサポートする:
  *
  * | 種別 | IR ノード | visitor | [CapturedSite.CaptureKind] |
  * |------|----------|---------|----------------------------|
@@ -85,13 +84,12 @@ internal data class K210CapturedSiteData(
  * | function | [IrSimpleFunction] (property accessor 除く) | [visitSimpleFunction] | [CapturedSite.CaptureKind.FUNCTION] |
  * | typealias | [IrTypeAlias] | [visitTypeAlias] | [CapturedSite.CaptureKind.TYPEALIAS] |
  *
- * task-016 で **ファイル全体** (`@file:Marker`) も収集対象に追加。`IrElementVisitorVoid` の
- * 再帰経路では `IrFile.annotations` (= file-level annotation) を訪問しないため、本 collector の
+ * **ファイル全体** (`@file:Marker`) も収集対象。 `IrElementVisitorVoid` の再帰経路では
+ * `IrFile.annotations` (= file-level annotation) を訪問しないため、 本 collector の
  * [collectFileAnnotations] を [K210IrInjector] パス 1 から **declaration 走査と並行で** 呼び出す
  * (visitor では拾えないので別 entry point を用意する)。
  *
  * design §4 F2 「ファイル」/ §5 Logic B 参照。
- * EXPRESSION (task-017) は後続 ticket。
  *
  * ## 走査と再帰
  *
@@ -116,11 +114,10 @@ internal data class K210CapturedSiteData(
  * ## アノテーション行の除外 (design §7.2)
  *
  * Kotlin 2.0.0 の IR では各 declaration の `startOffset` が先頭 `@Marker` 行を含む位置を指す
- * (task-005 / task-009 spike で実機確認済み)。[skipLeadingAnnotationLines] で行頭 `@` 行を
- * 改行までスキップする。複数 annotation や `@JvmInline` 等の Kotlin 標準 annotation 行も
- * **すべて** スキップ (空行があれば残す) する Phase 1 ポリシー。
- * 厳密な「marker annotation のみスキップ」モードは task-018 の DSL option (`includeAnnotationLines`)
- * 配線後に検討する。
+ * (実機確認済み)。 [skipLeadingAnnotationLines] で行頭 `@` 行を改行までスキップする。
+ * 複数 annotation や `@JvmInline` 等の Kotlin 標準 annotation 行も **すべて** スキップ
+ * (空行があれば残す) する Phase 1 ポリシー。 厳密な「marker annotation のみスキップ」モードは
+ * DSL option (`includeAnnotationLines`) 配線後に検討する。
  */
 internal class K210CapturedSourcesCollector(
     private val currentFile: IrFile,
@@ -130,8 +127,8 @@ internal class K210CapturedSourcesCollector(
     /**
      * 収集された capture site データ (CapturedSite + marker IrConstructorCall) のリスト。
      *
-     * task-014 で公開 API `CapturedSite` に加えて marker annotation の `IrConstructorCall` も
-     * 保持するようになった。後段の rewriter がユーザ定義パラメータの値を IR 上の式として
+     * 公開 API `CapturedSite` に加えて marker annotation の `IrConstructorCall` も
+     * 保持する。 後段の rewriter がユーザ定義パラメータの値を IR 上の式として
      * 取り出すために使う。
      *
      * 公開モデル ([CapturedSite]) のみを参照したい場合は [capturedSites] (compatibility view)。
@@ -150,11 +147,11 @@ internal class K210CapturedSourcesCollector(
     /** 同一 [IrFile] に対する複数の declaration を処理する際に file テキストをキャッシュする。 */
     private val cachedFileText: String? by lazy { SourceTextExtractor.loadFileText(currentFile) }
 
-    /** declaration 起源の正規化 option (task-013 で `config` の `dedent` 等を投影)。 */
+    /** declaration 起源の正規化 option (`config` の `dedent` 等を投影)。 */
     private val normalizeOptions: NormalizeOptions by lazy { config.toDeclarationNormalizeOptions() }
 
     /**
-     * file 起源 (`@file:Marker`) の正規化 option (task-016)。
+     * file 起源 (`@file:Marker`) の正規化 option。
      *
      * `config.includeImports = false` (default) ならば `stripPackageAndImport = true` になり、
      * `package` 行と `import` 行が除外される。`includeImports = true` の場合はそれらも残す。
@@ -164,7 +161,7 @@ internal class K210CapturedSourcesCollector(
     private val fileNormalizeOptions: NormalizeOptions by lazy { config.toFileNormalizeOptions() }
 
     /**
-     * EXPRESSION 起源の正規化 option (task-017)。dedent + blank trim のみ。
+     * EXPRESSION 起源の正規化 option。 dedent + blank trim のみ。
      * 式起源は package / import / annotation 行を含まない (FIR session が push する offset は
      * 式そのものを指す) ため、それらの strip flag は false。
      */
@@ -206,7 +203,7 @@ internal class K210CapturedSourcesCollector(
 
     /**
      * `@file:Marker` で file 全体に付いた marker annotation を走査し、
-     * marker ごとに 1 件ずつ [CapturedSite] (`kind = FILE`) を生成する (task-016)。
+     * marker ごとに 1 件ずつ [CapturedSite] (`kind = FILE`) を生成する。
      *
      * `IrElementVisitorVoid` の再帰経路では `IrFile.annotations` を訪問しないため、本 method を
      * [K210IrInjector] パス 1 から **declaration 走査とは独立に** 呼ぶ。declaration 走査と
@@ -216,7 +213,7 @@ internal class K210CapturedSourcesCollector(
      *
      * - source: file 全体テキストを [SourceTextExtractor.loadFileText] で取得し、
      *   [fileNormalizeOptions] (= `stripPackageAndImport = !includeImports`) で正規化する
-     * - filePath: `IrFile.fileEntry.name` (絶対パス。task-013 と同じ妥協で Phase 2 はこのまま)
+     * - filePath: `IrFile.fileEntry.name` (絶対パス。 Phase 2 はこのまま)
      * - packageFqn: `IrFile.packageFqName.asString()`
      * - startLine: **1** (file 起源は常にファイル先頭から)
      * - endLine: `IrFileEntry.getLineNumber(maxOffset) + 1` (`IrFileEntry.getLineNumber` は
@@ -255,8 +252,8 @@ internal class K210CapturedSourcesCollector(
     }
 
     /**
-     * task-017 で追加。 FIR session storage ([CaptureCodeExpressionSiteRegistry]) に push された
-     * 式 annotation site のうち、本 [currentFile] にマッチするものを `CapturedSite(kind = EXPRESSION)`
+     * FIR session storage ([CaptureCodeExpressionSiteRegistry]) に push された
+     * 式 annotation site のうち、 本 [currentFile] にマッチするものを `CapturedSite(kind = EXPRESSION)`
      * に変換して [capturedSiteData] に追加する。
      *
      * design §5 Logic B-fir の **IR phase 側読み出し**:
@@ -282,7 +279,7 @@ internal class K210CapturedSourcesCollector(
         val packageFqn = currentFile.packageFqName.asString()
         val filePath = currentFile.fileEntry.name
         // FIR checker は marker 判定をせずに **すべての expression annotation** を push してくる
-        // (FIR checker phase の ordering 問題回避のため、 task-017 設計判断)。 IR phase 側で
+        // (FIR checker phase の ordering 問題回避のため)。 IR phase 側で
         // [CaptureCodeMarkerRegistry.isMarker] による filter を行う。
         val matchingSites = CaptureCodeExpressionSiteRegistry.allSites
             .asSequence()
@@ -315,8 +312,8 @@ internal class K210CapturedSourcesCollector(
      * 式 annotation 起源の raw 抽出 + 正規化。
      *
      * FIR session が push する `(startOffset, endOffset)` は **`@Marker (expr)` のうちの「式部分」**
-     * (task-009 spike (c) より、annotation 自体ではなく対象 expression の source range)。
-     * ただし spike 観察と production の挙動には僅かに差異がある可能性があるため、
+     * (annotation 自体ではなく対象 expression の source range)。
+     * ただし観察と production の挙動には僅かに差異がある可能性があるため、
      * 抽出後に **両端の `(` `)` をペアでひと組ずつ strip** する補正を行う。これにより
      * `(1 + 2 + 3)` で push されても `1 + 2 + 3` に揃う。
      *
@@ -395,7 +392,7 @@ internal class K210CapturedSourcesCollector(
      * 先頭 `@file:Marker` 行も config の `includeAnnotationLines = false` なら
      * `stripLeadingAnnotationLines = true` 経由で normalize 内 で除外される。
      *
-     * ## marker class 自身の declaration 除外 (task-016)
+     * ## marker class 自身の declaration 除外
      *
      * file annotation は **その file 内のキャプチャ対象** を集める用途なので、`@CaptureCode`
      * メタ付き annotation class (= marker 自身) の declaration は capture 結果から除外する。
@@ -459,15 +456,15 @@ internal class K210CapturedSourcesCollector(
      * 走査して [CaptureCodeMarkerRegistry] に登録されている FqN ごとに 1 件ずつ [CapturedSite] を
      * 生成する (design §7.7 「重複 marker」: エラーにせず両方の `capturedSources<T>()` に出る)。
      *
-     * task-013 でこの method は **location 情報** (`packageFqn` / `filePath` / `startLine` /
-     * `endLine`) も合わせて埋めるようになった。後段 ([K210CapturedSourcesRewriter]) で
+     * この method は **location 情報** (`packageFqn` / `filePath` / `startLine` /
+     * `endLine`) も合わせて埋める。 後段 ([K210CapturedSourcesRewriter]) で
      * `SourceLocation` filler に注入される。
      */
     private fun collectIfMarked(
         declaration: IrDeclarationBase,
         kind: CapturedSite.CaptureKind,
     ) {
-        // task-014 で marker annotation の `IrConstructorCall` も合わせて取り出すように変更。
+        // marker annotation の `IrConstructorCall` も合わせて取り出す。
         // 1 宣言に複数 marker が付いている場合 (`@Foo @Bar`) は marker ごとに 1 件ずつ collect する。
         val markerAnnotations = declaration.annotations.markerAnnotations()
         if (markerAnnotations.isEmpty()) return
@@ -499,9 +496,8 @@ internal class K210CapturedSourcesCollector(
      * `IrConstructorCall` をペアで返す。
      *
      * 同じ宣言に複数 marker (`@Foo @Bar`) が付いている場合は **すべての** marker を返す。
-     * task-005 では「最初に見つかった 1 つだけ」を返す実装だったが、task-012 で複数 marker
-     * 同時 capture (ケース #21 / #22) を可能にするため列挙に変更。task-014 で `IrConstructorCall`
-     * 自体も保持する形に拡張 (ユーザ定義 parameter の IR 化に必要)。
+     * 複数 marker 同時 capture (ケース #21 / #22) を可能にするため列挙する。 ユーザ定義 parameter の
+     * IR 化に使うため `IrConstructorCall` 自体も保持する。
      */
     private fun List<IrConstructorCall>.markerAnnotations(): List<Pair<String, IrConstructorCall>> {
         val result = mutableListOf<Pair<String, IrConstructorCall>>()
@@ -513,14 +509,14 @@ internal class K210CapturedSourcesCollector(
     }
 
     /**
-     * 宣言のソース文字列を抽出する。Logic C (design §5.C / §7.3) + Logic D (task-015) の wire up。
+     * 宣言のソース文字列を抽出する。 Logic C (design §5.C / §7.3) + Logic D (正規化) の wire up。
      *
      * 処理ステップ:
      * 1. file text を [SourceTextExtractor.loadFileText] で取得 (PSI 経由 → file system fallback)。
      * 2. declaration の `startOffset..endOffset` から先頭の `@Marker` 行 (任意個) を
      *    [skipLeadingAnnotationLines] (offset レベル) でスキップ。Kotlin 2.0.0 の IR は
      *    declaration の startOffset に annotation 行を含む仕様への対処 (design §7.2)。
-     * 3. raw substring を [normalize] に通して dedent / blank trim を適用 (task-013 で wire up)。
+     * 3. raw substring を [normalize] に通して dedent / blank trim を適用。
      *    [NormalizeOptions] は [CaptureCodePluginConfig.toDeclarationNormalizeOptions] で
      *    config から派生する。
      *
@@ -537,7 +533,7 @@ internal class K210CapturedSourcesCollector(
         if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) return null
         if (endOffset > fullText.length) return null
 
-        // task-042: `includeKdoc = true` (デフォルト) の場合、 declaration の startOffset の
+        // `includeKdoc = true` (デフォルト) の場合、 declaration の startOffset の
         // 直前にある KDoc を別途抽出する。 KDoc は `@Marker` 行より手前にあるため、
         // 単純に startOffset を前方拡張すると `@Marker` 行が skip されない問題がある
         // (skipLeadingAnnotationLines は連続する `@` 行のみ skip するため、 KDoc 行で中断する)。
@@ -581,20 +577,16 @@ internal class K210CapturedSourcesCollector(
      * `startOffset` 〜 `endOffset` の範囲のうち、 先頭の **marker annotation 行** (改行まで) を
      * スキップした offset を返す。
      *
-     * task-041 で挙動を変更: かつては行頭が `@` で始まる行をすべてスキップしていたが、
-     * `@JvmInline value class Foo(val raw: Long)` のように **Kotlin 標準 annotation
-     * (`@JvmInline` 等) が宣言の意味論上必須** であるケース (= inline value class) で
-     * `@JvmInline` 行まで落としてしまい、 結果 source として残らない問題があった。
+     * 動作: かつては行頭が `@` で始まる行をすべてスキップしていたが、 `@JvmInline value class Foo(val raw: Long)`
+     * のように **Kotlin 標準 annotation (`@JvmInline` 等) が宣言の意味論上必須** であるケース
+     * (= inline value class) で `@JvmInline` 行まで落としてしまう問題があったため、
+     * **token ベース** の skip に変更している。 marker annotation **そのもの**
+     * (`@<simpleName>` + optional `(<args>)`) を token として識別し、 末尾の空白 (改行を含む) を吸収する。
+     * 改行を跨いだ場合は次の行頭まで進み、 次の annotation / 宣言本体の判定に進む。
+     * 同一行に declaration 本体がある場合は marker と declaration 本体の間の空白だけを吸収して停止する
+     * (`@Marker val p1 = 1; @Marker val p2 = 2` のような同一行複数 property に対応)。
      *
-     * task-043 で **token ベース** に変更: 旧実装は「marker 行を改行まで丸ごと飲み込む」線形 skip
-     * だったが、 `@Marker val p1 = 1; @Marker val p2 = 2` のような **同一行に複数 property** 形式では
-     * 改行まで進めると `endOffset` を超え substring が null を返してしまっていた (= capture 失敗)。
-     * 新実装は marker annotation **そのもの** (`@<simpleName>` + optional `(<args>)`) を token として
-     * 識別し、 末尾の空白 (改行を含む) を吸収する。 改行を跨いだ場合は次の行頭まで進み、 次の
-     * annotation / 宣言本体の判定に進む。 同一行に declaration 本体がある場合は marker と
-     * declaration 本体の間の空白だけを吸収して停止する。
-     *
-     * 新仕様:
+     * 仕様:
      * - `@<simpleName>` の `<simpleName>` が [CaptureCodeMarkerRegistry] の simpleName 集合に
      *   含まれる場合のみ marker として処理し、 当該 annotation token (任意の `(...)` 引数を含む)
      *   と直後の whitespace (改行を含む) を skip。

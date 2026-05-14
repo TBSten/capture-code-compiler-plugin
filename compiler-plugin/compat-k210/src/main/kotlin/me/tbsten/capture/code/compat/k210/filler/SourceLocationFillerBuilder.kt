@@ -19,11 +19,11 @@ import org.jetbrains.kotlin.ir.util.constructors
  * `me.tbsten.capture.code.SourceLocation(packageName, filePath, startLine, endLine)` filler の
  * 値を IR で構築する [FillerBuilder]。
  *
- * task-013 で新規追加。各 [CapturedSite] が保持する `packageFqn` / `filePath` / `startLine` /
- * `endLine` (collector 段で `IrFile.fqName` / `IrFileEntry.name` / `IrFileEntry.getLineNumber+1` で
- * 計算済) を、`SourceLocation` annotation の 4 パラメータに put する。
+ * 各 [CapturedSite] が保持する `packageFqn` / `filePath` / `startLine` / `endLine`
+ * (collector 段で `IrFile.fqName` / `IrFileEntry.name` / `IrFileEntry.getLineNumber+1` で
+ * 計算済) を、 `SourceLocation` annotation の 4 パラメータに put する。
  *
- * ## `includeLineInfo` 対応 (task-018 config)
+ * ## `includeLineInfo` 対応
  *
  * `config.includeLineInfo = false` の場合は `startLine` / `endLine` を 0 で埋める
  * (= filler のデフォルト値と同じ)。design §11 open question #1 の挙動。
@@ -32,7 +32,7 @@ import org.jetbrains.kotlin.ir.util.constructors
  *
  * 現状 `filePath` は `IrFile.fileEntry.name` (絶対パス) をそのまま使う。本来は Gradle module root
  * からの相対 path が望ましいが、IrFile から module root を解決する手段が安定 API として無いため
- * Phase 2 ではこのまま採用する (task-013 完了メモに記録)。
+ * Phase 2 ではこのまま採用する。
  */
 internal class SourceLocationFillerBuilder(
     private val locationType: IrType,

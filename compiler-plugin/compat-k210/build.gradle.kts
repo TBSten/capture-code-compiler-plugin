@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// task-037: この module は **publish しない** (internal compat layer for K2.1)。
+// この module は **publish しない** (internal compat layer for K2.1)。
 // `:compiler-plugin` の shadowJar に bundled で同梱され、 META-INF/services の
 // CompilerCompat factory 経由でロードされる。 詳細は `:compiler-plugin/compat/
 // build.gradle.kts` の comment 参照。

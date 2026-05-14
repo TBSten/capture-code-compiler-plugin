@@ -19,7 +19,7 @@ import org.jetbrains.kotlin.ir.util.constructors
 /**
  * `me.tbsten.capture.code.CaptureKind(value: Kind)` filler の値を IR で構築する [FillerBuilder]。
  *
- * task-013 で新規追加。`CapturedSite.kind` を `CaptureKind.Kind` enum 値に map し、
+ * `CapturedSite.kind` を `CaptureKind.Kind` enum 値に map し、
  * `IrGetEnumValueImpl` で参照式を組み立てて `CaptureKind` annotation constructor に put する。
  *
  * ## kind マッピング
@@ -34,7 +34,7 @@ import org.jetbrains.kotlin.ir.util.constructors
  * | OBJECT | OBJECT |
  * | FUNCTION | FUNCTION |
  * | TYPEALIAS | TYPEALIAS |
- * | FILE (task-016) | FILE |
+ * | FILE | FILE |
  *
  * 将来 EXPRESSION が追加されたら本 builder の [kindEnumEntries] map に entry を足すだけ。
  * UNKNOWN は collector が site を生成する時点で具体的な kind を埋めているので、本 builder では

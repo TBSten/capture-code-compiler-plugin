@@ -16,7 +16,7 @@ import org.jetbrains.kotlin.name.ClassId
 /**
  * Kotlin 2.1.x 向けの [CompatContext] 実装。
  *
- * task-028 で観察した drift を吸収する:
+ * K2.0 系からの drift を吸収する:
  *
  * - **FIR drift D1**: `FirLiteralExpression<T>` の型パラメータが 2.0.21+ で削除されたため、
  *   2.1.x では `FirLiteralExpression` (型パラメータ無し) を import して dispatch する。
@@ -26,7 +26,7 @@ import org.jetbrains.kotlin.name.ClassId
  * - **FIR drift D3 / D4**: `FirRegularClassSymbol.classId` accessor は 2.1.x でも安定。
  *   compat layer 経由で抽象化済。
  *
- * **IR drift D5–D8** (task-031 で実装):
+ * **IR drift D5–D8**:
  *
  * - **D5**: `IrConst<T>` / `IrConstKind<T>` の型パラメータが 2.1.0 で削除された。 [transformIr]
  *   から呼ばれる [me.tbsten.capture.code.compat.k210.userargs.UserArgPrimitiveIrBuilder] は
@@ -40,10 +40,10 @@ import org.jetbrains.kotlin.name.ClassId
  *   を追加すれば同じ呼び出し形を維持できる。
  * - **D8**: `putValueArgument(index, expr)` / `putTypeArgument(index, type)` は 2.1.0 でも
  *   `IrMemberAccessExpression` の public final method として **残存** している (`final void
- *   putValueArgument(int, IrExpression)`)。 task-028 dev build で観察された "argument MutableList
+ *   putValueArgument(int, IrExpression)`)。 K2.0 系 dev build で観察された "argument MutableList
  *   migration" は 2.1.0 final 時点では未投入のため、 K200 と同じコードがそのまま使える。
  *
- * 結論として、 task-031 では `compat-k210` の IR transform を **K200 とほぼ同型に保ち**、
+ * 結論として、 `compat-k210` の IR transform を **K200 とほぼ同型に保ち**、
  * **D5 の `IrConstKind` 型パラメータ削除** と **D6/D7 の factory 切り替え** (top-level
  * builder + Companion 拡張 import) を個別に吸収する形で実装した。 万一 2.1.x の patch release で
  * D8 (`putValueArgument` 削除等) が投入された場合は本 module 内のみで再対応する。

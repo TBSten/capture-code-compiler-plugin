@@ -5,7 +5,7 @@ import me.tbsten.capture.code.compat.CapturedSite
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 
 /**
- * task-013 で導入された filler 自動値埋めの抽象 interface。
+ * filler 自動値埋めの抽象 interface。
  *
  * marker annotation の constructor 引数のうち、library 提供の filler 型 (`Source` /
  * `SourceLocation` / `CaptureKind`) で宣言されているものに対し、[CapturedSite] から該当する値を
@@ -23,13 +23,12 @@ import org.jetbrains.kotlin.ir.expressions.IrExpression
  * `build` 呼び出しは hot path として軽量に保てる。symbol 解決に失敗した場合 (= runtime 依存が
  * 不足) は [FillerBuilders.resolveAll] が `null` を返し、呼び出し側がフォールバックを担う。
  *
- * ## ユーザ定義パラメータとの境界 (task-014 で拡張)
+ * ## ユーザ定義パラメータとの境界
  *
- * filler は **型** で識別する。marker constructor の `IrValueParameter` の type が `Source` /
+ * filler は **型** で識別する。 marker constructor の `IrValueParameter` の type が `Source` /
  * `SourceLocation` / `CaptureKind` のいずれかと等しい場合のみ [FillerBuilder] に dispatch する。
- * それ以外のユーザ定義パラメータ (e.g. `id: Id` / `label: String`) は task-014 で別経路で値を
- * 埋める (`UserDefinedParameterBuilder` 仮称)。本 builder 群は filler 専用で、ユーザ定義に
- * 関知しない。
+ * それ以外のユーザ定義パラメータ (e.g. `id: Id` / `label: String`) は別経路 (`UserArgIrBuilder` 等)
+ * で値を埋める。 本 builder 群は filler 専用で、 ユーザ定義に関知しない。
  */
 internal interface FillerBuilder {
 
