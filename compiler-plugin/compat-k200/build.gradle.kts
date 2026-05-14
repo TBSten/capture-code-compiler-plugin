@@ -29,4 +29,15 @@ dependencies {
     ksp(libs.auto.service.ksp)
 
     implementation(project(":compiler-plugin:compat"))
+
+    // task-065: compat-k200 専用 unit test (ServiceLoader-based sanity)。
+    // kctfork を使わず pure JVM test に留めるため、 kctfork transitive
+    // (kotlin-compiler-embeddable 2.0.0) と consumer Kotlin の drift 問題を
+    // この module の test では完全回避する。 K200CompatContextImpl 自体は
+    // K2.0 native API で書かれているので testRuntime に
+    // kotlin-compiler-embeddable-k200 (= 2.0.0 固定) を入れて
+    // ServiceLoader 経由でロード可能にする。
+    testImplementation(libs.kotlin.compiler.embeddable.k200)
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
 }
