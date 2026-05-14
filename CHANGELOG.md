@@ -103,5 +103,5 @@ and root-cause analysis.
 - Apple-native targets are opt-in via `-PenableAppleTargets=true`
   because they require a local Xcode installation.
 
-[Unreleased]: https://github.com/tbsten/Capture-Code-compiler-plugin/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/tbsten/Capture-Code-compiler-plugin/releases/tag/v0.1.0
+[Unreleased]: https://github.com/tbsten/capture-code-compiler-plugin/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/tbsten/capture-code-compiler-plugin/releases/tag/v0.1.0

@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------------
-# Capture-Code-compiler-plugin CI workflow
+# capture-code-compiler-plugin CI workflow
 #
 # 本 workflow は **impl-plan.md §5.2 (CI matrix Phase 4 以降)** に従い、
 # サポート対象の全 Kotlin バージョン × JDK × OS で全 test を回す matrix を

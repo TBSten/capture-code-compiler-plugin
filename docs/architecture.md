@@ -8,7 +8,7 @@ compilation. For the user-facing API and quick-start examples, see
 ## Module layout
 
 ```
-Capture-Code-compiler-plugin/
+capture-code-compiler-plugin/
 ├── annotation/                    # Kotlin Multiplatform runtime stub
 │                                  #   @CaptureCode meta-annotation, the
 │                                  #   filler types (Source / SourceLocation /

@@ -3,7 +3,7 @@
 //
 // 本 fixture は `integration-test/test-gradle-plugin/src/test/kotlin/.../
 // CaptureCodeGradlePluginE2eTest.kt` から GradleRunner で起動される独立した
-// Gradle project。 root project (Capture-Code-compiler-plugin 本体) を
+// Gradle project。 root project (capture-code-compiler-plugin 本体) を
 // `includeBuild` 経由で取り込み、 `dependencySubstitution` で coordinate を
 // 解決する。
 //

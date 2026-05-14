@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------------
-# Capture-Code-compiler-plugin Release workflow
+# capture-code-compiler-plugin Release workflow
 #
 # 本 workflow は **impl-plan.md §2 Phase 5 task 5.6 (task-038)** に従い、
 # `vX.Y.Z` 形式の tag push を契機に以下を自動実行する:

@@ -1,4 +1,4 @@
-rootProject.name = "Capture-Code-compiler-plugin"
+rootProject.name = "capture-code-compiler-plugin"
 
 pluginManagement {
     repositories {

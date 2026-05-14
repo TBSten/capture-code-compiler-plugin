@@ -55,7 +55,7 @@ extensions.configure<MavenPublishBaseExtension> {
         // を入れておく (Sonatype の必須項目を満たす保険)
         name.set(project.provider { "${project.group}:${project.name}" })
         description.set("Capture Code compiler plugin component (${project.name})")
-        url.set("https://github.com/tbsten/Capture-Code-compiler-plugin")
+        url.set("https://github.com/tbsten/capture-code-compiler-plugin")
 
         licenses {
             license {
@@ -75,9 +75,9 @@ extensions.configure<MavenPublishBaseExtension> {
         }
 
         scm {
-            url.set("https://github.com/tbsten/Capture-Code-compiler-plugin")
-            connection.set("scm:git:https://github.com/tbsten/Capture-Code-compiler-plugin.git")
-            developerConnection.set("scm:git:ssh://git@github.com/tbsten/Capture-Code-compiler-plugin.git")
+            url.set("https://github.com/tbsten/capture-code-compiler-plugin")
+            connection.set("scm:git:https://github.com/tbsten/capture-code-compiler-plugin.git")
+            developerConnection.set("scm:git:ssh://git@github.com/tbsten/capture-code-compiler-plugin.git")
         }
     }
 }
