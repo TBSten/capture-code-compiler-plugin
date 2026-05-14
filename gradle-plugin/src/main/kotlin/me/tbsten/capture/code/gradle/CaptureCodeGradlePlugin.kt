@@ -26,6 +26,19 @@ import org.jetbrains.kotlin.gradle.plugin.getKotlinPluginVersion
 public class CaptureCodeGradlePlugin : KotlinCompilerPluginSupportPlugin {
     override fun apply(target: Project) {
         target.extensions.create(CaptureCodeExtension.EXTENSION_NAME, CaptureCodeExtension::class.java)
+
+        // ## IC fallback: marker set hash を KotlinCompile task input に attach
+        //
+        // impl-plan §4 リスク R5 (IC ON 状態で `@<Marker>` 付き宣言の追加 / 削除 / 編集が
+        // caller 側 `capturedSources<T>()` に伝播しない) の根本解消。 task input が変われば
+        // Gradle は task を非 up-to-date 扱いにし、 caller を含む module 全体が再 compile
+        // される。 hash は Provider 経由で task 実行時に lazy 評価。
+        //
+        // configureEach + named-style `org.jetbrains.kotlin.gradle.tasks.KotlinCompile` を
+        // 直接参照する。 KGP 必須の plugin なので runtime に kotlin-gradle-plugin が乗っている
+        // 前提。 KGP 未 apply の場合は task type 自体が無いので何も attach されない (no-op)。
+        attachMarkerHashTaskInput(target)
+
         target.afterEvaluate {
             // ## Kotlin version guard
             //
@@ -42,6 +55,22 @@ public class CaptureCodeGradlePlugin : KotlinCompilerPluginSupportPlugin {
                 configName,
                 "$GROUP_ID:annotation:$VERSION",
             )
+        }
+    }
+
+    /**
+     * project 内の全 `KotlinCompile` task に「marker set hash」 を input property
+     * として attach する。 marker (= `@CaptureCode` meta-annotated class) または
+     * その use site が増減 / 編集されると hash が変わり、 task が non-up-to-date
+     * 扱いになって caller を含む module 全体が再 compile される。 これにより
+     * `capturedSources<T>()` の rewrite が常に最新の marker world を反映する。
+     *
+     * 詳細は [MarkerSetHasher] 参照。
+     */
+    private fun attachMarkerHashTaskInput(target: Project) {
+        val hashProvider = target.providers.provider { MarkerSetHasher.hashFor(target) }
+        target.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java).configureEach { task ->
+            task.inputs.property(MARKER_HASH_INPUT_KEY, hashProvider)
         }
     }
 
@@ -134,5 +163,9 @@ public class CaptureCodeGradlePlugin : KotlinCompilerPluginSupportPlugin {
         const val OPTION_INCLUDE_ANNOTATION_LINES = "includeAnnotationLines"
         const val OPTION_DEDENT = "dedent"
         const val OPTION_INCLUDE_LINE_INFO = "includeLineInfo"
+
+        // IC fallback: KotlinCompile task input property key. 名前は Gradle UP の
+        // diagnostic 出力にもそのまま出るため、 plugin identity を含めておく。
+        const val MARKER_HASH_INPUT_KEY = "captureCodeMarkerHash"
     }
 }
