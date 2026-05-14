@@ -123,6 +123,73 @@ class CaptureCodeGradlePluginTest : StringSpec({
 
         project.extensions.findByName(CaptureCodeExtension.EXTENSION_NAME) shouldNotBe null
     }
+
+    // ## Kotlin version guard (task-031)
+    //
+    // CaptureCodeGradlePlugin#checkKotlinVersionOrFail は KGP の getKotlinPluginVersion() を
+    // 呼ぶ private 関数。 ProjectBuilder では KGP が apply されていないため、 直接 plugin#apply
+    // 経由で検証するのは難しい (afterEvaluate も KGP version を取れない)。 代わりに
+    // KotlinVersionParts のロジック単位で SSOT を verify する。 実 KGP 連動での guard 動作確認は
+    // :integration-test:test-gradle-plugin で別レイヤとして担保する想定。
+
+    "KotlinVersionParts.parse は major.minor.patch を分解する" {
+        val v = KotlinVersionParts.parse("2.0.0")
+        v shouldNotBe null
+        v!!.major shouldBe 2
+        v.minor shouldBe 0
+        v.patch shouldBe 0
+        v.preReleaseClassifier shouldBe null
+    }
+
+    "KotlinVersionParts.parse は pre-release classifier を保持する" {
+        val v = KotlinVersionParts.parse("2.1.0-Beta2")
+        v shouldNotBe null
+        v!!.major shouldBe 2
+        v.minor shouldBe 1
+        v.patch shouldBe 0
+        v.preReleaseClassifier shouldBe "Beta2"
+    }
+
+    "KotlinVersionParts.parse は不正な形式に null を返す" {
+        // ガード文字列が非数値ベースの場合、 plugin は guard を skip する (silent でなく
+        // warn ログを出す) — その判断のために parse は null を返す必要がある。
+        KotlinVersionParts.parse("snapshot") shouldBe null
+        KotlinVersionParts.parse("2.0") shouldBe null
+        KotlinVersionParts.parse("2.0.x") shouldBe null
+    }
+
+    "KotlinVersionParts の比較: stable は pre-release より大きい" {
+        // 例: 2.1.0 > 2.1.0-Beta2, 2.1.0 > 2.1.0-RC1, 2.1.0 > 2.1.0-dev-7791
+        // ユーザが pre-release を使っている場合、 plugin は通常運用 (= MIN <= version < MAX)
+        // と同じ扱いをする (= 警告のみ)。 stable と等しいとみなさないことで、 将来 MAX 境界を
+        // bump した時に pre-release が "新世代未検証" 警告経路に正しく乗る。
+        val stable = KotlinVersionParts.parse("2.1.0")!!
+        val beta = KotlinVersionParts.parse("2.1.0-Beta2")!!
+        val rc = KotlinVersionParts.parse("2.1.0-RC1")!!
+        val dev = KotlinVersionParts.parse("2.1.0-dev-7791")!!
+        (stable > beta) shouldBe true
+        (stable > rc) shouldBe true
+        (stable > dev) shouldBe true
+    }
+
+    "KotlinVersionParts の比較: major / minor / patch は数値順" {
+        val v200 = KotlinVersionParts.parse("2.0.0")!!
+        val v201 = KotlinVersionParts.parse("2.0.1")!!
+        val v210 = KotlinVersionParts.parse("2.1.0")!!
+        val v300 = KotlinVersionParts.parse("3.0.0")!!
+        (v200 < v201) shouldBe true
+        (v201 < v210) shouldBe true
+        (v210 < v300) shouldBe true
+    }
+
+    "SupportedKotlinVersions の boundary 値は self-consistent" {
+        // MIN < MAX_EXCLUSIVE であること (SSOT の sanity)。 ここを揃え忘れると
+        // すべての Kotlin version が「MIN 未満」または「MAX 以上」に振り分けられる buggy 状態
+        // (全 build が fail する) になる。
+        val min = KotlinVersionParts.parse(SupportedKotlinVersions.MIN_SUPPORTED_VERSION)!!
+        val maxEx = KotlinVersionParts.parse(SupportedKotlinVersions.MAX_TESTED_VERSION_EXCLUSIVE)!!
+        (min < maxEx) shouldBe true
+    }
 })
 
 /**

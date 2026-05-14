@@ -1,16 +1,22 @@
 package me.tbsten.capture.code.gradle
 
+import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.provider.Provider
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilerPluginSupportPlugin
 import org.jetbrains.kotlin.gradle.plugin.SubpluginArtifact
 import org.jetbrains.kotlin.gradle.plugin.SubpluginOption
+import org.jetbrains.kotlin.gradle.plugin.getKotlinPluginVersion
 
 /**
  * Capture Code Gradle plugin (`KotlinCompilerPluginSupportPlugin` 実装)。
  *
  * 責務:
+ * - **Kotlin version guard** ([checkKotlinVersionOrFail]): project の Kotlin プラグイン
+ *   バージョンが本 plugin のサポート範囲を逸脱していたら警告 / エラーで通知する。 戦略 B
+ *   (compat module 分離) を採用しているため、 実 dispatch は ServiceLoader 経由で行われ、
+ *   gradle-plugin は version 検出のみ責務を持つ ([[task-029]] / [[task-031]])。
  * - `:annotation:` runtime 依存の自動追加 (commonMain or implementation)
  * - [CaptureCodeExtension] (DSL) の登録
  * - [applyToCompilation] で DSL の値を `SubpluginOption` に変換し、CommandLineProcessor に渡す
@@ -21,11 +27,69 @@ public class CaptureCodeGradlePlugin : KotlinCompilerPluginSupportPlugin {
     override fun apply(target: Project) {
         target.extensions.create(CaptureCodeExtension.EXTENSION_NAME, CaptureCodeExtension::class.java)
         target.afterEvaluate {
+            // ## Kotlin version guard
+            //
+            // afterEvaluate 内で実施する: KGP の plugin version は project の build.gradle.kts で
+            // `plugins { id("org.jetbrains.kotlin.jvm") version "..." }` の解決後に確定するため、
+            // 最低でも afterEvaluate まで待つ必要がある。 KGP の `getKotlinPluginVersion(Project)`
+            // extension は内部で project.extensions から version を取り出し、 取得できない (= KGP
+            // が apply されていない) ならば null を返す。
+            checkKotlinVersionOrFail(target)
+
             val hasKmp = target.plugins.hasPlugin("org.jetbrains.kotlin.multiplatform")
             val configName = if (hasKmp) "commonMainImplementation" else "implementation"
             target.dependencies.add(
                 configName,
                 "$GROUP_ID:annotation:$VERSION",
+            )
+        }
+    }
+
+    /**
+     * project の Kotlin plugin バージョンを取り出し、 [SupportedKotlinVersions] に照らして
+     * - `< MIN_SUPPORTED_VERSION` なら [GradleException] を throw して build を停止 (FIR / IR
+     *   API が compat layer と互換でないため)
+     * - `>= MAX_TESTED_VERSION_EXCLUSIVE` なら **logger.warn** で警告のみ出力 (まだ verify
+     *   されていない新 version。 dispatch 自体は compat-k210 Factory が引き受ける見込み)
+     * - その間 (サポート範囲内) なら **無音**
+     *
+     * KGP が apply されていない (= `getKotlinPluginVersion()` が null) や、 version 文字列が
+     * parse 不能な場合は guard を skip し、 build を続行する (= silent fail を避ける)。
+     */
+    private fun checkKotlinVersionOrFail(target: Project) {
+        val rawVersion = target.getKotlinPluginVersion()
+        if (rawVersion.isNullOrBlank()) {
+            // KGP 未 apply (= compiler plugin が attach されないので version guard も不要)。
+            // CaptureCode plugin はそもそも KotlinCompilerPluginSupportPlugin なので KGP 必須だが、
+            // `apply false` での明示 apply ケース等を考慮して silent skip にする。
+            return
+        }
+        val current = KotlinVersionParts.parse(rawVersion)
+        if (current == null) {
+            target.logger.warn(
+                "CaptureCode plugin: could not parse Kotlin plugin version '$rawVersion'. " +
+                    "Version guard skipped. Plugin may not work as expected.",
+            )
+            return
+        }
+        val min = KotlinVersionParts.parse(SupportedKotlinVersions.MIN_SUPPORTED_VERSION)
+            ?: error("Invalid MIN_SUPPORTED_VERSION: ${SupportedKotlinVersions.MIN_SUPPORTED_VERSION}")
+        val maxExclusive = KotlinVersionParts.parse(SupportedKotlinVersions.MAX_TESTED_VERSION_EXCLUSIVE)
+            ?: error("Invalid MAX_TESTED_VERSION_EXCLUSIVE: ${SupportedKotlinVersions.MAX_TESTED_VERSION_EXCLUSIVE}")
+
+        if (current < min) {
+            throw GradleException(
+                "CaptureCode plugin requires Kotlin ${SupportedKotlinVersions.MIN_SUPPORTED_VERSION} or later, " +
+                    "but the project is using Kotlin $rawVersion. " +
+                    "Please upgrade the Kotlin Gradle plugin in your project.",
+            )
+        }
+        if (current >= maxExclusive) {
+            target.logger.warn(
+                "CaptureCode plugin: Kotlin $rawVersion is newer than the latest verified version " +
+                    "(< ${SupportedKotlinVersions.MAX_TESTED_VERSION_EXCLUSIVE}). " +
+                    "The plugin may still work via the closest compatible compat layer, but is not officially " +
+                    "supported on this version yet.",
             )
         }
     }
