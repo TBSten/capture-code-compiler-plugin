@@ -109,3 +109,36 @@ val block = @Marker run { ... }
 ---
 
 設計・内部実装は [DESIGN.md](DESIGN.md) を参照。テストカタログは [test-cases.md](test-cases.md) に 100 ケース。
+
+---
+
+## テストの走らせ方
+
+本プロジェクトは 3 層のテストを持ち、 CI (`.github/workflows/ci.yml`) で全てを実行する。 ローカルでは以下のコマンドで個別に再現できる。
+
+```bash
+# Compiler plugin の unit test (kctfork で FIR / IR extension を検証)
+./gradlew :compiler-plugin:test
+
+# Gradle plugin の sanity test (ProjectBuilder で DSL 配線のみ — 高速)
+./gradlew :gradle-plugin:test
+
+# JVM-only 統合テスト (ケース #1〜#100)
+./gradlew :integration-test:test-jvm:test
+
+# KMP 統合テスト (#101〜#105、 jvm target 上で Kotest 検証)
+./gradlew :integration-test:test-kmp:jvmTest
+
+# JVM 以外の KMP target (デフォルトは compile only。 mingwX64 は Unix 上で実行不可)
+./gradlew :integration-test:test-kmp:linuxX64Test :integration-test:test-kmp:jsTest :integration-test:test-kmp:wasmJsTest
+
+# 全 non-Apple target の compile (klib / executable)
+./gradlew :integration-test:test-kmp:assemble
+
+# Apple target (iOS / macOS) — Xcode 必須
+./gradlew :integration-test:test-kmp:assemble -PenableAppleTargets=true
+```
+
+`:integration-test:test-kmp` は `jvm` / `js` / `wasmJs` / `linuxX64` / `mingwX64` / (opt-in) Apple native の全 target で compiler plugin を駆動する。 #101〜#105 のケース値検証は jvm target 上で完結し、 他 target は各 `*Test` source set の sanity check (compile + 最小 runtime call) で覆う。
+
+Apple target は `-PenableAppleTargets=true` の opt-in 制御を採用しているため、 Xcode を持たない環境 (ローカル開発 / デフォルト CI runner) でも E2E build が成立する。 完全な Apple matrix 検証は Phase 4 (`task-032`) で macos-latest 系 runner を追加する想定。

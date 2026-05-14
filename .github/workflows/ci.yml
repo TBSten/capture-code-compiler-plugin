@@ -1,0 +1,88 @@
+# ----------------------------------------------------------------------------
+# task-026 で導入した最小 CI workflow (Phase 3 合流ポイント)。
+#
+# 実行する task は以下。`./gradlew check` を避ける理由:
+#   - `:integration-test:test-kmp:mingwX64Test` は ubuntu/macOS で実行できない
+#     (Windows binary を実行できない)。 `:integration-test:test-kmp:check` に
+#     含まれてしまうため、 明示的に PR 検証対象の task を列挙する。
+#   - macOS host では `:integration-test:test-kmp:xcodeVersion` (KGP が
+#     applyDefaultHierarchyTemplate() の余波で生成する) が Xcode 必須な
+#     ため check がコケる。 ubuntu-latest なら xcodeVersion task は生成
+#     されないが、 念のため明示的タスク指定の方式に統一する。
+#
+# 列挙対象:
+#   - :compiler-plugin:test                  : FIR/IR extension の unit test
+#   - :compiler-plugin:compat:test           : compat layer (capability)
+#   - :compiler-plugin:compat-k2000:test     : compat-k2000 (実装)
+#   - :gradle-plugin:test                    : Gradle plugin の sanity test
+#                                              (ProjectBuilder で DSL 配線を verify)
+#   - :integration-test:test-jvm:test        : JVM-only 統合テスト (1〜100 ケース)
+#   - :integration-test:test-kmp:jvmTest     : KMP 統合テスト (#101〜#105)
+#   - :integration-test:test-kmp:linuxX64Test: linuxX64 sanity (ubuntu 上で実行可)
+#   - :integration-test:test-kmp:jsTest      : js/Node sanity
+#   - :integration-test:test-kmp:wasmJsTest  : wasmJs/Node sanity
+#   - :integration-test:test-kmp:assemble    : 全 non-Apple target の compile success
+#                                              (mingwX64 はリンクのみ、 実行はしない)
+#
+# Apple target は `enableAppleTargets=false` (default) のため Xcode 不要。
+# 完全な Apple verify は Phase 4 task-032 (CI matrix で macos-latest 追加) で対応予定。
+# ----------------------------------------------------------------------------
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      # macOS host だと KGP が `applyDefaultHierarchyTemplate()` 経由で
+      # Apple 系 intermediate source set の metadata 計算のために `xcodeVersion`
+      # task を test/assemble task の依存に注入することがある (ローカル開発時の
+      # known issue)。 ubuntu-latest には Xcode/Apple toolchain が存在しないため、
+      # KGP は xcodeVersion task を skip し、 以下のセットは問題なく走る。
+      - name: Run unit + KMP integration tests (jvm target)
+        run: |
+          ./gradlew \
+            :compiler-plugin:test \
+            :compiler-plugin:compat:test \
+            :compiler-plugin:compat-k2000:test \
+            :gradle-plugin:test \
+            :integration-test:test-jvm:test \
+            :integration-test:test-kmp:jvmTest \
+            --no-configuration-cache \
+            --stacktrace
+
+      # 非 JVM target の sanity (compile + 一部 runtime call)。 別 step に
+      # 分けているのは、 `assemble` と `*Test` を同じ Gradle invocation に
+      # 入れると macOS では xcodeVersion task が injected されるため (ubuntu
+      # では問題ないが、 future-proof のため分離)。
+      - name: Compile + sanity-run non-JVM KMP targets
+        run: |
+          ./gradlew \
+            :integration-test:test-kmp:linuxX64Test \
+            :integration-test:test-kmp:jsTest \
+            :integration-test:test-kmp:wasmJsTest \
+            --no-configuration-cache \
+            --stacktrace
+
+      - name: Assemble all non-Apple KMP targets
+        run: |
+          ./gradlew \
+            :integration-test:test-kmp:assemble \
+            --no-configuration-cache \
+            --stacktrace

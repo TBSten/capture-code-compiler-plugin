@@ -109,3 +109,37 @@ val block = @Marker run { ... }
 ---
 
 For the design and internal implementation, see the internal design notes. The test catalog lives in [test-cases.md](test-cases.md), with 100 cases.
+
+---
+
+## Running the test suite
+
+The project ships with three layers of tests; they run together in CI (`.github/workflows/ci.yml`) and can be run locally with the commands below.
+
+```bash
+# Compiler plugin unit tests (FIR / IR extension, via kctfork)
+./gradlew :compiler-plugin:test
+
+# Gradle plugin sanity test (ProjectBuilder; DSL wiring only — fast)
+./gradlew :gradle-plugin:test
+
+# JVM-only integration test suite (cases #1 - #100)
+./gradlew :integration-test:test-jvm:test
+
+# KMP integration test suite — cases #101 - #105 (run on the JVM target)
+./gradlew :integration-test:test-kmp:jvmTest
+
+# Non-JVM KMP targets (compile only by default; mingwX64 cannot run on Unix)
+./gradlew :integration-test:test-kmp:linuxX64Test :integration-test:test-kmp:jsTest :integration-test:test-kmp:wasmJsTest
+
+# Compile all non-Apple targets (klib / executables)
+./gradlew :integration-test:test-kmp:assemble
+
+# Apple targets (iOS / macOS) — requires Xcode
+./gradlew :integration-test:test-kmp:assemble -PenableAppleTargets=true
+```
+
+The `:integration-test:test-kmp` module exercises the compiler plugin across `jvm`, `js`, `wasmJs`, `linuxX64`, `mingwX64`, and (opt-in) all Apple native targets. KMP case verification (#101 - #105) runs on the `jvm` target via Kotest; the other targets are covered by per-target sanity checks in their respective `*Test` source sets.
+
+Apple targets are gated behind `-PenableAppleTargets=true` so that contributors without Xcode (and the default CI runner) can still build the project end-to-end. The full Apple test matrix is planned for Phase 4 (`task-032`).
+
