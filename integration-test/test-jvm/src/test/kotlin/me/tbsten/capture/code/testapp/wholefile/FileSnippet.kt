@@ -1,6 +1,6 @@
-@file:SnippetFile_Case6
+@file:SnippetFile_WholeFile
 
-package me.tbsten.capture.code.testapp.case6
+package me.tbsten.capture.code.testapp.wholefile
 
 import me.tbsten.capture.code.CaptureCode
 import me.tbsten.capture.code.CaptureKind
@@ -9,10 +9,10 @@ import me.tbsten.capture.code.Source
 @CaptureCode
 @Target(AnnotationTarget.FILE)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class SnippetFile_Case6(
+internal annotation class SnippetFile_WholeFile(
     val source: Source = Source(),
     val kind: CaptureKind = CaptureKind(),
 )
 
-val case6_a = 1
-val case6_b = 2
+val wholeFileA = 1
+val wholeFileB = 2
