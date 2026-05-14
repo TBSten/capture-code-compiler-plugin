@@ -7,297 +7,297 @@ import me.tbsten.capture.code.Source
 import me.tbsten.capture.code.capturedSources
 
 // ============================================================================
-// ケース33: クラス内のメンバ関数をキャプチャ (インデントを dedent)
+// クラス内のメンバ関数をキャプチャ (インデントを dedent)
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class MemberSnippet_Case33(val source: Source = Source())
+internal annotation class MemberFunctionSnippet(val source: Source = Source())
 
-class Case33_Repository {
-    @MemberSnippet_Case33
+class MemberFunctionRepository {
+    @MemberFunctionSnippet
     fun findById(id: Int): String? {
         return null
     }
 }
 
 // ============================================================================
-// ケース34: 多重ネストクラス内の関数キャプチャ
+// 多重ネストクラス内の関数キャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class DeepSnippet_Case34(val source: Source = Source())
+internal annotation class NestedClassMethodSnippet(val source: Source = Source())
 
-class Case34_Outer {
+class NestedClassOuter {
     class Inner {
         class Deepest {
-            @DeepSnippet_Case34
+            @NestedClassMethodSnippet
             fun deepFunc() = "deep"
         }
     }
 }
 
 // ============================================================================
-// ケース35: data class のキャプチャ
+// data class のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case35(val source: Source = Source())
+internal annotation class DataClassSnippet(val source: Source = Source())
 
-@Snippets_Case35
-data class Case35_User(val id: Long, val name: String, val email: String)
+@DataClassSnippet
+data class DataClassUser(val id: Long, val name: String, val email: String)
 
 // ============================================================================
-// ケース36: sealed class とその子クラスのキャプチャ
+// sealed class とその子クラスのキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case36(val source: Source = Source())
+internal annotation class SealedClassSnippet(val source: Source = Source())
 
-@Snippets_Case36
-sealed class Case36_Result {
-    data class Success(val value: String) : Case36_Result()
-    data class Failure(val error: Throwable) : Case36_Result()
+@SealedClassSnippet
+sealed class SealedClassResult {
+    data class Success(val value: String) : SealedClassResult()
+    data class Failure(val error: Throwable) : SealedClassResult()
 }
 
 // ============================================================================
-// ケース37: enum class のキャプチャ
+// enum class のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case37(val source: Source = Source())
+internal annotation class EnumClassSnippet(val source: Source = Source())
 
-@Snippets_Case37
-enum class Case37_Direction { NORTH, SOUTH, EAST, WEST }
+@EnumClassSnippet
+enum class EnumClassDirection { NORTH, SOUTH, EAST, WEST }
 
 // ============================================================================
-// ケース38: inline value class のキャプチャ
+// inline value class のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case38(val source: Source = Source())
+internal annotation class InlineValueClassSnippet(val source: Source = Source())
 
-@Snippets_Case38
+@InlineValueClassSnippet
 @JvmInline
-value class Case38_UserId(val raw: Long)
+value class InlineValueUserId(val raw: Long)
 
 // ============================================================================
-// ケース39: abstract class のキャプチャ
+// abstract class のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case39(val source: Source = Source())
+internal annotation class AbstractClassSnippet(val source: Source = Source())
 
-@Snippets_Case39
-abstract class Case39_Shape {
+@AbstractClassSnippet
+abstract class AbstractShape {
     abstract fun area(): Double
 }
 
 // ============================================================================
-// ケース40: interface のキャプチャ
+// interface のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case40(val source: Source = Source())
+internal annotation class InterfaceSnippet(val source: Source = Source())
 
-@Snippets_Case40
-interface Case40_Repository<T> {
+@InterfaceSnippet
+interface InterfaceRepository<T> {
     fun findById(id: Long): T?
     fun save(entity: T)
 }
 
 // ============================================================================
-// ケース41: companion object のキャプチャ
+// companion object のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case41(val source: Source = Source())
+internal annotation class CompanionObjectSnippet(val source: Source = Source())
 
-class Case41_Foo {
-    @Snippets_Case41
+class CompanionObjectFoo {
+    @CompanionObjectSnippet
     companion object {
         const val NAME = "Foo"
     }
 }
 
 // ============================================================================
-// ケース42: ジェネリックなクラスのキャプチャ
+// ジェネリックなクラスのキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case42(val source: Source = Source())
+internal annotation class GenericClassSnippet(val source: Source = Source())
 
-@Snippets_Case42
-class Case42_Box<T : Any>(val value: T)
-
-// ============================================================================
-// ケース43: ジェネリックな関数のキャプチャ
-// ============================================================================
-@CaptureCode
-@Target(AnnotationTarget.FUNCTION)
-@Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case43(val source: Source = Source())
-
-@Snippets_Case43
-fun <T> case43_identity(x: T): T = x
+@GenericClassSnippet
+class GenericBox<T : Any>(val value: T)
 
 // ============================================================================
-// ケース44: suspend function のキャプチャ
+// ジェネリックな関数のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case44(val source: Source = Source())
+internal annotation class GenericFunctionSnippet(val source: Source = Source())
 
-@Snippets_Case44
-suspend fun case44_fetchUser(id: Long): String {
+@GenericFunctionSnippet
+fun <T> genericIdentity(x: T): T = x
+
+// ============================================================================
+// suspend function のキャプチャ
+// ============================================================================
+@CaptureCode
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.SOURCE)
+internal annotation class SuspendFunctionSnippet(val source: Source = Source())
+
+@SuspendFunctionSnippet
+suspend fun suspendFetchUser(id: Long): String {
     return "user-$id"
 }
 
 // ============================================================================
-// ケース45: inline function のキャプチャ
+// inline function のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case45(val source: Source = Source())
+internal annotation class InlineFunctionSnippet(val source: Source = Source())
 
-@Snippets_Case45
-inline fun <reified T> case45_typeName(): String = T::class.simpleName ?: "?"
-
-// ============================================================================
-// ケース46: extension function のキャプチャ
-// ============================================================================
-@CaptureCode
-@Target(AnnotationTarget.FUNCTION)
-@Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case46(val source: Source = Source())
-
-@Snippets_Case46
-fun String.case46_shout(): String = uppercase() + "!"
+@InlineFunctionSnippet
+inline fun <reified T> inlineTypeName(): String = T::class.simpleName ?: "?"
 
 // ============================================================================
-// ケース47: operator function のキャプチャ
+// extension function のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case47(val source: Source = Source())
+internal annotation class ExtensionFunctionSnippet(val source: Source = Source())
 
-data class Case47_Vec(val x: Int, val y: Int) {
-    @Snippets_Case47
-    operator fun plus(other: Case47_Vec): Case47_Vec = Case47_Vec(x + other.x, y + other.y)
+@ExtensionFunctionSnippet
+fun String.extensionShout(): String = uppercase() + "!"
+
+// ============================================================================
+// operator function のキャプチャ
+// ============================================================================
+@CaptureCode
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.SOURCE)
+internal annotation class OperatorFunctionSnippet(val source: Source = Source())
+
+data class OperatorVec(val x: Int, val y: Int) {
+    @OperatorFunctionSnippet
+    operator fun plus(other: OperatorVec): OperatorVec = OperatorVec(x + other.x, y + other.y)
 }
 
 // ============================================================================
-// ケース48: infix function のキャプチャ
+// infix function のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case48(val source: Source = Source())
+internal annotation class InfixFunctionSnippet(val source: Source = Source())
 
-class Case48_Money(val amount: Int) {
-    @Snippets_Case48
-    infix fun plus(other: Case48_Money): Case48_Money = Case48_Money(amount + other.amount)
+class InfixMoney(val amount: Int) {
+    @InfixFunctionSnippet
+    infix fun plus(other: InfixMoney): InfixMoney = InfixMoney(amount + other.amount)
 }
 
 // ============================================================================
-// ケース49: デフォルト引数を持つ関数のキャプチャ
+// デフォルト引数を持つ関数のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case49(val source: Source = Source())
+internal annotation class DefaultArgumentSnippet(val source: Source = Source())
 
-@Snippets_Case49
-fun case49_connect(host: String = "localhost", port: Int = 8080, useSsl: Boolean = false) {
+@DefaultArgumentSnippet
+fun defaultArgConnect(host: String = "localhost", port: Int = 8080, useSsl: Boolean = false) {
     println("Connecting to $host:$port (ssl=$useSsl)")
 }
 
 // ============================================================================
-// ケース50: vararg を持つ関数のキャプチャ
+// vararg を持つ関数のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case50(val source: Source = Source())
+internal annotation class VarargFunctionSnippet(val source: Source = Source())
 
-@Snippets_Case50
-fun case50_joinAll(separator: String, vararg parts: String): String = parts.joinToString(separator)
+@VarargFunctionSnippet
+fun varargJoinAll(separator: String, vararg parts: String): String = parts.joinToString(separator)
 
 // ============================================================================
-// ケース51: lateinit var のキャプチャ
+// lateinit var のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case51(val source: Source = Source())
+internal annotation class LateinitPropertySnippet(val source: Source = Source())
 
-class Case51_App {
-    @Snippets_Case51
+class LateinitApp {
+    @LateinitPropertySnippet
     lateinit var name: String
 }
 
 // ============================================================================
-// ケース52: const val のキャプチャ
+// const val のキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case52(val source: Source = Source())
+internal annotation class ConstValSnippet(val source: Source = Source())
 
-object Case52_Constants {
-    @Snippets_Case52
+object ConstValConstants {
+    @ConstValSnippet
     const val MAX_RETRY = 3
 }
 
 // ============================================================================
-// ケース53: by lazy デリゲートのキャプチャ
+// by lazy デリゲートのキャプチャ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case53(val source: Source = Source())
+internal annotation class LazyDelegateSnippet(val source: Source = Source())
 
-private fun case53_computeHeavy(): String = "computed"
+private fun lazyComputeHeavy(): String = "computed"
 
-@Snippets_Case53
-val case53_heavy: String by lazy { case53_computeHeavy() }
+@LazyDelegateSnippet
+val lazyHeavy: String by lazy { lazyComputeHeavy() }
 
 // ============================================================================
-// ケース54: カスタムゲッターを持つ property
+// カスタムゲッターを持つ property
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case54(val source: Source = Source())
+internal annotation class CustomGetterSnippet(val source: Source = Source())
 
-class Case54_Person(val first: String, val last: String) {
-    @Snippets_Case54
+class CustomGetterPerson(val first: String, val last: String) {
+    @CustomGetterSnippet
     val fullName: String
         get() = "$first $last"
 }
 
 // ============================================================================
-// ケース55: trailing-comma 多パラメータ data class
+// trailing-comma 多パラメータ data class
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case55(val source: Source = Source())
+internal annotation class TrailingCommaDataClassSnippet(val source: Source = Source())
 
-@Snippets_Case55
-data class Case55_Config(
+@TrailingCommaDataClassSnippet
+data class TrailingCommaConfig(
     val host: String,
     val port: Int,
     val timeout: Int,
@@ -306,195 +306,195 @@ data class Case55_Config(
 
 class DeclarationVariantsTest : StringSpec({
 
-    "ケース33: クラス内のメンバ関数をキャプチャ (インデントを dedent)" {
-        capturedSources<MemberSnippet_Case33>() shouldBe listOf(
-            MemberSnippet_Case33(
+    "クラス内のメンバ関数をキャプチャ (インデントを dedent)" {
+        capturedSources<MemberFunctionSnippet>() shouldBe listOf(
+            MemberFunctionSnippet(
                 source = Source(value = "fun findById(id: Int): String? {\n    return null\n}"),
             ),
         )
     }
 
-    "ケース34: 多重ネストクラス内の関数キャプチャ" {
-        capturedSources<DeepSnippet_Case34>() shouldBe listOf(
-            DeepSnippet_Case34(source = Source(value = "fun deepFunc() = \"deep\"")),
+    "多重ネストクラス内の関数キャプチャ" {
+        capturedSources<NestedClassMethodSnippet>() shouldBe listOf(
+            NestedClassMethodSnippet(source = Source(value = "fun deepFunc() = \"deep\"")),
         )
     }
 
-    "ケース35: data class のキャプチャ" {
-        capturedSources<Snippets_Case35>() shouldBe listOf(
-            Snippets_Case35(
+    "data class のキャプチャ" {
+        capturedSources<DataClassSnippet>() shouldBe listOf(
+            DataClassSnippet(
                 source = Source(
-                    value = "data class Case35_User(val id: Long, val name: String, val email: String)",
+                    value = "data class DataClassUser(val id: Long, val name: String, val email: String)",
                 ),
             ),
         )
     }
 
-    "ケース36: sealed class とその子クラスのキャプチャ" {
-        capturedSources<Snippets_Case36>() shouldBe listOf(
-            Snippets_Case36(
+    "sealed class とその子クラスのキャプチャ" {
+        capturedSources<SealedClassSnippet>() shouldBe listOf(
+            SealedClassSnippet(
                 source = Source(
-                    value = "sealed class Case36_Result {\n    data class Success(val value: String) : Case36_Result()\n    data class Failure(val error: Throwable) : Case36_Result()\n}",
+                    value = "sealed class SealedClassResult {\n    data class Success(val value: String) : SealedClassResult()\n    data class Failure(val error: Throwable) : SealedClassResult()\n}",
                 ),
             ),
         )
     }
 
-    "ケース37: enum class のキャプチャ" {
-        capturedSources<Snippets_Case37>() shouldBe listOf(
-            Snippets_Case37(
-                source = Source(value = "enum class Case37_Direction { NORTH, SOUTH, EAST, WEST }"),
+    "enum class のキャプチャ" {
+        capturedSources<EnumClassSnippet>() shouldBe listOf(
+            EnumClassSnippet(
+                source = Source(value = "enum class EnumClassDirection { NORTH, SOUTH, EAST, WEST }"),
             ),
         )
     }
 
-    "ケース38: inline value class のキャプチャ" {
-        capturedSources<Snippets_Case38>() shouldBe listOf(
-            Snippets_Case38(
-                source = Source(value = "@JvmInline\nvalue class Case38_UserId(val raw: Long)"),
+    "inline value class のキャプチャ" {
+        capturedSources<InlineValueClassSnippet>() shouldBe listOf(
+            InlineValueClassSnippet(
+                source = Source(value = "@JvmInline\nvalue class InlineValueUserId(val raw: Long)"),
             ),
         )
     }
 
-    "ケース39: abstract class のキャプチャ" {
-        capturedSources<Snippets_Case39>() shouldBe listOf(
-            Snippets_Case39(
+    "abstract class のキャプチャ" {
+        capturedSources<AbstractClassSnippet>() shouldBe listOf(
+            AbstractClassSnippet(
                 source = Source(
-                    value = "abstract class Case39_Shape {\n    abstract fun area(): Double\n}",
+                    value = "abstract class AbstractShape {\n    abstract fun area(): Double\n}",
                 ),
             ),
         )
     }
 
-    "ケース40: interface のキャプチャ" {
-        capturedSources<Snippets_Case40>() shouldBe listOf(
-            Snippets_Case40(
+    "interface のキャプチャ" {
+        capturedSources<InterfaceSnippet>() shouldBe listOf(
+            InterfaceSnippet(
                 source = Source(
-                    value = "interface Case40_Repository<T> {\n    fun findById(id: Long): T?\n    fun save(entity: T)\n}",
+                    value = "interface InterfaceRepository<T> {\n    fun findById(id: Long): T?\n    fun save(entity: T)\n}",
                 ),
             ),
         )
     }
 
-    "ケース41: companion object のキャプチャ" {
-        capturedSources<Snippets_Case41>() shouldBe listOf(
-            Snippets_Case41(
+    "companion object のキャプチャ" {
+        capturedSources<CompanionObjectSnippet>() shouldBe listOf(
+            CompanionObjectSnippet(
                 source = Source(value = "companion object {\n    const val NAME = \"Foo\"\n}"),
             ),
         )
     }
 
-    "ケース42: ジェネリックなクラスのキャプチャ" {
-        capturedSources<Snippets_Case42>() shouldBe listOf(
-            Snippets_Case42(source = Source(value = "class Case42_Box<T : Any>(val value: T)")),
+    "ジェネリックなクラスのキャプチャ" {
+        capturedSources<GenericClassSnippet>() shouldBe listOf(
+            GenericClassSnippet(source = Source(value = "class GenericBox<T : Any>(val value: T)")),
         )
     }
 
-    "ケース43: ジェネリックな関数のキャプチャ" {
-        capturedSources<Snippets_Case43>() shouldBe listOf(
-            Snippets_Case43(source = Source(value = "fun <T> case43_identity(x: T): T = x")),
+    "ジェネリックな関数のキャプチャ" {
+        capturedSources<GenericFunctionSnippet>() shouldBe listOf(
+            GenericFunctionSnippet(source = Source(value = "fun <T> genericIdentity(x: T): T = x")),
         )
     }
 
-    "ケース44: suspend function のキャプチャ" {
-        capturedSources<Snippets_Case44>() shouldBe listOf(
-            Snippets_Case44(
+    "suspend function のキャプチャ" {
+        capturedSources<SuspendFunctionSnippet>() shouldBe listOf(
+            SuspendFunctionSnippet(
                 source = Source(
-                    value = "suspend fun case44_fetchUser(id: Long): String {\n    return \"user-\$id\"\n}",
+                    value = "suspend fun suspendFetchUser(id: Long): String {\n    return \"user-\$id\"\n}",
                 ),
             ),
         )
     }
 
-    "ケース45: inline function のキャプチャ" {
-        capturedSources<Snippets_Case45>() shouldBe listOf(
-            Snippets_Case45(
+    "inline function のキャプチャ" {
+        capturedSources<InlineFunctionSnippet>() shouldBe listOf(
+            InlineFunctionSnippet(
                 source = Source(
-                    value = "inline fun <reified T> case45_typeName(): String = T::class.simpleName ?: \"?\"",
+                    value = "inline fun <reified T> inlineTypeName(): String = T::class.simpleName ?: \"?\"",
                 ),
             ),
         )
     }
 
-    "ケース46: extension function のキャプチャ" {
-        capturedSources<Snippets_Case46>() shouldBe listOf(
-            Snippets_Case46(
-                source = Source(value = "fun String.case46_shout(): String = uppercase() + \"!\""),
+    "extension function のキャプチャ" {
+        capturedSources<ExtensionFunctionSnippet>() shouldBe listOf(
+            ExtensionFunctionSnippet(
+                source = Source(value = "fun String.extensionShout(): String = uppercase() + \"!\""),
             ),
         )
     }
 
-    "ケース47: operator function のキャプチャ" {
-        capturedSources<Snippets_Case47>() shouldBe listOf(
-            Snippets_Case47(
+    "operator function のキャプチャ" {
+        capturedSources<OperatorFunctionSnippet>() shouldBe listOf(
+            OperatorFunctionSnippet(
                 source = Source(
-                    value = "operator fun plus(other: Case47_Vec): Case47_Vec = Case47_Vec(x + other.x, y + other.y)",
+                    value = "operator fun plus(other: OperatorVec): OperatorVec = OperatorVec(x + other.x, y + other.y)",
                 ),
             ),
         )
     }
 
-    "ケース48: infix function のキャプチャ" {
-        capturedSources<Snippets_Case48>() shouldBe listOf(
-            Snippets_Case48(
+    "infix function のキャプチャ" {
+        capturedSources<InfixFunctionSnippet>() shouldBe listOf(
+            InfixFunctionSnippet(
                 source = Source(
-                    value = "infix fun plus(other: Case48_Money): Case48_Money = Case48_Money(amount + other.amount)",
+                    value = "infix fun plus(other: InfixMoney): InfixMoney = InfixMoney(amount + other.amount)",
                 ),
             ),
         )
     }
 
-    "ケース49: デフォルト引数を持つ関数のキャプチャ" {
-        capturedSources<Snippets_Case49>() shouldBe listOf(
-            Snippets_Case49(
+    "デフォルト引数を持つ関数のキャプチャ" {
+        capturedSources<DefaultArgumentSnippet>() shouldBe listOf(
+            DefaultArgumentSnippet(
                 source = Source(
-                    value = "fun case49_connect(host: String = \"localhost\", port: Int = 8080, useSsl: Boolean = false) {\n    println(\"Connecting to \$host:\$port (ssl=\$useSsl)\")\n}",
+                    value = "fun defaultArgConnect(host: String = \"localhost\", port: Int = 8080, useSsl: Boolean = false) {\n    println(\"Connecting to \$host:\$port (ssl=\$useSsl)\")\n}",
                 ),
             ),
         )
     }
 
-    "ケース50: vararg を持つ関数のキャプチャ" {
-        capturedSources<Snippets_Case50>() shouldBe listOf(
-            Snippets_Case50(
+    "vararg を持つ関数のキャプチャ" {
+        capturedSources<VarargFunctionSnippet>() shouldBe listOf(
+            VarargFunctionSnippet(
                 source = Source(
-                    value = "fun case50_joinAll(separator: String, vararg parts: String): String = parts.joinToString(separator)",
+                    value = "fun varargJoinAll(separator: String, vararg parts: String): String = parts.joinToString(separator)",
                 ),
             ),
         )
     }
 
-    "ケース51: lateinit var のキャプチャ" {
-        capturedSources<Snippets_Case51>() shouldBe listOf(
-            Snippets_Case51(source = Source(value = "lateinit var name: String")),
+    "lateinit var のキャプチャ" {
+        capturedSources<LateinitPropertySnippet>() shouldBe listOf(
+            LateinitPropertySnippet(source = Source(value = "lateinit var name: String")),
         )
     }
 
-    "ケース52: const val のキャプチャ" {
-        capturedSources<Snippets_Case52>() shouldBe listOf(
-            Snippets_Case52(source = Source(value = "const val MAX_RETRY = 3")),
+    "const val のキャプチャ" {
+        capturedSources<ConstValSnippet>() shouldBe listOf(
+            ConstValSnippet(source = Source(value = "const val MAX_RETRY = 3")),
         )
     }
 
-    "ケース53: by lazy デリゲートのキャプチャ" {
-        capturedSources<Snippets_Case53>() shouldBe listOf(
-            Snippets_Case53(source = Source(value = "val case53_heavy: String by lazy { case53_computeHeavy() }")),
+    "by lazy デリゲートのキャプチャ" {
+        capturedSources<LazyDelegateSnippet>() shouldBe listOf(
+            LazyDelegateSnippet(source = Source(value = "val lazyHeavy: String by lazy { lazyComputeHeavy() }")),
         )
     }
 
-    "ケース54: カスタムゲッターを持つ property" {
-        capturedSources<Snippets_Case54>() shouldBe listOf(
-            Snippets_Case54(
+    "カスタムゲッターを持つ property" {
+        capturedSources<CustomGetterSnippet>() shouldBe listOf(
+            CustomGetterSnippet(
                 source = Source(value = "val fullName: String\n    get() = \"\$first \$last\""),
             ),
         )
     }
 
-    "ケース55: trailing-comma 多パラメータ data class" {
-        capturedSources<Snippets_Case55>() shouldBe listOf(
-            Snippets_Case55(
+    "trailing-comma 多パラメータ data class" {
+        capturedSources<TrailingCommaDataClassSnippet>() shouldBe listOf(
+            TrailingCommaDataClassSnippet(
                 source = Source(
-                    value = "data class Case55_Config(\n    val host: String,\n    val port: Int,\n    val timeout: Int,\n    val retries: Int,\n)",
+                    value = "data class TrailingCommaConfig(\n    val host: String,\n    val port: Int,\n    val timeout: Int,\n    val retries: Int,\n)",
                 ),
             ),
         )
