@@ -24,4 +24,15 @@ dependencies {
     ksp(libs.auto.service.ksp)
 
     implementation(project(":compiler-plugin:compat"))
+
+    // task-065: compat-k210 専用 unit test (ServiceLoader-based sanity)。
+    // kctfork は意図的に使わず pure JVM test に留める。 こうすることで
+    // kctfork transitive embeddable と consumer Kotlin (matrix bumped to 2.1.x+)
+    // の drift 問題を本 module の test では完全回避できる。
+    // testRuntime に kotlin-compiler-embeddable-k210 (= 2.1.0 固定) を入れて
+    // K210CompatContextImpl が ServiceLoader 経由でロードされる際に
+    // 必要な FIR / IR symbol を解決可能にする。
+    testImplementation(libs.kotlin.compiler.embeddable.k210)
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
 }
