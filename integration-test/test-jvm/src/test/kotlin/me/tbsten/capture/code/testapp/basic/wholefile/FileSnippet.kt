@@ -1,6 +1,6 @@
 @file:SnippetFile_WholeFile
 
-package me.tbsten.capture.code.testapp.wholefile
+package me.tbsten.capture.code.testapp.basic.wholefile
 
 import me.tbsten.capture.code.CaptureCode
 import me.tbsten.capture.code.CaptureKind

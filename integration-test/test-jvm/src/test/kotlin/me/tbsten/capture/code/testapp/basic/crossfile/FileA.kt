@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp.crossfile
+package me.tbsten.capture.code.testapp.basic.crossfile
 
 import me.tbsten.capture.code.CaptureCode
 import me.tbsten.capture.code.Source

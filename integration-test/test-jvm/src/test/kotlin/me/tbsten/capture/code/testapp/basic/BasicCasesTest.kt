@@ -1,4 +1,4 @@
-package me.tbsten.capture.code.testapp
+package me.tbsten.capture.code.testapp.basic
 
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
@@ -7,8 +7,8 @@ import me.tbsten.capture.code.CaptureKind
 import me.tbsten.capture.code.Source
 import me.tbsten.capture.code.SourceLocation
 import me.tbsten.capture.code.capturedSources
-import me.tbsten.capture.code.testapp.crossfile.Snippets_CrossFile
-import me.tbsten.capture.code.testapp.wholefile.SnippetFile_WholeFile
+import me.tbsten.capture.code.testapp.basic.crossfile.Snippets_CrossFile
+import me.tbsten.capture.code.testapp.basic.wholefile.SnippetFile_WholeFile
 import kotlin.reflect.KClass
 
 // ============================================================================
@@ -449,7 +449,7 @@ class BasicCasesTest : StringSpec({
         // 件数と packageName のみで検証する想定 (本実装が決まったら厳密化)
         val captured = capturedSources<WhereIs_Marker>()
         captured.size shouldBe 1
-        captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp"
+        captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp.basic"
     }
 
     "CaptureKind のみを持つ marker" {
@@ -465,7 +465,7 @@ class BasicCasesTest : StringSpec({
         captured.size shouldBe 1
         captured[0].source shouldBe Source(value = "fun fullCaptureAnswer() = 42")
         captured[0].kind shouldBe CaptureKind(value = CaptureKind.Kind.FUNCTION)
-        captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp"
+        captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp.basic"
     }
 
     "Id 付きマーカー (enum パラメータ)" {
