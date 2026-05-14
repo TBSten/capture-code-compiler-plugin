@@ -16,15 +16,15 @@ import org.jetbrains.kotlin.name.Name
  * marker annotation がこれらの型のコンストラクタ引数を宣言したとき、
  * Capture Code plugin が compile time に値を埋める。
  *
- * marker checker (`MarkerAnnotationChecker`) / IR transformer (task-013 で実装、`:compat-k2000`
- * 配下の filler builder 群) の双方が同じ `ClassId` を参照する SSOT として本 object を使う。
+ * marker checker (`MarkerAnnotationChecker`) / IR transformer (`:compat-kXXXX` 配下の filler
+ * builder 群) の双方が同じ `ClassId` を参照する SSOT として本 object を使う。
  *
- * ## 配置 (task-013 で `:compiler-plugin` から `:compiler-plugin:compat` へ移動)
+ * ## 配置
  *
- * task-010 で導入された本 object は `:compiler-plugin/main` 内に `internal` で存在していたが、
- * task-013 で `:compat-k2000` の filler builder 群からも参照する必要が出たため、
- * `:compat` モジュールへ物理移動し `public` 化した。package (`me.tbsten.capture.code.error`)
- * は維持しているので、`:compiler-plugin` 側の import path は変更不要。
+ * 本 object は `:compiler-plugin:compat` モジュールに `public` で配置されている。
+ * `:compat-kXXXX` の filler builder 群と `:compiler-plugin` checker の両方から参照する必要が
+ * あるため、 共通の compat module 配下に置いている。 package (`me.tbsten.capture.code.error`)
+ * は呼び出し側の import path 変更を不要にする目的でそのまま維持している。
  */
 public object CaptureCodeFillerClassIds {
 

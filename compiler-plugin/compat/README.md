@@ -16,10 +16,9 @@ and [compose-preview-lab's port](https://github.com/tbsten/compose-preview-lab).
 ## Overview
 
 The Kotlin compiler plugin APIs are not stable and can change between
-versions. Some APIs get deprecated, renamed, or removed entirely
-(see `.local/ticket/done/task-028-api-drift-observation.md` for a catalog of
-the drift this project has hit so far). This compatibility layer provides a
-uniform interface ([`CompatContext`](src/main/kotlin/me/tbsten/capture/code/compat/CompatContext.kt))
+versions. Some APIs get deprecated, renamed, or removed entirely.
+This compatibility layer provides a uniform interface
+([`CompatContext`](src/main/kotlin/me/tbsten/capture/code/compat/CompatContext.kt))
 that the Capture-Code compiler plugin can use regardless of the underlying
 Kotlin version.
 
@@ -30,8 +29,8 @@ Kotlin version.
 The [`CompatContext`](src/main/kotlin/me/tbsten/capture/code/compat/CompatContext.kt)
 interface defines the contract for version-specific operations:
 
-- `transformIr(...)` — the IR transformation entry point (IR-side drift
-  D5–D8 of task-028).
+- `transformIr(...)` — the IR transformation entry point (absorbs IR-side
+  drift D5–D8 between supported Kotlin versions).
 - `literalValueOrNull(expression)` / `isLiteralExpression(expression)` —
   absorbs the `FirLiteralExpression<T>` → `FirLiteralExpression` type-parameter
   removal in Kotlin 2.0.21+ (FIR drift D1).
@@ -47,8 +46,8 @@ Each supported Kotlin version has its own module with a corresponding
 implementation:
 
 - [`compat-k200/`](../compat-k200) — Kotlin 2.0.x compatibility.
-- [`compat-k210/`](../compat-k210) — Kotlin 2.1.x compatibility (currently
-  FIR drift is fully absorbed; IR drift D5–D8 is pending task-031).
+- [`compat-k210/`](../compat-k210) — Kotlin 2.1.x compatibility (FIR drift is
+  fully absorbed; IR drift D5–D8 absorption is tracked as ongoing work).
 
 Each module contains:
 
@@ -171,8 +170,9 @@ Beta/RC/Stable versions never accidentally use dev factories.
   certain versions.
 - Include KDoc explaining version-specific behavior (see `CompatContextImpl`
   in each `compat-k*` module for examples).
-- Test thoroughly with the target Kotlin version before declaring
-  support — `task-031` covers Kotlin 2.1.0 verification in CI.
+- Test thoroughly with the target Kotlin version before declaring support.
+  The repo's CI matrix exercises every supported Kotlin version against each
+  compat module to catch drift early.
 - Keep implementations focused and minimal — avoid adding version-specific
   extensions beyond the interface contract. New drift points should be added
   to `CompatContext` itself, not implemented as one-off helpers.

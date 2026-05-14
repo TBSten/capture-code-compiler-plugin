@@ -3,11 +3,11 @@ package me.tbsten.capture.code.compat
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * task-009 spike で確定した「式 annotation の offset を FIR phase で確保 → IR phase で読み出す」
- * 経路 (design §5 Logic B-fir) のための **process-scoped holder**。
+ * 「式 annotation の offset を FIR phase で確保 → IR phase で読み出す」経路
+ * (design §5 Logic B-fir) のための **process-scoped holder**。
  *
- * Kotlin 2.0 の IR phase では式 annotation (`FirAnnotation`) が残らないため (task-009 spike
- * 観察 (b))、FIR phase で `(filePath, startOffset, endOffset, markerFqn, userArgs)` を本 registry に
+ * Kotlin 2.0 の IR phase では式 annotation (`FirAnnotation`) が残らないため (spike で確認済)、
+ * FIR phase で `(filePath, startOffset, endOffset, markerFqn, userArgs)` を本 registry に
  * push し、IR phase の collector が `sitesFor(markerFqn)` で読み出して `CapturedSite(kind = EXPRESSION)`
  * に変換する。
  *
@@ -27,18 +27,16 @@ import java.util.concurrent.CopyOnWriteArrayList
  * ## userArgs の表現
  *
  * marker constructor の filler 以外のパラメータ (ユーザ定義) は、宣言 annotation では IR の
- * `IrConstructorCall` から `getValueArgument(i)` で取り出せたが (task-014)、式 annotation の場合は
- * IR まで届かないため、FIR の `FirAnnotation.argumentMapping` を **そのまま** 渡す経路は使えない。
+ * `IrConstructorCall` から `getValueArgument(i)` で取り出せるが、式 annotation の場合は IR まで
+ * 届かないため、FIR の `FirAnnotation.argumentMapping` を **そのまま** 渡す経路は使えない。
  *
  * 現在の対応:
  * - FIR phase で `FirAnnotation` から名前 → リテラル値 (`Any?`) の map を抜き、本 registry に push
- * - IR phase で対応する `IrConstructorCall` 引数を **新規構築** する (primitive のみ最小実装)
+ * - IR phase で対応する `IrConstructorCall` 引数を **新規構築** する (primitive と enum FqN を最小実装)
  *
- * **本 ticket scope では、ケース #67 (`Both_Case67` = filler のみ + EXPRESSION kind)** のような
- * filler だけが入った marker を確実にサポートする。primitive 以外を含む marker でも、collector が
- * 引数を読まなければ default 値で marker instance が組み立てられるため、最低限は動作する。
- *
- * 詳細は `task-017` 完了メモを参照。
+ * **ケース #67 (filler のみ + EXPRESSION kind)** のような filler だけが入った marker を確実に
+ * サポートする。primitive 以外を含む marker でも、collector が引数を読まなければ default 値で
+ * marker instance が組み立てられるため、最低限は動作する。
  */
 public object CaptureCodeExpressionSiteRegistry {
 
@@ -51,7 +49,7 @@ public object CaptureCodeExpressionSiteRegistry {
      * @property endOffset annotation 対象 expression の endOffset。
      * @property markerFqn marker annotation class の完全修飾名 ([CaptureCodeMarkerRegistry] と整合)。
      * @property userArgs filler 以外のパラメータの名前 → 値 (`String`/`Int`/`Boolean`/`enum FqN`) の map。
-     *                    現状 primitive と enum (FqN 文字列) のみサポート (本 ticket scope)。
+     *                    現状 primitive と enum (FqN 文字列) のみサポート。
      */
     public data class Site(
         val filePath: String,

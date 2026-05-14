@@ -13,25 +13,24 @@ import org.jetbrains.kotlin.config.CompilerConfigurationKey
  *
  * design `compiler-plugin-design.md` §5 Logic I / §8.5 を参照。
  *
- * ## 配置 (task-013 で `:compiler-plugin` から `:compiler-plugin:compat` へ移動)
+ * ## 配置
  *
- * task-018 では本 module は `:compiler-plugin/main` 配下にあったが、task-013 で `:compat-k2000`
- * の IR transformer が config を消費する必要が出たため、`:compat` モジュールへ物理移動した。
- * package は `me.tbsten.capture.code` のまま維持しているので、`:compiler-plugin` から
- * 参照する import path は変更不要 (`me.tbsten.capture.code.CaptureCodePluginConfig`)。
+ * 本 class は `:compiler-plugin:compat` モジュールに置かれている (`:compat-kXXXX` の IR transformer
+ * が config を消費する必要があるため)。 package は `me.tbsten.capture.code` のまま維持しているので、
+ * `:compiler-plugin` からの参照 import path は `me.tbsten.capture.code.CaptureCodePluginConfig`。
  *
- * @property includeKdoc キャプチャしたソースに KDoc コメントを残すかどうか。
- *                       デフォルト `true`。実消費は task-015 (Logic D) 以降で行う。
+ * @property includeKdoc キャプチャしたソースに KDoc コメントを残すかどうか。 デフォルト `true`。
+ *                       Logic D (source 正規化) で消費する。
  * @property includeImports file 起源 (`@file:Marker`) のキャプチャで `import` 宣言行を含めるか。
- *                          デフォルト `false` (= `package` / `import` 行を除外)。task-016 で
+ *                          デフォルト `false` (= `package` / `import` 行を除外)。
  *                          `K200CapturedSourcesCollector.fileNormalizeOptions` 経由で
  *                          `NormalizeOptions.stripPackageAndImport = !includeImports` に投影される。
  * @property includeAnnotationLines 宣言の先頭に並ぶ `@Marker` annotation 行をキャプチャに含めるか。
- *                                  デフォルト `false`。実消費は task-013 / task-015 で行う。
+ *                                  デフォルト `false`。 Logic D で消費する。
  * @property dedent 全行の最小インデント幅 (空白行を除く) を計算し各行から削除するかどうか。
- *                  デフォルト `true`。実消費は task-015 (Logic D) で行う。
+ *                  デフォルト `true`。 Logic D で消費する。
  * @property includeLineInfo `SourceLocation.startLine` / `endLine` を実値で埋めるかどうか。
- *                           デフォルト `true` (design §11 open question #1 は `true` 採用、Phase 5 で再評価)。
+ *                           デフォルト `true` (design §11 open question #1 は `true` 採用)。
  */
 public data class CaptureCodePluginConfig(
     val includeKdoc: Boolean = true,

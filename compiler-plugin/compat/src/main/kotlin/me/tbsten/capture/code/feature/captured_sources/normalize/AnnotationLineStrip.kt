@@ -6,7 +6,7 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  * 設計メモ:
  * - design §7.2 によれば、宣言の `startOffset` に先頭 `@Marker` 行が含まれるかは
  *   Kotlin バージョン依存である。
- * - 本 ticket の検証 (compat-k2000 = Kotlin 2.0.0) では、IR offset 範囲には
+ * - 現状の compat 実装 (Kotlin 2.0.x / 2.1.x) では、IR offset 範囲には
  *   annotation 行が含まれない前提で実装しているため通常はこの関数は no-op になる。
  * - 万一含まれてしまった場合の保険として、先頭行が `@` で始まる行群を drop する。
  *   ただし KDoc 行 (`/**` / ` *` / `*/`) や `// comment` は **除外しない**。
@@ -19,7 +19,7 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  * - 最初の non-annotation / non-blank 行に到達したら以降はそのまま保持。
  *
  * 注意: この関数はあくまで保険であり、通常は IR offset 計算側で annotation を含まないよう
- * 制御することが望ましい (`includeAnnotationLines` DSL option は task-018 で導入予定)。
+ * 制御することが望ましい (`CaptureCodePluginConfig.includeAnnotationLines` DSL option を参照)。
  */
 public fun stripLeadingAnnotationLines(lines: List<String>): List<String> {
     var i = 0

@@ -6,9 +6,9 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  * すべてのオプションは独立に on/off でき、組み合わせて評価される。
  * design §5 Logic D / §5 Logic I の DSL options に対応する。
  *
- * task-018 で導入された [me.tbsten.capture.code.CaptureCodePluginConfig] (compiler-plugin main module)
- * から起源別の [NormalizeOptions] へ投影する glue は task-013 の compat-k2000 wire up で
- * `K200CapturedSourcesRewriter.toNormalizeOptions` 相当として実装されている。
+ * [me.tbsten.capture.code.CaptureCodePluginConfig] (compat module 提供の DSL config) から
+ * 起源別の [NormalizeOptions] へ投影する glue は [CaptureCodePluginConfigBridge] が SSOT として
+ * 担う (compat-kXXXX 各実装はそれを呼ぶ)。
  *
  * @property dedent 全行の最小インデント幅 (空白行を除く) を計算し、各行から削除する。
  * @property trimBlankEdges 先頭/末尾の空白行を drop する。中間の空白行は維持される。
@@ -18,7 +18,7 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  *                                       `@Marker` annotation 行を除外する。IR offset には
  *                                       既に annotation 行が含まれない前提でデフォルトは false。
  * @property stripKdoc declaration / file 起源で、normalize 入力に含まれた leading KDoc
- *                     (`/** ... */`) 行群を除外する safety net。 task-042 で導入。 通常は
+ *                     (`/** ... */`) 行群を除外する safety net。 通常は
  *                     Logic C 側 ([findKDocExtendedStartOffset]) が `includeKdoc = false`
  *                     のときには KDoc を含めないため no-op だが、 万一含まれてしまった場合の
  *                     保険として動作する。 デフォルト false。

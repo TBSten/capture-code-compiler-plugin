@@ -19,12 +19,12 @@ import org.jetbrains.kotlin.name.ClassId
  * [CompatContext.Companion.load] picks the best one at runtime based on the
  * current Kotlin compiler version (Metro / compose-preview-lab pattern).
  *
- * Each abstract method here corresponds to a known API drift point observed in
- * [[task-028]]:
+ * Each abstract method here corresponds to a known API drift point between
+ * supported Kotlin versions:
  *
  * - [transformIr] — unifies the IR transformation entry point that used to be
  *   `IrInjector.transform`. Each compat module compiles its IR rewriting logic
- *   against its own Kotlin baseline (drift D5–D8 in [[task-028]]).
+ *   against its own Kotlin baseline (drift D5–D8).
  * - [literalValueOrNull] / [isLiteralExpression] — absorbs the
  *   `FirLiteralExpression<T>` → `FirLiteralExpression` type-parameter removal
  *   drift (D1).

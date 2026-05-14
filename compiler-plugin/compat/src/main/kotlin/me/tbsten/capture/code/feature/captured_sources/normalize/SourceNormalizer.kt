@@ -4,12 +4,12 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  * 生の source text を正規化する pure function。
  *
  * design §5 Logic D に定義されたソース正規化の本体。`Source(value = "...")` filler 値に
- * 詰める前の生テキスト (task-013 で `IrFileEntry.getSourceRangeInfo` から取得した素) を、
+ * 詰める前の生テキスト (`IrFileEntry.getSourceRangeInfo` から取得した素) を、
  * 設定された [NormalizeOptions] に従って整える。
  *
  * 処理順序:
  * 1. `"\n"` で行に split
- * 2. (declaration / file 起源) `stripLeadingKdocLines` — 先頭 KDoc block を drop (task-042 保険)
+ * 2. (declaration / file 起源) `stripLeadingKdocLines` — 先頭 KDoc block を drop (safety net)
  * 3. (declaration 起源) `stripLeadingAnnotationLines` — 先頭 `@Marker` 行を drop (保険)
  * 4. (file 起源) `stripPackageAndImportLines` — `package` / `import` 行を drop
  * 5. `dedentLines` — 共通先頭インデントを削除
@@ -19,13 +19,12 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  * **idempotent**: 既に正規化済みのテキストを通しても出力は変わらない (= 二度正規化しても OK)。
  * これは「1 行宣言は dedent しても変わらない」ことを保証するための重要な性質。
  *
- * ## 配置 (task-013 で `:compiler-plugin` から `:compiler-plugin:compat` へ移動)
+ * ## 配置
  *
- * task-015 では本 module は `:compiler-plugin/main` 配下にあり `internal` だったが、
- * task-013 で `:compat-k2000` の IR transformer から wire up する必要が出たため、
- * `:compat` (compat module) へ物理移動し `public` 化した。`:compat` は kotlin-compiler-embeddable
- * への compileOnly のみで pure Kotlin 関数を内包でき、`:compat-k2000` と `:compiler-plugin` の
- * 両方から共有できる SSOT になる。
+ * 本関数は `:compiler-plugin:compat` モジュールに置かれており、 `:compat-kXXXX` の IR transformer
+ * と `:compiler-plugin` の両方から `public` API として共有される SSOT。 `:compat` は
+ * kotlin-compiler-embeddable への compileOnly のみで pure Kotlin 関数を内包できるため、
+ * 重複実装を避けつつ各 compat module から再利用できる。
  *
  * @param rawText 生のソーステキスト。`IrFileEntry.getSourceRangeInfo(...).text` のような形式。
  * @param options 正規化設定 ([NormalizeOptions.DECLARATION_DEFAULT] / [NormalizeOptions.FILE_DEFAULT] / [NormalizeOptions.EXPRESSION_DEFAULT] 等)。
