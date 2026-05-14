@@ -346,13 +346,11 @@ class ExpressionCasesTest : StringSpec({
         )
     }
 
-    // DISABLED (post-completion triage, 2026-05-14):
-    // 期待値は KDoc を含む source だが、 現状の Logic C は declaration の `startOffset`
-    // (KDoc 終端 + 改行直後) からソース文字列を取得するため、 KDoc が含まれない。
-    // task-018 で Gradle plugin DSL option `includeKdoc` は用意済だが、 Logic D 側で
-    // 実消費されていないため、 別 ticket で「Logic C に KDoc 取得 path 追加 + `includeKdoc`
-    // option を Logic D 側で実消費」として対応する。
-    "ケース31: KDoc 付きの宣言 (KDoc を含むデフォルト挙動)".config(enabled = false) {
+    // task-042 (2026-05-14): Logic C に KDoc 探索 path 追加 + `includeKdoc` option 配線完了。
+    // `CaptureCodePluginConfig.includeKdoc = true` (default) のため、 KDoc を含む source が
+    // capture される。 Logic C 側で declaration の startOffset を直前 KDoc まで前方拡張する
+    // path ([findKDocExtendedStartOffset]) が機能している。
+    "ケース31: KDoc 付きの宣言 (KDoc を含むデフォルト挙動)" {
         capturedSources<DocCapture_Case31>() shouldBe listOf(
             DocCapture_Case31(
                 source = Source(
