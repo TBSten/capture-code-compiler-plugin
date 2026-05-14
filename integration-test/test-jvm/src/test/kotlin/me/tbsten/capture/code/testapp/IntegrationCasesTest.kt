@@ -277,11 +277,9 @@ class IntegrationCasesTest : StringSpec({
         )
     }
 
-    // 注: 同一行に property 2 つ並べた場合、現状の FIR/IR 走査では
-    // どちらの property も capture されない (実値は空 list)。
-    // 単一行 multi-property の対応は実装側 (compiler-plugin の宣言走査) の修正が必要なため、
-    // 別 ticket で扱う。
-    "ケース75: 単一行に property 2 つ ⇒ 各々 location 取得".config(enabled = false) {
+    // task-043 で 同一行 multi-property 対応を実装 (token ベース skipLeadingAnnotationLines)。
+    // 1 番目の property は IR の endOffset が `;` を含むため source に `;` が残るが、 capture は成立する。
+    "ケース75: 単一行に property 2 つ ⇒ 各々 location 取得" {
         val captured = capturedSources<Snippets_Case75>()
         captured.size shouldBe 2
         // 両方 同一行であることを確認 (行番号は実ファイル位置依存なので一致のみ)
