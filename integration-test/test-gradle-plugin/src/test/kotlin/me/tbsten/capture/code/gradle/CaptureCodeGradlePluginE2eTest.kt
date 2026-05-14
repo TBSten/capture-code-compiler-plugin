@@ -8,7 +8,7 @@ import org.gradle.testkit.runner.TaskOutcome
 import java.io.File
 
 /**
- * task-040: Gradle TestKit + fixture project による真の E2E テスト。
+ * Gradle TestKit + fixture project による真の E2E テスト。
  *
  * fixture project (`src/test/resources/fixtures/jvm-sample/`) を `GradleRunner` で
  * 起動し、 ユーザ実利用形態 (`plugins { id("me.tbsten.capture.code") }`) で compiler
@@ -24,14 +24,13 @@ import java.io.File
  *   - 本 test = TestKit + 実 Gradle build によるユーザ実利用形態の真の E2E
  *
  * ## KMP fixture のスコープ
- * 当初 task-040 では JVM + KMP の 2 fixture を予定していたが、 KMP fixture の
+ * 当初は JVM + KMP の 2 fixture を予定していたが、 KMP fixture の
  * `:jvmTest` で `capturedSources<T>()` の `error("...is not applied")` が rewrite
- * されない問題が出た (commonTest 起点の use site が IR transform の rewrite を
- * 受けないケース)。 これは task-026 の縮退とは別の問題で、 `:gradle-plugin` DSL 経由
- * の attach パスと、 KMP の commonTest → jvmTest hierarchy 間の compilation 配線の
- * 整合性に関わる可能性があるため、 本 ticket スコープ外。 別 ticket (task-041?) で
- * 詳細調査する。 既存の `:integration-test:test-kmp:jvmTest` で #101-#105 は CI で
- * 継続検証されているので、 KMP の真の E2E カバレッジは保たれている。
+ * されない問題が判明した (commonTest 起点の use site が IR transform の rewrite を
+ * 受けないケース)。 `:gradle-plugin` DSL 経由の attach パスと、 KMP の commonTest →
+ * jvmTest hierarchy 間の compilation 配線の整合性に関わる可能性があるため、 本モジュール
+ * のスコープ外として別途調査する。 既存の `:integration-test:test-kmp:jvmTest` で
+ * #101-#105 は CI で継続検証されているので、 KMP の真の E2E カバレッジは保たれている。
  *
  * ## 速度
  * TestKit が起動する子 Gradle build は 1 ケース 20-90 秒。

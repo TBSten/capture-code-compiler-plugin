@@ -14,7 +14,7 @@ import java.nio.file.StandardCopyOption
 import kotlin.io.path.createTempDirectory
 
 /**
- * task-033: Gradle incremental compile (IC) ON 状態で CaptureCode plugin が
+ * Gradle incremental compile (IC) ON 状態で CaptureCode plugin が
  * 想定通り動くかの実機検証 (R5 緩和)。
  *
  * ## 検証シナリオ
@@ -39,7 +39,7 @@ import kotlin.io.path.createTempDirectory
  * - configuration-cache は `--no-configuration-cache` で OFF
  *   (includeBuild + substitution との衝突回避; 既存 E2E と同じ方針)。
  *
- * ## 現状 (task-033 実測結果): R5 顕在化を確認
+ * ## 現状 (実測結果): R5 顕在化を確認
  * 3 シナリオすべてで **caller 側 (`Main.kt`) が IC に拾われず stale な `capturedSources<T>()`
  * を返す** ことを確認した。 シナリオ A では新規 `@Snippet welcome()` を追加しても 2 回目の
  * `:run` 出力に `welcome` が現れず、 シナリオ B では削除しても残留し、 シナリオ C では
@@ -49,9 +49,8 @@ import kotlin.io.path.createTempDirectory
  * **`:gradle-plugin` 側に fallback (capture 集合変化検出 → caller 側ファイル touch
  * もしくは module 全体 recompile) を実装する必要がある** ことが確定。
  *
- * fallback 実装は task-033 follow-up ticket で扱う (現 ticket スコープは
- * 「IC の挙動を実測して結論を出す」 ところまで)。 本テストは fallback 実装後に
- * `enabled = true` に戻して PASS を確認する想定。
+ * fallback 実装は別途扱う (本テストの初期スコープは「IC の挙動を実測して結論を出す」
+ * ところまで)。 本テストは fallback 実装後に `enabled = true` に戻して PASS を確認する想定。
  *
  * ## 速度
  * TestKit は 1 build あたり数十秒。3 シナリオ × 2 build = 約 2-5 分を想定。
@@ -175,7 +174,7 @@ class IncrementalCompileTest : StringSpec({
     """.trimIndent() + "\n"
 
     // ------------------------------------------------------------------------
-    // task-033 baseline (R5 顕在化 = 現状の挙動の固定化):
+    // baseline (R5 顕在化 = 現状の挙動の固定化):
     //
     // fallback 未実装の現状では、 marker 追加に対して caller 側ファイル (Main.kt) が
     // IC の dependency tracking に拾われず、 capturedSources の結果が更新されない。
@@ -216,7 +215,7 @@ class IncrementalCompileTest : StringSpec({
         // → これも現状の baseline 挙動。
     }
 
-    // task-033: 現状 3 シナリオすべて R5 顕在化で fail する (caller 側が IC に拾われない)。
+    // 現状 3 シナリオすべて R5 顕在化で fail する (caller 側が IC に拾われない)。
     // fallback 実装 (`:gradle-plugin` 側) 完了後に enabled = true に戻す。
     // baseline 確定の意味は `.local/notes/incremental-compile-verification-result.md` 参照。
     "シナリオ A: @Snippet 付き宣言を追加 → caller の capturedSources に反映される"

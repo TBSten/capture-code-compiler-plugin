@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// task-040: JVM-only fixture for true E2E verification via TestKit + includeBuild
+// JVM-only fixture for true E2E verification via TestKit + includeBuild
 //
 // 本 fixture は `integration-test/test-gradle-plugin/src/test/kotlin/.../
 // CaptureCodeGradlePluginE2eTest.kt` から GradleRunner で起動される独立した
@@ -17,7 +17,7 @@
 //   ../../../../../.. = integration-test
 //   ../../../../../../.. = root
 //
-// ## 構成意図 (task-026 の罠を回避するためのポイント)
+// ## 構成意図 (KMP publication と includeBuild の罠を回避するためのポイント)
 //
 // `pluginManagement { includeBuild(...) }` は **plugin 解決用** の include で、
 // それ単独だと **通常 dependency への substitution は適用されない** (settings の
@@ -43,8 +43,8 @@ pluginManagement {
     }
     // fixture project の Kotlin 版を root build の Kotlin version と同期させる。
     // root の `libs.versions.toml` の Kotlin version を test 実行時に system property
-    // で受け取り、 ここで plugin version を resolve する。 これにより task-027 等で
-    // root の Kotlin version が変わっても fixture が automatic に追随する。
+    // で受け取り、 ここで plugin version を resolve する。 これにより root の
+    // Kotlin version が変わっても fixture が automatic に追随する。
     plugins {
         val kotlinVersion: String =
             System.getProperty("test-gradle-plugin.kotlinVersion")

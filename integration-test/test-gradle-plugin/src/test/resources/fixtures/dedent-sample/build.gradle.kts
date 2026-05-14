@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// task-040 follow-up: dedent DSL option E2E fixture (baseline = dedent=true).
+// dedent DSL option の E2E fixture (baseline = dedent=true)。
 //
 // `DslOptionsE2eTest` がこの build.gradle.kts を tmp dir コピー時に書き換えて
 // `captureCode { dedent = true }` / `captureCode { dedent = false }` の 2 ケース

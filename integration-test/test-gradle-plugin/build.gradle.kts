@@ -5,18 +5,14 @@ plugins {
 }
 
 // ----------------------------------------------------------------------------
-// task-040: Gradle TestKit + fixture project による真の E2E テスト
+// Gradle TestKit + fixture project による真の E2E テストモジュール
 //
-// task-026 では `includeBuild` 経由で fixture project を取り込んだ際に、
-// KMP root publication と `available-at` 経由の platform-specific module
-// (`annotation-jvm` 等) の組み合わせで `dependencySubstitution` が完全には
-// 効かず failed したため、 ProjectBuilder ベースの sanity test に縮退した。
+// fixture project の `settings.gradle.kts` で **明示的に `dependencySubstitution`**
+// を書くことで、 Maven Central への publish を待たずに本リポジトリの未公開ビルド
+// 成果物を `me.tbsten.capture.code:...` 座標へ差し替え、 ユーザ実利用形態を E2E で
+// 検証する。
 //
-// 本モジュールは task-040 でその縮退分を取り戻すための再着手。 fixture project の
-// `settings.gradle.kts` で **明示的に `dependencySubstitution`** を書くことで、
-// `maven-publish` 配線 ([[task-037]]) を待たずに E2E 検証する。
-//
-// 役割分担:
+// 役割分担 (Gradle plugin の test レイヤ):
 //   - :gradle-plugin:test               = ProjectBuilder = DSL 配線の高速 sanity
 //   - :integration-test:test-gradle-plugin:test
 //                                       = TestKit fixture = ユーザ実利用形態の真の E2E
@@ -47,8 +43,8 @@ tasks.withType<Test>().configureEach {
     // fixture の settings.gradle.kts の pluginManagement で resolve する。
     systemProperty(
         "test-gradle-plugin.kotlinVersion",
-        // task-030 v2: `kotlin-k210` library エントリ追加で `libs.versions.kotlin` accessor が
-        // namespace 化されたため `.asProvider().get()` で明示。
+        // `kotlin-k210` 等の派生 library エントリにより `libs.versions.kotlin` accessor が
+        // namespace 化されているため `.asProvider().get()` で明示。
         libs.versions.kotlin.asProvider().get(),
     )
 

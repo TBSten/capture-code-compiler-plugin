@@ -1,8 +1,7 @@
 // ----------------------------------------------------------------------------
-// task-040 follow-up (post-completion polish):
-//   `:integration-test:test-jvm:DslOptionsTest` の 2 ケース
+// `:integration-test:test-jvm:DslOptionsTest` の 2 ケース
 //   (「dedent=true (デフォルト)」 / 「dedent=false ではインデントが保持される」)
-//   を Gradle TestKit + fixture project で再構築するための fixture。
+// を Gradle TestKit + fixture project で再現するための fixture。
 //
 // 役割:
 //   - `plugins { id("me.tbsten.capture.code") }` でユーザ実利用形態 (= Gradle DSL

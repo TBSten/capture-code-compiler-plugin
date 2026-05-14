@@ -4,7 +4,7 @@ import me.tbsten.capture.code.CaptureCode
 import me.tbsten.capture.code.Source
 
 /**
- * task-040 fixture: ケース #1 相当の最小 marker annotation。
+ * 最小の marker annotation fixture (ケース #1 相当)。
  *
  * Source filler のみを宣言。 Use site で `@Snippet` を付けた宣言の本文 (source string) が
  * compiler plugin によって埋められる。

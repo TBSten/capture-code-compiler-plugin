@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// task-040: JVM-only fixture build script
+// JVM-only fixture build script
 //
 // `plugins { id("me.tbsten.capture.code") }` でユーザ実利用形態の plugin apply を
 // 行う。 plugin の `apply()` 内で:

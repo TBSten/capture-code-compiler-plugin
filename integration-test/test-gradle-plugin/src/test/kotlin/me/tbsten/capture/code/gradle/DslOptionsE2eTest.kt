@@ -12,20 +12,19 @@ import java.util.Base64
 import kotlin.io.path.createTempDirectory
 
 /**
- * task-040 follow-up (post-completion polish):
- *   `:integration-test:test-jvm:DslOptionsTest` で disabled になっていた 2 ケース
+ * dedent DSL option の真の E2E 検証。
  *
- *     - 「dedent=true (デフォルト) ではインデントが除去される」
- *     - 「dedent=false ではインデントが保持される」
+ *   - 「dedent=true (デフォルト) ではインデントが除去される」
+ *   - 「dedent=false ではインデントが保持される」
  *
- *   を、 真の E2E パス (`plugins { id("me.tbsten.capture.code") } captureCode { dedent = ... }`)
- *   で再構築する。 fixture `dedent-sample` を 1 つ用意し、 test 実行時に build.gradle.kts
- *   の dedent 値だけを書き換えて 2 パターンの compile を走らせる。
+ * の 2 ケースを、 真の E2E パス (`plugins { id("me.tbsten.capture.code") } captureCode { dedent = ... }`)
+ * で確認する。 fixture `dedent-sample` を 1 つ用意し、 test 実行時に build.gradle.kts の
+ * dedent 値だけを書き換えて 2 パターンの compile を走らせる。
  *
- *   `:integration-test:test-jvm` 側 (`kotlinCompilerPluginClasspath(project(":compiler-plugin"))`
- *   で plugin を直接 attach する経路) では `:gradle-plugin` の `CaptureCodeExtension` を
- *   経由しないため、 DSL option が compiler に届かない設計。 task-040 で構築した
- *   TestKit fixture を流用することで、 ユーザ実利用形態の path 全体を verify する。
+ * `:integration-test:test-jvm` 側 (`kotlinCompilerPluginClasspath(project(":compiler-plugin"))`
+ * で plugin を直接 attach する経路) では `:gradle-plugin` の `CaptureCodeExtension` を
+ * 経由しないため、 DSL option が compiler に届かない設計。 ここで構築した TestKit fixture
+ * を使うことで、 ユーザ実利用形態の path 全体を verify する。
  *
  * ## 速度
  * TestKit が起動する子 Gradle build は 1 ケース 20-90 秒。 dedent option ごとに 1 build
