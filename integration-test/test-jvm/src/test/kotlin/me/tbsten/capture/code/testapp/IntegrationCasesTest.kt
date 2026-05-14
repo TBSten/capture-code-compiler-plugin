@@ -199,16 +199,16 @@ fun case77_adminUsers() = "[]"
 
 class IntegrationCasesTest : StringSpec({
 
-    "ケース62: 同一モジュールでサブパッケージから marker を使う".config(enabled = false) {
+    "ケース62: 同一モジュールでサブパッケージから marker を使う" {
         val captured = capturedSources<Endpoint_Case62>()
         captured.size shouldBe 1
         captured[0].source shouldBe Source(value = "fun case62_listUsers(): List<String> = emptyList()")
     }
 
-    "ケース63: 異なる関数内から複数回 capturedSources<T>() を呼ぶ".config(enabled = false) {
+    "ケース63: 異なる関数内から複数回 capturedSources<T>() を呼ぶ" {
         val expected = listOf(
-            Snippets_Case63(source = Source(value = "fun case63_a() {}")),
-            Snippets_Case63(source = Source(value = "fun case63_b() {}")),
+            Snippets_Case63(source = Source(value = "fun case63_a() {\n}")),
+            Snippets_Case63(source = Source(value = "fun case63_b() {\n}")),
         )
         case63_consumer1() shouldBe expected
         case63_consumer2() shouldBe expected
@@ -257,26 +257,30 @@ class IntegrationCasesTest : StringSpec({
         )
     }
 
-    "ケース73: private marker をファイル内だけで使う".config(enabled = false) {
+    "ケース73: private marker をファイル内だけで使う" {
         case73_collect() shouldBe listOf(
-            LocalOnly_Case73(source = Source(value = "fun case73_a() = 1")),
-            LocalOnly_Case73(source = Source(value = "fun case73_b() = 2")),
+            LocalOnly_Case73(source = Source(value = "private fun case73_a() = 1")),
+            LocalOnly_Case73(source = Source(value = "private fun case73_b() = 2")),
         )
     }
 
-    "ケース74: 同一ファイル内に複数 private marker (Foo 側)".config(enabled = false) {
+    "ケース74: 同一ファイル内に複数 private marker (Foo 側)" {
         case74_collectFoo() shouldBe listOf(
-            Foo_Case74(source = Source(value = "fun case74_foo1() {}")),
-            Foo_Case74(source = Source(value = "fun case74_foo2() {}")),
+            Foo_Case74(source = Source(value = "private fun case74_foo1() {\n}")),
+            Foo_Case74(source = Source(value = "private fun case74_foo2() {\n}")),
         )
     }
 
-    "ケース74: 同一ファイル内に複数 private marker (Bar 側)".config(enabled = false) {
+    "ケース74: 同一ファイル内に複数 private marker (Bar 側)" {
         case74_collectBar() shouldBe listOf(
-            Bar_Case74(source = Source(value = "fun case74_bar1() {}")),
+            Bar_Case74(source = Source(value = "private fun case74_bar1() {\n}")),
         )
     }
 
+    // 注: 同一行に property 2 つ並べた場合、現状の FIR/IR 走査では
+    // どちらの property も capture されない (実値は空 list)。
+    // 単一行 multi-property の対応は実装側 (compiler-plugin の宣言走査) の修正が必要なため、
+    // 別 ticket で扱う。
     "ケース75: 単一行に property 2 つ ⇒ 各々 location 取得".config(enabled = false) {
         val captured = capturedSources<Snippets_Case75>()
         captured.size shouldBe 2
@@ -284,13 +288,13 @@ class IntegrationCasesTest : StringSpec({
         captured[0].location.startLine shouldBe captured[1].location.startLine
     }
 
-    "ケース76: 関数本体内ローカル関数のキャプチャ (ローカル宣言)".config(enabled = false) {
+    "ケース76: 関数本体内ローカル関数のキャプチャ (ローカル宣言)" {
         capturedSources<Snippets_Case76>() shouldBe listOf(
             Snippets_Case76(source = Source(value = "fun localHelper(x: Int) = x * 2")),
         )
     }
 
-    "ケース77: 同じ marker を使って 2 種類の location を区別".config(enabled = false) {
+    "ケース77: 同じ marker を使って 2 種類の location を区別" {
         val captured = capturedSources<Endpoint_Case77>()
         captured.size shouldBe 2
         captured[0].path shouldBe "/api/v1/users"
