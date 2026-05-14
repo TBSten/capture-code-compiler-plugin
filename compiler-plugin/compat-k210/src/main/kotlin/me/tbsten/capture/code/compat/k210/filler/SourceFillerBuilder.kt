@@ -1,0 +1,76 @@
+package me.tbsten.capture.code.compat.k210.filler
+
+import me.tbsten.capture.code.CaptureCodePluginConfig
+import me.tbsten.capture.code.compat.CapturedSite
+import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
+import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
+import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.expressions.impl.IrConstImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrConstructorCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.fromSymbolOwner
+import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.types.typeWith
+import org.jetbrains.kotlin.ir.util.constructors
+
+/**
+ * `me.tbsten.capture.code.Source(value: String)` filler の値を IR で構築する [FillerBuilder]。
+ *
+ * task-005 (Phase 1) で `K210CapturedSourcesRewriter` 内に inline 実装されていた logic を
+ * task-013 で builder クラスとして切り出した。今後 task-015 wire up (= source 正規化) や
+ * task-016 (file annotation) で同じ builder を再利用する。
+ *
+ * 値: `Source(value = site.source)` — [CapturedSite.source] は collector 段で
+ * [me.tbsten.capture.code.feature.captured_sources.normalize.normalize] による正規化を
+ * 終えた状態で来る (task-013 で wire up 完了)。
+ */
+internal class SourceFillerBuilder(
+    private val sourceType: IrType,
+    private val sourceConstructor: IrConstructorSymbol,
+    private val sourceValueIndex: Int,
+    private val stringType: IrType,
+) : FillerBuilder {
+
+    override fun build(site: CapturedSite, config: CaptureCodePluginConfig): IrExpression {
+        return IrConstructorCallImpl.fromSymbolOwner(
+            startOffset = UNDEFINED_OFFSET,
+            endOffset = UNDEFINED_OFFSET,
+            type = sourceType,
+            constructorSymbol = sourceConstructor,
+        ).apply {
+            putValueArgument(
+                sourceValueIndex,
+                IrConstImpl.string(
+                    startOffset = UNDEFINED_OFFSET,
+                    endOffset = UNDEFINED_OFFSET,
+                    type = stringType,
+                    value = site.source,
+                ),
+            )
+        }
+    }
+
+    companion object {
+
+        /**
+         * `me.tbsten.capture.code.Source` を [pluginContext] から resolve して
+         * [SourceFillerBuilder] を生成する。runtime 依存が不足している場合は `null`。
+         */
+        fun resolve(pluginContext: IrPluginContext): SourceFillerBuilder? {
+            val sourceSymbol = pluginContext.referenceClass(CaptureCodeFillerClassIds.Source)
+                ?: return null
+            val sourceConstructor = sourceSymbol.owner.constructors.firstOrNull()?.symbol
+                ?: return null
+            val sourceValueIndex = sourceConstructor.owner.valueParameters
+                .indexOfFirst { it.name.asString() == "value" }
+                .takeIf { it >= 0 } ?: return null
+            return SourceFillerBuilder(
+                sourceType = sourceSymbol.typeWith(),
+                sourceConstructor = sourceConstructor,
+                sourceValueIndex = sourceValueIndex,
+                stringType = pluginContext.irBuiltIns.stringType,
+            )
+        }
+    }
+}
