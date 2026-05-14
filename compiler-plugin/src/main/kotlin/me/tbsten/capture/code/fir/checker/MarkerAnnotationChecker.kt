@@ -1,5 +1,6 @@
 package me.tbsten.capture.code.fir.checker
 
+import me.tbsten.capture.code.compat.CaptureCodeCompatHolder
 import me.tbsten.capture.code.error.CaptureCodeDiagnostics
 import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
 import me.tbsten.capture.code.fir.marker.CaptureCodeMetaAnnotation
@@ -22,7 +23,6 @@ import org.jetbrains.kotlin.fir.declarations.extractEnumValueArgumentInfo
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.expressions.unwrapAndFlattenArgument
 import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
-import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinTypeProjection
 import org.jetbrains.kotlin.fir.types.ConeLookupTagBasedType
 import org.jetbrains.kotlin.fir.types.classId
@@ -30,7 +30,6 @@ import org.jetbrains.kotlin.fir.types.coneTypeSafe
 import org.jetbrains.kotlin.fir.types.isNonPrimitiveArray
 import org.jetbrains.kotlin.fir.types.isPrimitiveOrNullablePrimitive
 import org.jetbrains.kotlin.fir.types.isUnsignedTypeOrNullableUnsignedType
-import org.jetbrains.kotlin.fir.types.toRegularClassSymbol
 import org.jetbrains.kotlin.name.StandardClassIds
 
 /**
@@ -273,7 +272,10 @@ internal object MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.
         type: ConeLookupTagBasedType,
         session: FirSession,
     ): Boolean {
-        val symbol = type.toRegularClassSymbol(session) as? FirRegularClassSymbol ?: return false
+        // task-030 v2: `toRegularClassSymbol` extension の package 移動 drift (D2) を
+        // CompatContext.toRegularClassSymbolOrNull 経由で吸収。
+        val symbol = CaptureCodeCompatHolder.context.toRegularClassSymbolOrNull(type, session)
+            ?: return false
         val kind = symbol.classKind
         return kind == ClassKind.ANNOTATION_CLASS || kind == ClassKind.ENUM_CLASS
     }

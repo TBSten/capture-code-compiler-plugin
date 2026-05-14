@@ -1,5 +1,6 @@
 package me.tbsten.capture.code.feature.expression_annotation
 
+import me.tbsten.capture.code.compat.CaptureCodeCompatHolder
 import me.tbsten.capture.code.compat.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
@@ -11,7 +12,6 @@ import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirBasicExpressionChecker
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.expressions.FirGetClassCall
-import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
 import org.jetbrains.kotlin.fir.expressions.FirPropertyAccessExpression
 import org.jetbrains.kotlin.fir.expressions.FirQualifiedAccessExpression
 import org.jetbrains.kotlin.fir.expressions.FirStatement
@@ -28,7 +28,7 @@ import org.jetbrains.kotlin.fir.types.resolvedType
  * task-017 で新規追加。task-009 spike の結論「IR phase で式 annotation は残らない (R1 確定)」を
  * 受け、本 checker が FIR phase で全 expression を訪問し、`expression.annotations` 内の marker を
  * 発見次第 [CaptureCodeExpressionSiteRegistry] に push する。IR phase の collector
- * (`K2000CapturedSourcesCollector.collectExpressionSites`) がそれを読み出して
+ * (`K200CapturedSourcesCollector.collectExpressionSites`) がそれを読み出して
  * `CapturedSite(kind = EXPRESSION)` に変換する。
  *
  * ## 何を push するか
@@ -110,7 +110,7 @@ internal object CaptureCodeFirExpressionSiteCollector : FirBasicExpressionChecke
      *
      * `IrFile` の cached file text に対する substring 抽出を IR phase で行うため、 marker でない
      * annotation を push しても collector は file path mismatch (= IR file との照合に失敗) or
-     * `K2000CapturedSourcesCollector.collectExpressionSites()` 内の filter で除外される。
+     * `K200CapturedSourcesCollector.collectExpressionSites()` 内の filter で除外される。
      * 暫定 push のオーバーヘッドは小さい。
      */
     private fun FirAnnotation.markerFqnOrNull(): String? {
@@ -148,7 +148,7 @@ internal object CaptureCodeFirExpressionSiteCollector : FirBasicExpressionChecke
      * - nested annotation
      *
      * filler 型 (`Source` / `SourceLocation` / `CaptureKind`) は本 map に **含めない**。
-     * IR phase で `K2000CapturedSourcesRewriter` の filler builder が値を自動生成するため。
+     * IR phase で `K200CapturedSourcesRewriter` の filler builder が値を自動生成するため。
      */
     private fun FirAnnotation.collectUserArgs(): Map<String, Any?> {
         val mapping = argumentMapping.mapping
@@ -158,19 +158,24 @@ internal object CaptureCodeFirExpressionSiteCollector : FirBasicExpressionChecke
             CaptureCodeFillerClassIds.SourceLocation.asFqNameString(),
             CaptureCodeFillerClassIds.CaptureKind.asFqNameString(),
         )
+        val compat = CaptureCodeCompatHolder.context
         val result = linkedMapOf<String, Any?>()
         for ((name, expr) in mapping) {
             val typeFqn = expr.resolvedType.classId?.asSingleFqName()?.asString()
             if (typeFqn != null && typeFqn in fillerFqns) continue
-            val value = when (expr) {
-                is FirLiteralExpression<*> -> expr.value
-                is FirGetClassCall -> {
+            // task-030 v2: `FirLiteralExpression<*>` の type-parameter 削除 drift (D1) を
+            // CompatContext.isLiteralExpression / literalValueOrNull 経由で吸収。
+            // FirGetClassCall / enum entry の解決は 2.0.0 / 2.1.0 で API が安定しているため
+            // main module 側で直接ハンドリング。
+            val value = when {
+                compat.isLiteralExpression(expr) -> compat.literalValueOrNull(expr)
+                expr is FirGetClassCall -> {
                     // KClass argument: 型 FqN を文字列で保持 (本 ticket では IR 化の最小サポート)
                     val classId = expr.arguments.firstOrNull()?.resolvedType?.classId
                     classId?.asSingleFqName()?.asString()
                 }
-                is FirPropertyAccessExpression -> resolveEnumOrNull(expr)
-                is FirQualifiedAccessExpression -> resolveEnumOrNull(expr)
+                expr is FirPropertyAccessExpression -> resolveEnumOrNull(expr)
+                expr is FirQualifiedAccessExpression -> resolveEnumOrNull(expr)
                 else -> null
             }
             result[name.asString()] = value

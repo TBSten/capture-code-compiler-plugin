@@ -19,7 +19,7 @@ import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
  * 全体方針 (task-009 spike + design §5 Logic B-fir):
  * - FIR phase で `FirBasicExpressionChecker` が `(filePath, startOffset, endOffset, markerFqn, ...)`
  *   を `CaptureCodeExpressionSiteRegistry` に push する
- * - IR phase の `K2000CapturedSourcesCollector.collectExpressionSites()` が registry を読み、
+ * - IR phase の `K200CapturedSourcesCollector.collectExpressionSites()` が registry を読み、
  *   file text の substring から `CapturedSite(kind = EXPRESSION)` を構築する
  *
  * ## カバーする観点

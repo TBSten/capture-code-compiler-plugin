@@ -5,7 +5,7 @@ import java.util.concurrent.CopyOnWriteArraySet
 /**
  * `@CaptureCode` メタアノテーションが付いた annotation class の FqN 集合 (Logic A の SSOT)。
  *
- * Phase 2 task 2.1 で `K2000CapturedSourcesCollector.HARDCODED_MARKER_FQNS` などの hardcoded list を
+ * Phase 2 task 2.1 で `K200CapturedSourcesCollector.HARDCODED_MARKER_FQNS` などの hardcoded list を
  * 撤廃し、本 registry を後続 logic (B-ir / F / G / H) が共通参照する形に集約する。
  *
  * ## ライフサイクル

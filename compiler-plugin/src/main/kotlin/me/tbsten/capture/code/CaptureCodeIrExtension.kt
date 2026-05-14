@@ -1,17 +1,17 @@
 package me.tbsten.capture.code
 
+import me.tbsten.capture.code.compat.CaptureCodeCompatHolder
 import me.tbsten.capture.code.compat.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
-import me.tbsten.capture.code.compat.IrInjectorLoader
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
-import org.jetbrains.kotlin.config.KotlinCompilerVersion
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 
 /**
  * Capture Code compiler plugin の IR 拡張点。
  *
- * 現在の Kotlin バージョンに合った [me.tbsten.capture.code.compat.IrInjector] を選択して委譲する。
+ * 現在の Kotlin バージョンに合った [me.tbsten.capture.code.compat.CompatContext] を
+ * ServiceLoader 経由で選択し、 その `transformIr` メソッドに委譲する。
  *
  * Logic A (task-008) の動的検出結果は [CaptureCodeMarkerRegistry] (FIR phase の checker が蓄積) を
  * 通じて受け渡されるため、本 extension では FIR session に直接アクセスする必要はない。
@@ -37,10 +37,11 @@ public class CaptureCodeIrExtension(
 ) : IrGenerationExtension {
     override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
         try {
-            val injector = IrInjectorLoader.load(KotlinCompilerVersion.VERSION)
-            // task-013 で IrInjector.transform は config を受け取るよう signature 拡張済。
-            // compat-kXXXX が config.dedent / config.includeAnnotationLines を消費する。
-            injector.transform(moduleFragment, pluginContext, config)
+            // task-030 v2 (Metro pattern) で IrInjector + FirAnalyzer の 2 interface を
+            // CompatContext 1 つに統合済。 CaptureCodeCompatHolder.context は
+            // process-scoped lazy で ServiceLoader を 1 回だけ走らせ、 K2 compiler 起動の
+            // hot path で全 generate() invocation 共有する。
+            CaptureCodeCompatHolder.context.transformIr(moduleFragment, pluginContext, config)
         } finally {
             // 同一 ClassLoader での連続 compile (kctfork) で前回コンパイルの marker / expression site が
             // 次回に漏れないよう、 両 registry をクリアする (task-008, task-017)。

@@ -27,7 +27,7 @@ import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
  * 8. Default 値が使われるパラメータ (call site で省略)
  *
  * filler ([FillerBuilderTest]) と ユーザ定義 (本テスト) を分けて検証することで、
- * `K2000CapturedSourcesRewriter.buildMarkerInstance` の分岐両側を担保する。
+ * `K200CapturedSourcesRewriter.buildMarkerInstance` の分岐両側を担保する。
  */
 class UserArgIrBuilderTest : FunSpec({
 

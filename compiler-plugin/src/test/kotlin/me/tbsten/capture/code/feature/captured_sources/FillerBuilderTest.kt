@@ -19,7 +19,7 @@ import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
  *    書き換わって 1 件以上の annotation instance を返すこと、各 filler の値が想定通りに埋まって
  *    いることを assert
  *
- * `K2000CapturedSourcesCollector` (collector) / `K2000CapturedSourcesRewriter` (rewriter) /
+ * `K200CapturedSourcesCollector` (collector) / `K200CapturedSourcesRewriter` (rewriter) /
  * `filler/SourceFillerBuilder` `SourceLocationFillerBuilder` `CaptureKindFillerBuilder`
  * の合流地点を確認する smoke test の集合。
  *

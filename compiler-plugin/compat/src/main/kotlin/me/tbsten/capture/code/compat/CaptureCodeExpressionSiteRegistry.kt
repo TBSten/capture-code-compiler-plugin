@@ -83,7 +83,7 @@ public object CaptureCodeExpressionSiteRegistry {
     /**
      * 指定 [markerFqn] と [filePath] にマッチする site を、`startOffset` 昇順で返す。
      *
-     * IR phase の `K2000CapturedSourcesCollector` (file 単位で走る) からは file path を指定して
+     * IR phase の `K200CapturedSourcesCollector` (file 単位で走る) からは file path を指定して
      * 取り出すため、本 method は **file + marker** の 2 軸で filter する。
      */
     public fun sitesFor(markerFqn: String, filePath: String): List<Site> =

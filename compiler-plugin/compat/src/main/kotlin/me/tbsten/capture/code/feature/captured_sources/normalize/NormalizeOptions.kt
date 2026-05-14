@@ -8,7 +8,7 @@ package me.tbsten.capture.code.feature.captured_sources.normalize
  *
  * task-018 で導入された [me.tbsten.capture.code.CaptureCodePluginConfig] (compiler-plugin main module)
  * から起源別の [NormalizeOptions] へ投影する glue は task-013 の compat-k2000 wire up で
- * `K2000CapturedSourcesRewriter.toNormalizeOptions` 相当として実装されている。
+ * `K200CapturedSourcesRewriter.toNormalizeOptions` 相当として実装されている。
  *
  * @property dedent 全行の最小インデント幅 (空白行を除く) を計算し、各行から削除する。
  * @property trimBlankEdges 先頭/末尾の空白行を drop する。中間の空白行は維持される。

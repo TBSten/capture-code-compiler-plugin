@@ -1,5 +1,6 @@
 package me.tbsten.capture.code.feature.capturedsources.checker
 
+import me.tbsten.capture.code.compat.CaptureCodeCompatHolder
 import me.tbsten.capture.code.error.CapturedSourcesCheckerDiagnostics
 import me.tbsten.capture.code.feature.capturedsources.CaptureCodeCallableIds
 import me.tbsten.capture.code.fir.marker.CaptureCodeMetaAnnotation
@@ -17,7 +18,6 @@ import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
 import org.jetbrains.kotlin.fir.types.coneTypeOrNull
-import org.jetbrains.kotlin.fir.types.toRegularClassSymbol
 
 /**
  * Logic G: `capturedSources<T>()` 呼び出しに対する FIR checker。
@@ -44,7 +44,7 @@ import org.jetbrains.kotlin.fir.types.toRegularClassSymbol
  *
  * という戦略を取る。これは declaration の visit 順に依存しない確実な方法。
  *
- * registry の方は IR phase (Logic H = `K2000CapturedSourcesTransformer`) で「書き換え対象 marker
+ * registry の方は IR phase (Logic H = `K200CapturedSourcesTransformer`) で「書き換え対象 marker
  * かどうか」を判定する用途で引き続き利用される (IR phase は FIR 完了後なので race-free)。
  *
  * ## 対象判定
@@ -77,7 +77,10 @@ internal object CapturedSourcesCallChecker : FirExpressionChecker<FirFunctionCal
         val typeArgument = expression.firstTypeArgumentOrNull() ?: return
 
         // 4) `T` の class symbol を解決 (annotation を読むため)
-        val classSymbol = typeArgument.toRegularClassSymbol(context.session)
+        //    task-030 v2: `toRegularClassSymbol` extension の package 移動 drift (D2) は
+        //    CompatContext.toRegularClassSymbolOrNull 経由で吸収。
+        val compat = CaptureCodeCompatHolder.context
+        val classSymbol = compat.toRegularClassSymbolOrNull(typeArgument, context.session)
         if (classSymbol == null) {
             // ClassId は取れるが class symbol を解決できない (= 型推論失敗 / star projection など) ケース。
             // 他の checker が型エラーを報告する前提でここはスキップ。
@@ -88,7 +91,8 @@ internal object CapturedSourcesCallChecker : FirExpressionChecker<FirFunctionCal
         if (classSymbol.hasCaptureCodeMeta(context.session)) return
 
         // 6) 違反: error を報告
-        val classId = classSymbol.classId
+        //    task-030 v2: classId accessor の将来 drift 対策 (D3) で CompatContext 経由化。
+        val classId = compat.classIdOf(classSymbol) ?: return
         reporter.reportOn(
             source = expression.source,
             factory = CapturedSourcesCheckerDiagnostics.CAPTURED_SOURCES_T_NOT_CAPTURE_CODE_MARKER,
