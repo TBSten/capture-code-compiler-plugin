@@ -1,6 +1,7 @@
 plugins {
     id("buildsrc.convention.kotlin-jvm")
     `java-gradle-plugin`
+    id("buildsrc.convention.publish")
 }
 
 // ----------------------------------------------------------------------------
@@ -58,5 +59,34 @@ gradlePlugin {
             description = "Kotlin compiler plugin for capturing source code"
             implementationClass = "me.tbsten.capture.code.gradle.CaptureCodeGradlePlugin"
         }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// task-037: Maven Central publish 設定
+//
+// `java-gradle-plugin` plugin は標準で 2 つの publication を自動生成する:
+//   1. main publication (artifactId = project.name = "gradle-plugin")
+//   2. plugin marker publication (artifactId = `<plugin-id>.gradle.plugin`、
+//      = "me.tbsten.capture.code.gradle.plugin"、 これにより
+//      `plugins { id("me.tbsten.capture.code") version "..." }` syntax が動く)
+//
+// vanniktech plugin は `java-gradle-plugin` を検出して `GradlePlugin` mode に
+// 自動切替し、 上記 2 publication 両方に共通 POM を付与する。 ここでは
+// coordinates の groupId / artifactId / version のみ override する。
+//
+// Gradle Plugin Portal への publish (`com.gradle.plugin-publish` plugin) は
+// 本 ticket スコープ外 (task-038 or 別 ticket)。 Maven Central に publish した
+// plugin marker でも `plugins {}` syntax は動く (settings.gradle.kts の
+// `pluginManagement { repositories { mavenCentral() } }` 経由)。
+// ----------------------------------------------------------------------------
+mavenPublishing {
+    // coordinates は `project.group:project.name:project.version` (root 集約値) を
+    // そのまま使用 (`:annotation` と同じ理由 — SSOT 維持)。 plugin marker 側の
+    // artifactId (`me.tbsten.capture.code.gradle.plugin`) は java-gradle-plugin
+    // が自動生成する。
+    pom {
+        name.set("Capture Code Gradle plugin")
+        description.set("Gradle plugin wrapper for the Capture Code Kotlin compiler plugin")
     }
 }
