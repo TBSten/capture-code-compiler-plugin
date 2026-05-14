@@ -16,7 +16,7 @@ import org.jetbrains.kotlin.gradle.plugin.getKotlinPluginVersion
  * - **Kotlin version guard** ([checkKotlinVersionOrFail]): project の Kotlin プラグイン
  *   バージョンが本 plugin のサポート範囲を逸脱していたら警告 / エラーで通知する。 戦略 B
  *   (compat module 分離) を採用しているため、 実 dispatch は ServiceLoader 経由で行われ、
- *   gradle-plugin は version 検出のみ責務を持つ ([[task-029]] / [[task-031]])。
+ *   gradle-plugin は version 検出のみ責務を持つ。
  * - `:annotation:` runtime 依存の自動追加 (commonMain or implementation)
  * - [CaptureCodeExtension] (DSL) の登録
  * - [applyToCompilation] で DSL の値を `SubpluginOption` に変換し、CommandLineProcessor に渡す

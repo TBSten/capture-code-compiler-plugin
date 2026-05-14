@@ -12,7 +12,7 @@ import org.jetbrains.kotlin.gradle.plugin.SubpluginOption
 /**
  * `:gradle-plugin` の sanity test。
  *
- * task-026 (KMP integration test 化) の縮退方針 (build.gradle.kts コメント参照):
+ * テストレイヤの役割分担 (build.gradle.kts のコメントも参照):
  *
  * - **#101〜#105 の挙動検証** は `:integration-test:test-kmp:jvmTest` で完結。
  * - 本 test は **Gradle plugin の DSL 配線** だけを ProjectBuilder で verify する。
@@ -63,7 +63,7 @@ class CaptureCodeGradlePluginTest : StringSpec({
 
         artifact.groupId shouldBe "me.tbsten.capture.code"
         artifact.artifactId shouldBe "compiler-plugin"
-        // バージョンは現状 hard-coded。 task-037 (Maven Central publishing) で
+        // バージョンは現状 hard-coded。 Maven Central publishing の整備に伴って
         // BuildConfig 注入に置き換える予定 (CaptureCodeGradlePlugin.kt の TODO 参照)。
         artifact.version shouldContain "0."
     }
@@ -124,7 +124,7 @@ class CaptureCodeGradlePluginTest : StringSpec({
         project.extensions.findByName(CaptureCodeExtension.EXTENSION_NAME) shouldNotBe null
     }
 
-    // ## Kotlin version guard (task-031)
+    // ## Kotlin version guard
     //
     // CaptureCodeGradlePlugin#checkKotlinVersionOrFail は KGP の getKotlinPluginVersion() を
     // 呼ぶ private 関数。 ProjectBuilder では KGP が apply されていないため、 直接 plugin#apply
