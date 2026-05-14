@@ -8,47 +8,47 @@ import me.tbsten.capture.code.SourceLocation
 import me.tbsten.capture.code.capturedSources
 
 // ============================================================================
-// ケース62: 同一モジュールでサブパッケージから marker を使う
+// 同一モジュールでサブパッケージから marker を使う
 // 本来は別パッケージで marker を定義するが、本テストでは同一パッケージで代用。
 // (パッケージ違いを厳密に評価する case は、別ディレクトリのテストファイルで対応する)
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Endpoint_Case62(
+internal annotation class SubpackageEndpoint(
     val source: Source = Source(),
     val location: SourceLocation = SourceLocation(),
 )
 
-@Endpoint_Case62
-fun case62_listUsers(): List<String> = emptyList()
+@SubpackageEndpoint
+fun subpackageListUsers(): List<String> = emptyList()
 
 // ============================================================================
-// ケース63: 異なる関数内から複数回 capturedSources<T>() を呼ぶ
-// ============================================================================
-@CaptureCode
-@Target(AnnotationTarget.FUNCTION)
-@Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case63(val source: Source = Source())
-
-@Snippets_Case63
-fun case63_a() {
-}
-
-@Snippets_Case63
-fun case63_b() {
-}
-
-private fun case63_consumer1(): List<Snippets_Case63> = capturedSources()
-private fun case63_consumer2(): List<Snippets_Case63> = capturedSources()
-
-// ============================================================================
-// ケース69: 内部 enum 型を使った Id (Sealed-like パターン)
+// 異なる関数内から複数回 capturedSources<T>() を呼ぶ
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class HttpMethod_Case69(
+internal annotation class MultiCallSnippet(val source: Source = Source())
+
+@MultiCallSnippet
+fun multiCallA() {
+}
+
+@MultiCallSnippet
+fun multiCallB() {
+}
+
+private fun multiCallConsumer1(): List<MultiCallSnippet> = capturedSources()
+private fun multiCallConsumer2(): List<MultiCallSnippet> = capturedSources()
+
+// ============================================================================
+// 内部 enum 型を使った Id (Sealed-like パターン)
+// ============================================================================
+@CaptureCode
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.SOURCE)
+internal annotation class HttpMethodMarker(
     val verb: Verb,
     val path: String,
     val source: Source = Source(),
@@ -56,198 +56,198 @@ internal annotation class HttpMethod_Case69(
     enum class Verb { GET, POST, PUT, DELETE, PATCH }
 }
 
-@HttpMethod_Case69(verb = HttpMethod_Case69.Verb.GET, path = "/users")
-fun case69_listUsers() = "[]"
+@HttpMethodMarker(verb = HttpMethodMarker.Verb.GET, path = "/users")
+fun httpListUsers() = "[]"
 
-@HttpMethod_Case69(verb = HttpMethod_Case69.Verb.POST, path = "/users")
-fun case69_createUser() = "ok"
+@HttpMethodMarker(verb = HttpMethodMarker.Verb.POST, path = "/users")
+fun httpCreateUser() = "ok"
 
 // ============================================================================
-// ケース70: ネストした annotation パラメータ
+// ネストした annotation パラメータ
 // ============================================================================
-internal annotation class Case70_Author(val name: String, val email: String = "")
+internal annotation class DocAuthor(val name: String, val email: String = "")
 
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Doc_Case70(
-    val author: Case70_Author,
+internal annotation class DocMarker(
+    val author: DocAuthor,
     val source: Source = Source(),
 )
 
-@Doc_Case70(author = Case70_Author(name = "Tsubasa", email = "tsubasa@example.com"))
-fun case70_documented() = "ok"
+@DocMarker(author = DocAuthor(name = "Tsubasa", email = "tsubasa@example.com"))
+fun documentedFn() = "ok"
 
 // ============================================================================
-// ケース71: 0 個の宣言 (filler 値だけが意味を持つ場合)
+// 0 個の宣言 (filler 値だけが意味を持つ場合)
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class TrackPosition_Case71(
+internal annotation class TrackPositionMarker(
     val location: SourceLocation = SourceLocation(),
 )
 
-@TrackPosition_Case71
-val case71_tracked = "hello"
+@TrackPositionMarker
+val trackedValue = "hello"
 
 // ============================================================================
-// ケース72: file annotation + 同モジュール内の declaration annotation 混在
-// 本テストでは file annotation を別ファイル (case72/FileLevel.kt) で扱う
+// file annotation + 同モジュール内の declaration annotation 混在
+// 本テストでは file annotation を別ファイル (filescope/FileLevel.kt) で扱う
 // declaration annotation はここで宣言
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FILE, AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case72(
+internal annotation class FileAndFunctionSnippet(
     val source: Source = Source(),
     val kind: me.tbsten.capture.code.CaptureKind = me.tbsten.capture.code.CaptureKind(),
 )
 
-@Snippets_Case72
-fun case72_pure() = 1
+@FileAndFunctionSnippet
+fun fileAndFunctionPure() = 1
 
 // ============================================================================
-// ケース73: private marker をファイル内だけで使う
+// private marker をファイル内だけで使う
 // (private にすると同ファイルからしか参照できないので、テスト関数で取得関数を用意)
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-private annotation class LocalOnly_Case73(val source: Source = Source())
+private annotation class FileScopedPrivateSnippet(val source: Source = Source())
 
-@LocalOnly_Case73
-private fun case73_a() = 1
+@FileScopedPrivateSnippet
+private fun fileScopedA() = 1
 
-@LocalOnly_Case73
-private fun case73_b() = 2
+@FileScopedPrivateSnippet
+private fun fileScopedB() = 2
 
-private fun case73_collect(): List<LocalOnly_Case73> = capturedSources()
+private fun fileScopedCollect(): List<FileScopedPrivateSnippet> = capturedSources()
 
 // ============================================================================
-// ケース74: 同一ファイル内に複数 private marker
+// 同一ファイル内に複数 private marker
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-private annotation class Foo_Case74(val source: Source = Source())
+private annotation class LocalFoo(val source: Source = Source())
 
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-private annotation class Bar_Case74(val source: Source = Source())
+private annotation class LocalBar(val source: Source = Source())
 
-@Foo_Case74
-private fun case74_foo1() {
+@LocalFoo
+private fun localFoo1() {
 }
 
-@Foo_Case74
-private fun case74_foo2() {
+@LocalFoo
+private fun localFoo2() {
 }
 
-@Bar_Case74
-private fun case74_bar1() {
+@LocalBar
+private fun localBar1() {
 }
 
-private fun case74_collectFoo(): List<Foo_Case74> = capturedSources()
-private fun case74_collectBar(): List<Bar_Case74> = capturedSources()
+private fun collectLocalFoo(): List<LocalFoo> = capturedSources()
+private fun collectLocalBar(): List<LocalBar> = capturedSources()
 
 // ============================================================================
-// ケース75: 単一行に property 2 つ ⇒ 各々 location 取得
+// 単一行に property 2 つ ⇒ 各々 location 取得
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case75(
+internal annotation class SingleLineMultiPropertySnippet(
     val location: SourceLocation = SourceLocation(),
 )
 
-@Snippets_Case75 val case75_p1 = 1; @Snippets_Case75 val case75_p2 = 2
+@SingleLineMultiPropertySnippet val singleLineP1 = 1; @SingleLineMultiPropertySnippet val singleLineP2 = 2
 
 // ============================================================================
-// ケース76: 関数本体内ローカル関数のキャプチャ (ローカル宣言)
+// 関数本体内ローカル関数のキャプチャ (ローカル宣言)
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Snippets_Case76(val source: Source = Source())
+internal annotation class LocalFunctionSnippet(val source: Source = Source())
 
-fun case76_outer() {
-    @Snippets_Case76
+fun localFunctionOuter() {
+    @LocalFunctionSnippet
     fun localHelper(x: Int) = x * 2
     localHelper(3)
 }
 
 // ============================================================================
-// ケース77: 同じ marker を使って 2 種類の location を区別 (api と admin)
+// 同じ marker を使って 2 種類の location を区別 (api と admin)
 // 本テストでは同一パッケージで宣言。location 上のパッケージ違いは省略。
 // ============================================================================
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
-internal annotation class Endpoint_Case77(
+internal annotation class LocationDistinctEndpoint(
     val path: String,
     val source: Source = Source(),
     val location: SourceLocation = SourceLocation(),
 )
 
-@Endpoint_Case77(path = "/api/v1/users")
-fun case77_apiUsers() = "[]"
+@LocationDistinctEndpoint(path = "/api/v1/users")
+fun apiUsers() = "[]"
 
-@Endpoint_Case77(path = "/admin/users")
-fun case77_adminUsers() = "[]"
+@LocationDistinctEndpoint(path = "/admin/users")
+fun adminUsers() = "[]"
 
 class IntegrationCasesTest : StringSpec({
 
-    "ケース62: 同一モジュールでサブパッケージから marker を使う" {
-        val captured = capturedSources<Endpoint_Case62>()
+    "同一モジュールでサブパッケージから marker を使う" {
+        val captured = capturedSources<SubpackageEndpoint>()
         captured.size shouldBe 1
-        captured[0].source shouldBe Source(value = "fun case62_listUsers(): List<String> = emptyList()")
+        captured[0].source shouldBe Source(value = "fun subpackageListUsers(): List<String> = emptyList()")
     }
 
-    "ケース63: 異なる関数内から複数回 capturedSources<T>() を呼ぶ" {
+    "異なる関数内から複数回 capturedSources<T>() を呼ぶ" {
         val expected = listOf(
-            Snippets_Case63(source = Source(value = "fun case63_a() {\n}")),
-            Snippets_Case63(source = Source(value = "fun case63_b() {\n}")),
+            MultiCallSnippet(source = Source(value = "fun multiCallA() {\n}")),
+            MultiCallSnippet(source = Source(value = "fun multiCallB() {\n}")),
         )
-        case63_consumer1() shouldBe expected
-        case63_consumer2() shouldBe expected
+        multiCallConsumer1() shouldBe expected
+        multiCallConsumer2() shouldBe expected
     }
 
-    "ケース69: 内部 enum 型を使った Id (Sealed-like パターン)" {
-        capturedSources<HttpMethod_Case69>() shouldBe listOf(
-            HttpMethod_Case69(
-                verb = HttpMethod_Case69.Verb.GET,
+    "内部 enum 型を使った Id (Sealed-like パターン)" {
+        capturedSources<HttpMethodMarker>() shouldBe listOf(
+            HttpMethodMarker(
+                verb = HttpMethodMarker.Verb.GET,
                 path = "/users",
-                source = Source(value = "fun case69_listUsers() = \"[]\""),
+                source = Source(value = "fun httpListUsers() = \"[]\""),
             ),
-            HttpMethod_Case69(
-                verb = HttpMethod_Case69.Verb.POST,
+            HttpMethodMarker(
+                verb = HttpMethodMarker.Verb.POST,
                 path = "/users",
-                source = Source(value = "fun case69_createUser() = \"ok\""),
+                source = Source(value = "fun httpCreateUser() = \"ok\""),
             ),
         )
     }
 
-    "ケース70: ネストした annotation パラメータ" {
-        capturedSources<Doc_Case70>() shouldBe listOf(
-            Doc_Case70(
-                author = Case70_Author(name = "Tsubasa", email = "tsubasa@example.com"),
-                source = Source(value = "fun case70_documented() = \"ok\""),
+    "ネストした annotation パラメータ" {
+        capturedSources<DocMarker>() shouldBe listOf(
+            DocMarker(
+                author = DocAuthor(name = "Tsubasa", email = "tsubasa@example.com"),
+                source = Source(value = "fun documentedFn() = \"ok\""),
             ),
         )
     }
 
-    "ケース71: 0 個の宣言 (filler 値だけが意味を持つ場合)" {
-        val captured = capturedSources<TrackPosition_Case71>()
+    "0 個の宣言 (filler 値だけが意味を持つ場合)" {
+        val captured = capturedSources<TrackPositionMarker>()
         captured.size shouldBe 1
         captured[0].location.packageName shouldBe "me.tbsten.capture.code.testapp"
     }
 
-    "ケース72: file annotation + 同モジュール内の declaration annotation 混在" {
-        // file annotation 側のサイトは case72/FileLevel.kt
+    "file annotation + 同モジュール内の declaration annotation 混在" {
+        // file annotation 側のサイトは filescope/FileLevel.kt
         // 期待値: file キャプチャ + function キャプチャの両方
-        val captured = capturedSources<Snippets_Case72>()
+        val captured = capturedSources<FileAndFunctionSnippet>()
         captured.size shouldBe 2
         // kind で識別: file 起源 (FILE) と declaration 起源 (FUNCTION) が混在する
         val kinds = captured.map { it.kind.value }.toSet()
@@ -257,43 +257,43 @@ class IntegrationCasesTest : StringSpec({
         )
     }
 
-    "ケース73: private marker をファイル内だけで使う" {
-        case73_collect() shouldBe listOf(
-            LocalOnly_Case73(source = Source(value = "private fun case73_a() = 1")),
-            LocalOnly_Case73(source = Source(value = "private fun case73_b() = 2")),
+    "private marker をファイル内だけで使う" {
+        fileScopedCollect() shouldBe listOf(
+            FileScopedPrivateSnippet(source = Source(value = "private fun fileScopedA() = 1")),
+            FileScopedPrivateSnippet(source = Source(value = "private fun fileScopedB() = 2")),
         )
     }
 
-    "ケース74: 同一ファイル内に複数 private marker (Foo 側)" {
-        case74_collectFoo() shouldBe listOf(
-            Foo_Case74(source = Source(value = "private fun case74_foo1() {\n}")),
-            Foo_Case74(source = Source(value = "private fun case74_foo2() {\n}")),
+    "同一ファイル内に複数 private marker (Foo 側)" {
+        collectLocalFoo() shouldBe listOf(
+            LocalFoo(source = Source(value = "private fun localFoo1() {\n}")),
+            LocalFoo(source = Source(value = "private fun localFoo2() {\n}")),
         )
     }
 
-    "ケース74: 同一ファイル内に複数 private marker (Bar 側)" {
-        case74_collectBar() shouldBe listOf(
-            Bar_Case74(source = Source(value = "private fun case74_bar1() {\n}")),
+    "同一ファイル内に複数 private marker (Bar 側)" {
+        collectLocalBar() shouldBe listOf(
+            LocalBar(source = Source(value = "private fun localBar1() {\n}")),
         )
     }
 
     // 同一行 multi-property 対応 (token ベース skipLeadingAnnotationLines による実装)。
     // 1 番目の property は IR の endOffset が `;` を含むため source に `;` が残るが、 capture は成立する。
-    "ケース75: 単一行に property 2 つ ⇒ 各々 location 取得" {
-        val captured = capturedSources<Snippets_Case75>()
+    "単一行に property 2 つ ⇒ 各々 location 取得" {
+        val captured = capturedSources<SingleLineMultiPropertySnippet>()
         captured.size shouldBe 2
         // 両方 同一行であることを確認 (行番号は実ファイル位置依存なので一致のみ)
         captured[0].location.startLine shouldBe captured[1].location.startLine
     }
 
-    "ケース76: 関数本体内ローカル関数のキャプチャ (ローカル宣言)" {
-        capturedSources<Snippets_Case76>() shouldBe listOf(
-            Snippets_Case76(source = Source(value = "fun localHelper(x: Int) = x * 2")),
+    "関数本体内ローカル関数のキャプチャ (ローカル宣言)" {
+        capturedSources<LocalFunctionSnippet>() shouldBe listOf(
+            LocalFunctionSnippet(source = Source(value = "fun localHelper(x: Int) = x * 2")),
         )
     }
 
-    "ケース77: 同じ marker を使って 2 種類の location を区別" {
-        val captured = capturedSources<Endpoint_Case77>()
+    "同じ marker を使って 2 種類の location を区別" {
+        val captured = capturedSources<LocationDistinctEndpoint>()
         captured.size shouldBe 2
         captured[0].path shouldBe "/api/v1/users"
         captured[1].path shouldBe "/admin/users"
