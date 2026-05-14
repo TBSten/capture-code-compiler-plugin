@@ -30,7 +30,7 @@ import java.io.File
  * 受けないケース)。 `:gradle-plugin` DSL 経由の attach パスと、 KMP の commonTest →
  * jvmTest hierarchy 間の compilation 配線の整合性に関わる可能性があるため、 本モジュール
  * のスコープ外として別途調査する。 既存の `:integration-test:test-kmp:jvmTest` で
- * #101-#105 は CI で継続検証されているので、 KMP の真の E2E カバレッジは保たれている。
+ * KMP の主要シナリオは CI で継続検証されているので、 KMP の真の E2E カバレッジは保たれている。
  *
  * ## 速度
  * TestKit が起動する子 Gradle build は 1 ケース 20-90 秒。
@@ -86,7 +86,7 @@ class CaptureCodeGradlePluginE2eTest : StringSpec({
         val output = result.output
         output shouldContain "TEST_RESULT_BEGIN"
         output shouldContain "TEST_RESULT_END"
-        // ケース #1 相当: marker 付き関数の本文がそのまま source として埋まる。
+        // marker 付き関数の本文がそのまま source として埋まる最小シナリオ。
         // includeAnnotationLines = false (default) のため `@Snippet` 行は含まれない、
         // 関数宣言行から始まる文字列が入る。
         output shouldContain "fun greet()"
