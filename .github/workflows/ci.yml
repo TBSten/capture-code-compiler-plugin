@@ -37,12 +37,18 @@ jobs:
           - "2.0.21"  # latest 2.0.x patch
           # === 2.1.x track ===
           - "2.1.0"
+          - "2.1.10"  # experimental (task-051): kctfork transitive embeddable 2.0.0 と drift
+          - "2.1.20"  # experimental (task-052)
           - "2.1.21"  # latest 2.1.x patch
           # === 2.2.x track (compat-k210 が 2.2.x で compile 通ることを検証) ===
           - "2.2.0"
+          - "2.2.10"  # experimental (task-055)
+          - "2.2.20"  # experimental (task-056)
           - "2.2.21"
           # === 2.3.x track (latest stable minor on 2026-05-14) ===
           - "2.3.0"
+          - "2.3.10"  # experimental (task-059)
+          - "2.3.20"  # experimental (task-060)
           - "2.3.21"
           # === pre-release (1 つだけ) ===
           - "2.4.0-RC"
@@ -97,17 +103,35 @@ jobs:
           - kotlin: "2.1.0"
             ksp: "2.1.0-1.0.29"
             experimental: true
+          - kotlin: "2.1.10"
+            ksp: "2.1.10-1.0.31"
+            experimental: true
+          - kotlin: "2.1.20"
+            ksp: "2.1.20-2.0.1"
+            experimental: true
           - kotlin: "2.1.21"
             ksp: "2.1.21-2.0.2"
             experimental: true
           - kotlin: "2.2.0"
             ksp: "2.2.0-2.0.2"
             experimental: true
+          - kotlin: "2.2.10"
+            ksp: "2.2.10-2.0.2"
+            experimental: true
+          - kotlin: "2.2.20"
+            ksp: "2.2.20-2.0.4"
+            experimental: true
           - kotlin: "2.2.21"
             ksp: "2.2.21-2.0.5"
             experimental: true
           - kotlin: "2.3.0"
             ksp: "2.3.0"
+            experimental: true
+          - kotlin: "2.3.10"
+            ksp: "2.3.8"  # KSP 2.3.10 native 未 release のため最新 2.3.x で代用
+            experimental: true
+          - kotlin: "2.3.20"
+            ksp: "2.3.8"  # KSP 2.3.20 native 未 release のため最新 2.3.x で代用
             experimental: true
           - kotlin: "2.3.21"
             ksp: "2.3.8"
