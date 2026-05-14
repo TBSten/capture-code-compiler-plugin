@@ -56,6 +56,46 @@ fun main() {
 
 ---
 
+## Per-marker option override
+
+`@CaptureCode` accepts optional parameters that **override the Gradle DSL config on a per-marker basis**. Use this when a particular marker needs different defaults (e.g. one marker should preserve indentation, another should always include KDoc) without changing the project-wide config.
+
+```kotlin
+// Force KDoc on for this marker only
+@CaptureCode(includeKdoc = CaptureCode.Override.Yes)
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.SOURCE)
+internal annotation class DocSample(val source: Source = Source())
+
+// Force dedent off so the raw indentation is preserved
+@CaptureCode(dedent = CaptureCode.Override.No)
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.SOURCE)
+internal annotation class RawSnippet(val source: Source = Source())
+```
+
+Each `@CaptureCode` parameter is a tri-state `CaptureCode.Override` enum:
+
+| Value | Effective config |
+|---|---|
+| `Override.Default` (default) | Falls through to the Gradle DSL config |
+| `Override.Yes` | Force `true` for this marker |
+| `Override.No` | Force `false` for this marker |
+
+The five parameters mirror the Gradle DSL options:
+
+| Marker parameter | Gradle DSL option |
+|---|---|
+| `includeKdoc` | `captureCode { includeKdoc }` |
+| `includeImports` | `captureCode { includeImports }` |
+| `includeAnnotationLines` | `captureCode { includeAnnotationLines }` |
+| `dedent` | `captureCode { dedent }` |
+| `includeLineInfo` | `captureCode { includeLineInfo }` |
+
+Existing markers that pass no arguments (`@CaptureCode`) keep their existing behaviour — every parameter defaults to `Override.Default`, which means "use the Gradle config as before".
+
+---
+
 ## Filler types provided by the library
 
 Declare any of these as a parameter type on your marker annotation and the plugin will fill in the value. **If you don't declare it, nothing happens (opt-in).**

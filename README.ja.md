@@ -56,6 +56,46 @@ fun main() {
 
 ---
 
+## marker 単位の option override
+
+`@CaptureCode` は **marker 単位で Gradle DSL config を上書きする** ためのオプション parameter を受け取れる。 特定の marker だけ別の挙動 (例: ある marker は KDoc を必ず含める、別の marker は dedent を無効にしたい) にしたい時に、 project 全体の config を変えずに済む。
+
+```kotlin
+// この marker だけ KDoc を強制 on
+@CaptureCode(includeKdoc = CaptureCode.Override.Yes)
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.SOURCE)
+internal annotation class DocSample(val source: Source = Source())
+
+// この marker だけ dedent を強制 off (インデント保持)
+@CaptureCode(dedent = CaptureCode.Override.No)
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.SOURCE)
+internal annotation class RawSnippet(val source: Source = Source())
+```
+
+各 `@CaptureCode` parameter は 3 値 enum `CaptureCode.Override`:
+
+| 値 | 適用される config |
+|---|---|
+| `Override.Default` (デフォルト) | Gradle DSL config に従う (既存と同じ動作) |
+| `Override.Yes` | この marker は強制 `true` |
+| `Override.No` | この marker は強制 `false` |
+
+5 つの parameter は Gradle DSL の同名 option と対応:
+
+| marker parameter | Gradle DSL option |
+|---|---|
+| `includeKdoc` | `captureCode { includeKdoc }` |
+| `includeImports` | `captureCode { includeImports }` |
+| `includeAnnotationLines` | `captureCode { includeAnnotationLines }` |
+| `dedent` | `captureCode { dedent }` |
+| `includeLineInfo` | `captureCode { includeLineInfo }` |
+
+引数なしの既存 marker (`@CaptureCode`) は **完全互換**。 全 parameter が `Override.Default` で初期化されるので、 Gradle config がそのまま使われる。
+
+---
+
 ## library 提供の filler 型
 
 marker annotation のパラメータ型として宣言すれば plugin が値を埋める。**宣言しなければ何もしない (opt-in)**。
