@@ -32,6 +32,7 @@ jobs:
         kotlin:
           # === 2.0.x track ===
           - "2.0.0"   # base — SSOT, libs.versions.toml に固定
+          - "2.0.10"  # stable tier (task-047): compat-k200 が 2.0.10 native でも PASS
           - "2.0.21"  # latest 2.0.x patch
           # === 2.1.x track ===
           - "2.1.0"
@@ -67,6 +68,12 @@ jobs:
           # ------------------------------------------------------------------
           - kotlin: "2.0.0"
             ksp: "2.0.0-1.0.24"
+            experimental: false
+          # 2.0.10: D1 drift (FirLiteralExpression<T> generics) は 2.0.21 で
+          # 初めて発生するため、 2.0.10 はまだ `compat-k200` native build が
+          # 通る。 task-047 で実機検証済 → stable tier に追加。
+          - kotlin: "2.0.10"
+            ksp: "2.0.10-1.0.24"
             experimental: false
 
           # ------------------------------------------------------------------
