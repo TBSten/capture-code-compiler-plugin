@@ -13,10 +13,10 @@ import me.tbsten.capture.code.compat.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
 
 /**
- * task-017 で導入する **expression annotation** (`@Marker (expr)`) の挙動を kctfork で
+ * **Expression annotation** (`@Marker (expr)`) の挙動を kctfork で
  * end-to-end 検証する。
  *
- * 全体方針 (task-009 spike + design §5 Logic B-fir):
+ * 全体方針 (design §5 Logic B-fir):
  * - FIR phase で `FirBasicExpressionChecker` が `(filePath, startOffset, endOffset, markerFqn, ...)`
  *   を `CaptureCodeExpressionSiteRegistry` に push する
  * - IR phase の `K200CapturedSourcesCollector.collectExpressionSites()` が registry を読み、
@@ -75,8 +75,8 @@ class ExpressionAnnotationTest : FunSpec({
     //
     // 注記: K2 parser は `@CaptureMin (1 + 2 + 3)` を annotation constructor argument
     // `CaptureMin(1 + 2 + 3)` として greedy に解釈し、Source 型と Int 型の不一致で
-    // COMPILATION_ERROR になる (task-009 spike Case A 観察結果)。`@CaptureMin()` で明示的に
-    // 空 argument list を渡すと parser が annotation 終端を認識する。本 ticket は **`@Marker()`
+    // COMPILATION_ERROR になる (expression annotation spike Case A 観察結果)。`@CaptureMin()` で明示的に
+    // 空 argument list を渡すと parser が annotation 終端を認識する。本プラグインは **`@Marker()`
     // を推奨する** こととし、design §7.8 の「`@Foo run { ... }` または `@Foo ({ ... })` のように
     // 式として括る」 を補強する形 で `@Marker() expr` ガイドラインを採用する。
     // ----------------------------------------------------------------

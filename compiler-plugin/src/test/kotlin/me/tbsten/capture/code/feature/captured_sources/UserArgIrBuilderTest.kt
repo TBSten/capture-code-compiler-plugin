@@ -8,7 +8,7 @@ import io.kotest.matchers.shouldBe
 import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
 
 /**
- * task-014 で導入されたユーザ定義パラメータの IR 化を end-to-end で検証する。
+ * ユーザ定義パラメータの IR 化を end-to-end で検証する。
  *
  * `UserArgIrBuilder` 自体は `:compat-k2000` の内部実装 (internal object) のため、
  * 直接 unit test するのが難しい。代わりに本テストでは kctfork で marker class に

@@ -11,7 +11,7 @@ import io.kotest.matchers.string.shouldNotContain
 import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
 
 /**
- * task-016 で導入する **file annotation** (`@file:Marker`) の挙動を kctfork で end-to-end 検証する。
+ * **File annotation** (`@file:Marker`) の挙動を kctfork で end-to-end 検証する。
  *
  * `IrFile.annotations` 経由で marker を発見し、ファイル全体テキスト (`SourceTextExtractor.loadFileText`)
  * を `SourceNormalizer.normalize(NormalizeOptions.FILE_DEFAULT)` で正規化した結果が `Source(value)`
@@ -21,8 +21,8 @@ import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
  * ## 非対象 (本ファイル scope 外)
  *
  * - declaration 起源との混在ケース: integration-test の `IntegrationCasesTest#ケース72` で確認
- * - `includeImports = true` で package / import 行を残す path: task-018 の Gradle DSL 配線とは別 ticket
- * - 式 annotation: task-017
+ * - `includeImports = true` で package / import 行を残す path: Gradle DSL 配線の別経路で確認
+ * - 式 annotation: [me.tbsten.capture.code.feature.captured_expression.ExpressionAnnotationTest] で確認
  */
 class FileAnnotationTest : FunSpec({
 

@@ -8,7 +8,7 @@ import io.kotest.matchers.shouldBe
 import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
 
 /**
- * task-012 で拡張した宣言ターゲット 5 種 (class / object / function / typealias) と、
+ * 宣言ターゲット 5 種 (property / class / object / function / typealias) と、
  * filler 未指定 marker (ケース #8 相当) のキャプチャを kctfork で end-to-end 検証する。
  *
  * 各テストは:
@@ -20,7 +20,7 @@ import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
  *
  * Logic B-ir (collector) / Logic C (source 取得) / Logic H (rewriter) を declaration kind ごとに通す
  * smoke test の集合。`SourceLocation` / `CaptureKind` filler / ユーザ定義パラメータ / dedent
- * (Logic D) は対象外 (それぞれ task-013 / task-014 / task-015 の責務)。
+ * (Logic D) は対象外 (それぞれ専用テストで検証する)。
  */
 class AllDeclarationTargetsTest : FunSpec({
 
@@ -195,11 +195,11 @@ class AllDeclarationTargetsTest : FunSpec({
     }
 
     // ----------------------------------------------------------------
-    // 5. inline value class (`@JvmInline value class`) のキャプチャ (task-041)
+    // 5. inline value class (`@JvmInline value class`) のキャプチャ
     //
-    // task-041 で skipLeadingAnnotationLines が marker annotation だけを skip するように変更され、
-    // `@JvmInline` のような **semantic-significant な Kotlin 標準 annotation** は source に残る
-    // 仕様になった。inline value class は `@JvmInline` 無しでは valid な定義にならないため、
+    // `skipLeadingAnnotationLines` は marker annotation のみを skip し、
+    // `@JvmInline` のような **semantic-significant な Kotlin 標準 annotation** は source に残す。
+    // inline value class は `@JvmInline` 無しでは valid な定義にならないため、
     // source として `@JvmInline\nvalue class Foo(...)` の形を保つ必要がある。
     // ----------------------------------------------------------------
     test("inline value class declaration is captured with @JvmInline preserved") {
@@ -241,7 +241,7 @@ class AllDeclarationTargetsTest : FunSpec({
     //
     // 線形 skip 実装の都合上、 先頭の marker 行群を skip した後に出現する非 marker annotation
     // (`@Suppress("unused")` 等) はそのまま source に残る。 spec 上「marker 行のみ drop し、
-    // それ以外の annotation は意味を持つので残す」が task-041 の合意。
+    // それ以外の annotation は意味を持つので残す」が本プラグインの方針。
     // ----------------------------------------------------------------
     test("non-marker annotations following the marker are preserved") {
         val result = compile(
@@ -278,16 +278,14 @@ class AllDeclarationTargetsTest : FunSpec({
     }
 
     // ----------------------------------------------------------------
-    // 7. 同一行に複数 property (`@Marker val p1 = 1; @Marker val p2 = 2`) のキャプチャ (task-043)
+    // 7. 同一行に複数 property (`@Marker val p1 = 1; @Marker val p2 = 2`) のキャプチャ
     //
-    // task-041 で marker-aware にした skipLeadingAnnotationLines は、 marker 行を「次の改行まで」
-    // 線形に skip していたため、 同一行に 2 つの property を `;` 区切りで並べると 1 番目の
-    // declaration の endOffset を超えて読みすぎ、 substring 取得が null になり capture できなかった。
-    // task-043 で token ベースの skip に切り替え、 marker annotation 本体 (+ optional `(...)`) と
-    // 直後の whitespace のみを吸収するように修正。 同一行 multi-property 形式でも各 property を
-    // 独立に capture できるようになった。
+    // skipLeadingAnnotationLines は token ベースで、 marker annotation 本体 (+ optional `(...)`) と
+    // 直後の whitespace のみを吸収する。 これにより同一行 multi-property 形式でも各 property を
+    // 独立に capture できる。 ナイーブな「次の改行まで skip」実装では 1 番目の declaration の
+    // endOffset を超えて読みすぎ、 substring 取得が null になり capture できないという罠がある。
     // ----------------------------------------------------------------
-    test("multiple properties on a single line are each captured (task-043)") {
+    test("multiple properties on a single line are each captured") {
         val result = compile(
             SourceFile.kotlin(
                 "MultiPropOneLine.kt",
@@ -316,7 +314,7 @@ class AllDeclarationTargetsTest : FunSpec({
         val captured = loadCaptured(result)
         captured.size shouldBe 2
         // 1 番目の property は IR 上の endOffset が `;` を含むため source に `;` が残る。
-        // 同一行 multi-property は珍しい形式なので、 trailing `;` の整形は別 ticket スコープとする。
+        // 同一行 multi-property は珍しい形式なので、 trailing `;` の整形は将来の polish item とする。
         captureSourceValue(captured[0] as Annotation) shouldBe "val mlP1 = 1;"
         captureSourceValue(captured[1] as Annotation) shouldBe "val mlP2 = 2"
     }

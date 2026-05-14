@@ -9,7 +9,7 @@ import io.kotest.matchers.string.shouldContain
 import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
 
 /**
- * task-010 (Logic F) — `MarkerAnnotationChecker` の unit test。
+ * Logic F — `MarkerAnnotationChecker` の unit test。
  *
  * `compiler-plugin-design.md` §5 Logic F に列挙された 6 種類の制約違反パターンそれぞれを
  * negative test として確認する。さらに正常系 (規約通りの marker) で error が出ないことも

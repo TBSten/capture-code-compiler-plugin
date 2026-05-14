@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 
 /**
- * task-009 spike 専用の compiler plugin registrar。
+ * Expression annotation spike 専用の compiler plugin registrar。
  *
  * production の [me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar] には触らず、
  * 観察用の FIR / IR extension のみを登録する。

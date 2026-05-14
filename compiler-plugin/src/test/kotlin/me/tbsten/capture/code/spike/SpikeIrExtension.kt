@@ -20,7 +20,7 @@ import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 
 /**
- * task-009 spike: IR phase での観察用 [IrGenerationExtension]。
+ * Expression annotation spike: IR phase での観察用 [IrGenerationExtension]。
  *
  * production code には流さない (test 専用)。observation を [SpikeReport] に push する。
  *

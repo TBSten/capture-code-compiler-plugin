@@ -22,9 +22,9 @@ dependencies {
 
     // `:compat` は compile 時に必要な API (CaptureCompat / CompilerCompat 等) を提供。
     // shadowJar 経由で同梱されるため、 publish 時の POM には流出させない。
-    // task-037: `implementation` だと runtimeElements 経由で POM に出てしまい、
+    // `implementation` だと runtimeElements 経由で POM に出てしまい、
     // 受け取った consumer が `me.tbsten.capture.code:compat` を解決しようとして
-    // 失敗する。 そのため `compileOnly` + `bundled` の組合せに変更し、
+    // 失敗する。 そのため `compileOnly` + `bundled` の組合せにし、
     // shadowJar には bundled で同梱、 POM 上は依存無しとして扱う。
     compileOnly(project(":compiler-plugin:compat"))
     bundled(project(":compiler-plugin:compat"))
@@ -36,7 +36,7 @@ dependencies {
     testImplementation(project(":annotation"))
     // Unit test では shadow JAR ではなく素の classpath を使うので、
     // compat 実装モジュールも明示的に testImplementation に含める。
-    // task-037: main の `compat` は `compileOnly` + `bundled` に切り替えたため、
+    // main の `compat` は `compileOnly` + `bundled` で扱っているため、
     // test classpath には別途 `:compat` を追加する必要がある。
     testImplementation(project(":compiler-plugin:compat"))
     testImplementation(project(":compiler-plugin:compat-k200"))
@@ -76,7 +76,7 @@ tasks.named("assemble") {
 }
 
 // ----------------------------------------------------------------------------
-// task-037: Maven Central publish 設定
+// Maven Central publish 設定
 //
 // `:compiler-plugin` の main artifact は **shadowJar** (compat-k200 / compat-k210
 // を同梱した一枚 JAR)。 上の `runtimeElements` / `apiElements` の outgoing

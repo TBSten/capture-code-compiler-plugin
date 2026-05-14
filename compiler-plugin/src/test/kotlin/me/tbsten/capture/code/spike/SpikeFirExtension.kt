@@ -15,7 +15,7 @@ import org.jetbrains.kotlin.fir.types.classId
 import org.jetbrains.kotlin.fir.types.coneType
 
 /**
- * task-009 spike: FIR phase での観察用 extension。
+ * Expression annotation spike: FIR phase での観察用 extension。
  *
  * `FirBasicExpressionChecker` を実装して全 expression を訪問し、 `expression.annotations` を観察する。
  * これにより:

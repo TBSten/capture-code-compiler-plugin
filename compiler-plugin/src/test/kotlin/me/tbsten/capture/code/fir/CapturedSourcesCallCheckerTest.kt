@@ -12,7 +12,6 @@ import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
 /**
  * Logic G (`capturedSources<T>()` の FIR checker) の unit test。
  *
- * task-011 で追加した
  * [me.tbsten.capture.code.feature.capturedsources.checker.CapturedSourcesCallChecker] が、
  * `T` が `@CaptureCode` メタ付き marker かどうかに応じて適切に compile error を出すか検証する。
  *

@@ -6,7 +6,7 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 
 /**
- * task-034 (Phase 5 polish) — 診断メッセージの bilingual SSOT に対する snapshot test。
+ * 診断メッセージの bilingual SSOT に対する snapshot test。
  *
  * [CaptureCodeDiagnosticMessages] の各 [BilingualMessage] について、英語 / 日本語 / 併記
  * モードで rendering 結果を固定化する。将来 phrasing を変更する際に「うっかり test の

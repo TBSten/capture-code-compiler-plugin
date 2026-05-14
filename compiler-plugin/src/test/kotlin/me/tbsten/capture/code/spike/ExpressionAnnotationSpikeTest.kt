@@ -8,12 +8,12 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /**
- * task-009 spike: 式 annotation `@Marker (expr)` が FIR / IR phase でどう扱われるかを実機検証する。
+ * 式 annotation `@Marker (expr)` が FIR / IR phase でどう扱われるかを実機検証する spike。
  *
  * 本テストは「assertion で挙動を縛る」のではなく、「kctfork で実機 compile して何が観測できるかを
  * `.local/tmp/expression-annotation-spike-<date>.md` に記録する」ことが目的。
  *
- * 観察項目 (ticket task-009 の (a)-(g)):
+ * 観察項目 (a)-(g):
  * - (a) FIR phase で `FirStatement.annotations` に式 annotation が乗るか
  * - (b) IR phase で `IrExpression.annotations` (経由 [org.jetbrains.kotlin.ir.declarations.IrAnnotationContainer]) に
  *       式 annotation が残るか
@@ -23,7 +23,7 @@ import java.time.format.DateTimeFormatter
  * - (f) `@Marker run { ... }` / `@Marker ({ ... })` の挙動差
  * - (g) 1 行に式 annotation が複数あるケース
  *
- * R3 (LightTree モード) は本 ticket では正攻法での切り替え API が compile 環境から制御し辛いため、
+ * R3 (LightTree モード) は本 spike では正攻法での切り替え API が compile 環境から制御し辛いため、
  * `useLightTree` フラグ相当の確認は別途 follow-up とし、本 spike では PSI 経路がメインの確認となる。
  * (kctfork は default で K2 + PSI mode で compile する。)
  */
@@ -40,7 +40,7 @@ class ExpressionAnnotationSpikeTest : FunSpec({
     val date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
     val outputFile = File(outDir, "expression-annotation-spike-$date.md")
     val accumulator = StringBuilder().apply {
-        appendLine("# task-009 spike: 式 annotation の FIR / IR 残存性 + offset 挙動")
+        appendLine("# spike: 式 annotation の FIR / IR 残存性 + offset 挙動")
         appendLine()
         appendLine("生成日: ${LocalDate.now()}")
         appendLine("Kotlin: 2.0.0 (kotlin-compiler-embeddable)")
@@ -287,7 +287,7 @@ class ExpressionAnnotationSpikeTest : FunSpec({
         accumulator.appendLine("## 結論 (本 spike の自動生成サマリ)")
         accumulator.appendLine()
         accumulator.appendLine("- 観察項目 (a)-(g) の生データは上記各ケースを参照。")
-        accumulator.appendLine("- task-017 で採用する設計方針は ticket task-009 末尾 `## 完了メモ` に記載。")
+        accumulator.appendLine("- expression annotation の設計方針は design 文書 §5 Logic B-fir を参照。")
         outputFile.writeText(accumulator.toString())
         println("[spike] wrote observation log to ${outputFile.absolutePath}")
     }

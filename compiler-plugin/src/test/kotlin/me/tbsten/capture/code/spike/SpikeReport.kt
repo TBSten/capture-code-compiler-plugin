@@ -1,7 +1,7 @@
 package me.tbsten.capture.code.spike
 
 /**
- * task-009 spike の観察結果を蓄積するための SSOT データ構造。
+ * Expression annotation spike の観察結果を蓄積するための SSOT データ構造。
  *
  * IR phase / FIR phase の両方の観察者が単一の [SpikeReport] にレコードを push し、
  * 最後にテストドライバが [toMarkdown] でフォーマットして `.local/tmp/...` に書き出す。

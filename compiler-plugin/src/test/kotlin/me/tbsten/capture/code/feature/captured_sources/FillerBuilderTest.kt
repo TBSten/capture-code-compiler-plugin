@@ -9,7 +9,7 @@ import io.kotest.matchers.shouldBe
 import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
 
 /**
- * task-013 で導入された filler 自動値埋め (`Source` / `SourceLocation` / `CaptureKind`) を
+ * filler 自動値埋め (`Source` / `SourceLocation` / `CaptureKind`) を
  * kctfork で end-to-end 検証する。
  *
  * 各テストは:
@@ -23,10 +23,10 @@ import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
  * `filler/SourceFillerBuilder` `SourceLocationFillerBuilder` `CaptureKindFillerBuilder`
  * の合流地点を確認する smoke test の集合。
  *
- * ## ユーザ定義パラメータとの境界 (task-014 で拡張)
+ * ## ユーザ定義パラメータとの境界
  *
  * 本テストの marker はいずれも **filler 型のみ** をパラメータに持つ。ユーザ定義パラメータが
- * 混在する場合の挙動は task-014 で追加する。
+ * 混在する場合の挙動は [UserArgIrBuilderTest] で確認する。
  */
 class FillerBuilderTest : FunSpec({
 

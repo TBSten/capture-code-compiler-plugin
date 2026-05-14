@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// task-037: この module は **publish しない** (internal)。
+// この module は **publish しない** (internal)。
 //
 // `:compiler-plugin` の shadowJar に `bundled` configuration 経由で同梱され、
 // 1 つの artifact (`me.tbsten.capture.code:compiler-plugin`) として配布される。

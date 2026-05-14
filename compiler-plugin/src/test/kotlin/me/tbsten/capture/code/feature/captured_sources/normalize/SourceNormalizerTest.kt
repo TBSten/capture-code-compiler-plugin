@@ -290,7 +290,7 @@ import a.b"""
     }
 
     // -----------------------------------------------------------------
-    // task-042: stripKdoc (Logic D safety net) — KDoc が含まれた input を除外
+    // stripKdoc (Logic D safety net) — KDoc が含まれた input を除外
     // -----------------------------------------------------------------
     "kdoc strip: 単行 KDoc (`/** ... */`) を drop" {
         val raw = "/** simple */\nval x = 1"
@@ -399,7 +399,7 @@ class SourceNormalizerHelpersTest : StringSpec({
             listOf("val x = 1", "@Bar")
     }
 
-    // task-042: stripLeadingKdocLines
+    // stripLeadingKdocLines
     "stripLeadingKdocLines: 単行 KDoc を drop" {
         stripLeadingKdocLines(listOf("/** doc */", "val x = 1")) shouldBe listOf("val x = 1")
     }
@@ -427,7 +427,7 @@ class SourceNormalizerHelpersTest : StringSpec({
 })
 
 /**
- * task-042: KDoc 用 pure helper のテスト。
+ * KDoc 用 pure helper のテスト。
  */
 class KDocLookupTest : StringSpec({
     "findKDocExtendedStartOffset: KDoc が無ければ元の offset を返す" {

@@ -37,7 +37,7 @@ class CaptureCodeCompilerPluginTest : FunSpec({
     }
 
     // ----------------------------------------------------------------
-    // Logic A (task-008): @CaptureCode メタ付き annotation class が登録され、
+    // Logic A: @CaptureCode メタ付き annotation class が登録され、
     // それを付けた property をキャプチャできる (動的検出 + Logic H 連携の最小ケース)
     // ----------------------------------------------------------------
     test("dynamically discovered marker (@CaptureCode meta) on a property captures source") {
