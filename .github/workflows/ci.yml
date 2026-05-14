@@ -284,3 +284,46 @@ jobs:
             :integration-test:test-kmp:assemble \
             --no-configuration-cache \
             --stacktrace
+
+  # ---------------------------------------------------------------------------
+  # apple-targets: macos-latest runner で Apple native target
+  # (iosArm64 / iosSimulatorArm64 / iosX64 / macosArm64 / macosX64) の
+  # compile を検証する。 task-068 で追加。
+  #
+  # `enableAppleTargets=true` は :annotation / :integration-test:test-kmp
+  # の build.gradle.kts で opt-in されており、 Xcode (= macos runner) が
+  # 必須となるため core-matrix からは独立した job として分離する。
+  #
+  # 目的:
+  #   - macOS でのみ顕在化する drift (Konan cache / Apple SDK API mismatch
+  #     / iOS-only コンパイラフラグなど) を CI で継続検出する。
+  #
+  # trigger:
+  #   - push / pull_request 両方で走らせる (本 ticket scope では cost を
+  #     絞らず、 まず実証フェーズに置く)。 cost が問題になった場合は
+  #     後続 ticket で nightly / ready_for_review に絞る。
+  # ---------------------------------------------------------------------------
+  apple-targets:
+    name: "Apple native targets (Xcode)"
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Assemble Apple targets (iOS / macOS)
+        run: |
+          ./gradlew \
+            :annotation:assemble \
+            :integration-test:test-kmp:assemble \
+            -PenableAppleTargets=true \
+            --no-configuration-cache \
+            --stacktrace
