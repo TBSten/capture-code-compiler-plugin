@@ -20,7 +20,7 @@ import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
  *
  * ## 非対象 (本ファイル scope 外)
  *
- * - declaration 起源との混在ケース: integration-test の `IntegrationCasesTest#ケース72` で確認
+ * - declaration 起源との混在ケース: integration-test の IntegrationCasesTest (file annotation 系) で確認
  * - `includeImports = true` で package / import 行を残す path: Gradle DSL 配線の別経路で確認
  * - 式 annotation: [me.tbsten.capture.code.feature.captured_expression.ExpressionAnnotationTest] で確認
  */

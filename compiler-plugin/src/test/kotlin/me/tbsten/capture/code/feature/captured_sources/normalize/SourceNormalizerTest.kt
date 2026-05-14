@@ -14,7 +14,7 @@ import io.kotest.matchers.shouldBe
  * - blank trim (前後 / 中間 / 全 blank)
  * - 結合 (dedent + blank trim)
  * - エッジ (1 行 / 改行なし / 改行のみ / 空文字列 / CRLF / 全角空白)
- * - declaration ケース (ケース #33 / #34 / #35 / #36 multi-line 抜粋)
+ * - declaration ケース (クラス内メンバ関数 / 多重ネスト / sealed class multi-line 抜粋)
  * - file 起源 (`stripPackageAndImport`)
  * - declaration 起源の保険 (`stripLeadingAnnotationLines`)
  * - idempotent (二度通しても同じ)
@@ -46,7 +46,7 @@ class SourceNormalizerTest : StringSpec({
     }
 
     "dedent: 多重ネストでも最小幅でそろう (12 / 16 → 0 / 4)" {
-        // ケース #34 をモチーフ: class Outer { class Inner { class Deepest { @DeepSnippet fun deepFunc() = "deep" }}}
+        // 多重ネストをモチーフ: class Outer { class Inner { class Deepest { @DeepSnippet fun deepFunc() = "deep" }}}
         val input = "            fun deepFunc() = \"deep\""
         normalize(input, NormalizeOptions.DECLARATION_DEFAULT) shouldBe "fun deepFunc() = \"deep\""
     }
@@ -188,20 +188,20 @@ class SourceNormalizerTest : StringSpec({
     }
 
     // -----------------------------------------------------------------
-    // declaration 起源の代表ケース (ケース #33 / #34 / #36)
+    // declaration 起源の代表ケース (クラス内メンバ / 多重ネスト / sealed class)
     // -----------------------------------------------------------------
-    "case #33: クラス内のメンバ関数 dedent (IrFileEntry 範囲が `    fun ...` のとき)" {
+    "declaration: クラス内のメンバ関数 dedent (IrFileEntry 範囲が `    fun ...` のとき)" {
         val raw = "    fun findById(id: Int): String? {\n        return null\n    }"
         normalize(raw, NormalizeOptions.DECLARATION_DEFAULT) shouldBe
             "fun findById(id: Int): String? {\n    return null\n}"
     }
 
-    "case #34: 多重ネスト (Outer.Inner.Deepest 内 1 行 fun)" {
+    "declaration: 多重ネスト (Outer.Inner.Deepest 内 1 行 fun)" {
         val raw = "            fun deepFunc() = \"deep\""
         normalize(raw, NormalizeOptions.DECLARATION_DEFAULT) shouldBe "fun deepFunc() = \"deep\""
     }
 
-    "case #36: sealed class とその子クラス (multi-line body) — interior 構造を維持" {
+    "declaration: sealed class とその子クラス (multi-line body) — interior 構造を維持" {
         val raw = """    sealed class Result {
         class Success(val value: String) : Result()
         class Failure(val error: String) : Result()
@@ -212,12 +212,12 @@ class SourceNormalizerTest : StringSpec({
 }"""
     }
 
-    "case #31 想定: KDoc 付きの 1 行関数 (annotation 行は IR offset 範囲外 = 入力に含まれない)" {
+    "declaration: KDoc 付きの 1 行関数 (annotation 行は IR offset 範囲外 = 入力に含まれない)" {
         val raw = "/**\n * ユーザーを挨拶する関数。\n *\n * @param name 挨拶対象の名前\n */\nfun greet(name: String) = \"Hello, \$name!\""
         normalize(raw, NormalizeOptions.DECLARATION_DEFAULT) shouldBe raw
     }
 
-    "case #32 想定: line comment は range 外 (入力に含まれない) → val x = 1 のみ" {
+    "declaration: line comment は range 外 (入力に含まれない) → val x = 1 のみ" {
         val raw = "val x = 1"
         normalize(raw, NormalizeOptions.DECLARATION_DEFAULT) shouldBe raw
     }

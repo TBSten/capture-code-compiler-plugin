@@ -25,17 +25,17 @@ import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
  * ## カバーする観点
  *
  * 1. 最小式 (`@CaptureExpr (1 + 2 + 3)`) のキャプチャ + kind = EXPRESSION
- * 2. property initializer 内の式 (ケース #26 同等)
- * 3. return 文の式 (ケース #27 同等)
- * 4. 関数引数 (ケース #28 同等)
- * 5. `@Marker run { ... }` ブロック形 (ケース #29 同等)
- * 6. 同一ファイル内の複数式 annotation (ケース #56 同等)
- * 7. ネストラムダ内の式 (ケース #68 同等)
- * 8. 同じ marker が宣言と式の両方に付くケース (ケース #67 同等) — kind で識別できる
+ * 2. property initializer 内の式
+ * 3. return 文の式
+ * 4. 関数引数
+ * 5. `@Marker run { ... }` ブロック形
+ * 6. 同一ファイル内の複数式 annotation
+ * 7. ネストラムダ内の式
+ * 8. 同じ marker が宣言と式の両方に付くケース — kind で識別できる
  *
  * 非対象 (本ファイル scope 外):
- * - 1 行に複数式 annotation: integration-test の `ExpressionCasesTest#ケース64` で確認
- * - DSL 利用 (`html { ... }`): integration-test の `ScenarioCasesTest#ケース84` で確認
+ * - 1 行に複数式 annotation: integration-test の ExpressionCasesTest 側で確認
+ * - DSL 利用 (`html { ... }`): integration-test の ScenarioCasesTest 側で確認
  */
 class ExpressionAnnotationTest : FunSpec({
 
@@ -75,7 +75,7 @@ class ExpressionAnnotationTest : FunSpec({
     //
     // 注記: K2 parser は `@CaptureMin (1 + 2 + 3)` を annotation constructor argument
     // `CaptureMin(1 + 2 + 3)` として greedy に解釈し、Source 型と Int 型の不一致で
-    // COMPILATION_ERROR になる (expression annotation spike Case A 観察結果)。`@CaptureMin()` で明示的に
+    // COMPILATION_ERROR になる (expression annotation spike の最小ケース観察結果)。`@CaptureMin()` で明示的に
     // 空 argument list を渡すと parser が annotation 終端を認識する。本プラグインは **`@Marker()`
     // を推奨する** こととし、design §7.8 の「`@Foo run { ... }` または `@Foo ({ ... })` のように
     // 式として括る」 を補強する形 で `@Marker() expr` ガイドラインを採用する。

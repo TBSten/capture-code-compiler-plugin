@@ -240,7 +240,7 @@ class ExpressionAnnotationSpikeTest : FunSpec({
     }
 
     // ---------------------------------------------------------------
-    // ケース F: 入れ子ラムダ内の式 annotation (test-cases #68 相当、検証項目 g/f)
+    // ケース F: 入れ子ラムダ内の式 annotation (検証項目 g/f)
     // ---------------------------------------------------------------
     test("case-F expression annotation inside nested lambda") {
         runCase(
