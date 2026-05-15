@@ -186,19 +186,33 @@ jobs:
       # plugin 本体 (`:compiler-plugin:test`) は kctfork 0.5.1 が
       # kotlin-compiler-embeddable:2.0.0 を transitive に持つため、 Kotlin
       # 2.1.0+ の native classpath では `NoSuchMethodError` が発生する。
-      # baseline (2.0.x) では従来通り `:compiler-plugin:test` +
+      # baseline (2.0.0) では従来通り `:compiler-plugin:test` +
       # `:compiler-plugin:compat-k200:test` (compat module の ServiceLoader
-      # sanity) を実行し、 2.1.0+ では `:compiler-plugin:compat-k210:test`
-      # に限定して compat-k210 の API 整合を検証する。
-      # task-065 で `compat-k200/test` と `compat-k210/test` が独立に走る
-      # ように分離済み → 本 step ではその切替を Kotlin minor で行う。
+      # sanity) を実行し、 2.0.10+ では kctfork (kotlin-compiler-embeddable
+      # 2.0.0 transitive) と consumer kotlin (2.0.20+ で D1 drift
+      # `FirLiteralExpression` 型パラ削除) が混在して fail するため
+      # `:compiler-plugin:test` は外し、 `:compat-k200:test` (compat module
+      # の ServiceLoader sanity) のみ実行する。 plugin 実機動作は shadowJar
+      # 経由で compat-k200 (2.0.0 native binary) が選ばれるため
+      # `:integration-test:test-jvm:test` が正常に検証する。
+      # 2.1.0+ では `:compiler-plugin:compat-k210:test` に限定して
+      # compat-k210 の API 整合を検証する (task-065 で compat module 別の
+      # test execution split 済)。
       # ---------------------------------------------------------------------
       - name: Run unit + KMP integration tests (jvm target)
         continue-on-error: ${{ matrix.experimental }}
         run: |
           case "${{ matrix.kotlin }}" in
-            2.0.*)
+            2.0.0)
               plugin_tests=":compiler-plugin:test :compiler-plugin:compat-k200:test"
+              ;;
+            2.0.*)
+              # 2.0.10+ では kctfork 0.5.1 (kotlin-compiler-embeddable 2.0.0
+              # transitive) と consumer kotlin 2.0.20+ の D1 drift で
+              # `:compiler-plugin:test` が壊れる。 plugin 実機動作は
+              # shadowJar 経由で compat-k200 が選ばれて正常、 unit test
+              # だけ baseline (2.0.0) 専用扱いとする。
+              plugin_tests=":compiler-plugin:compat-k200:test"
               ;;
             *)
               plugin_tests=":compiler-plugin:compat-k210:test"
