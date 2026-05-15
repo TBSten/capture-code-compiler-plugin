@@ -9,10 +9,10 @@ jobs:
   # ---------------------------------------------------------------------------
   # core-matrix: Kotlin × JDK の全 stable + 最新 pre-release を回す主要 matrix。
   #
-  # Kotlin 2.0.0 以降の全 minor track (initial + latest patch
-  # = 代表 2 cell × 4 tracks = 8 stable) + 最新 pre-release 1 つを含める。
-  # 各 minor track の patch level 全数 (例 2.0.10/2.0.20) は CI コストの観点
-  # から省略する (代表 patch level だけで drift 観察として十分)。
+  # Kotlin 2.0.0 以降の全 stable patch (4 minor track × 4 patch = 16 stable)
+  # + 最新 pre-release 1 つを含める。 task-067 retry で 2.0.20 〜 2.3.21 を
+  # stable 昇格 (task-066 test split + compat-k210/k220/k230/k240rc + task-078
+  # CompilerPluginRegistrar 吸収によって drift 問題が構造解決された)。
   #
   # JDK は 17 を stable tier、 21 は experimental tier (代表 versions のみ)。
   #
@@ -30,112 +30,108 @@ jobs:
         os: ["ubuntu-latest"]
         jdk: ["17"]
         kotlin:
-          # === 2.0.x track ===
+          # === 2.0.x track === (全 stable: compat-k200 baseline)
           - "2.0.0"   # base — SSOT, libs.versions.toml に固定
-          - "2.0.10"  # stable tier (task-047): compat-k200 が 2.0.10 native でも PASS
-          - "2.0.20"  # experimental (task-048): D1 drift (FirLiteralExpression generics) 発生
+          - "2.0.10"  # stable (task-047): compat-k200 が 2.0.10 native でも PASS
+          - "2.0.20"  # stable (task-067 retry): compat-k210 が D1 drift 吸収
           - "2.0.21"  # latest 2.0.x patch
-          # === 2.1.x track ===
+          # === 2.1.x track === (全 stable: compat-k210 baseline)
           - "2.1.0"
-          - "2.1.10"  # experimental (task-051): kctfork transitive embeddable 2.0.0 と drift
-          - "2.1.20"  # experimental (task-052)
+          - "2.1.10"  # stable (task-067 retry): kctfork split で transitive 不整合解消
+          - "2.1.20"
           - "2.1.21"  # latest 2.1.x patch
-          # === 2.2.x track (compat-k210 が 2.2.x で compile 通ることを検証) ===
+          # === 2.2.x track === (全 stable: compat-k220 baseline)
           - "2.2.0"
-          - "2.2.10"  # experimental (task-055)
-          - "2.2.20"  # experimental (task-056)
+          - "2.2.10"
+          - "2.2.20"
           - "2.2.21"
-          # === 2.3.x track (latest stable minor on 2026-05-14) ===
+          # === 2.3.x track === (全 stable: compat-k230 baseline、 task-078 で legacy-load 修正)
           - "2.3.0"
-          - "2.3.10"  # experimental (task-059)
-          - "2.3.20"  # experimental (task-060)
+          - "2.3.10"
+          - "2.3.20"
           - "2.3.21"
-          # === pre-release (1 つだけ) ===
+          # === pre-release (warn policy) === (compat-k240rc baseline)
           - "2.4.0-RC"
         include:
           # ------------------------------------------------------------------
-          # Stable tier (failable=false) — Kotlin 2.0.0 baseline のみ厳密
-          # PASS を要求する。 それ以外の version は experimental (= continue-
-          # on-error で fail を許容、 ただし matrix の継続には影響しない)。
+          # Stable tier (failable=false) — task-067 retry で 2.0.0 〜 2.3.21
+          # の全 stable patch を昇格。
           #
-          # 2.0.20+ を stable から外す理由:
-          #   - D1 drift (FirLiteralExpression<T> → FirLiteralExpression) が
-          #     **2.0.20** で発生 (task-048 ローカル実機検証で確定。 task-047
-          #     時点の comment では 2.0.21 と帰属していたが、 patch 単位の
-          #     計測で 2.0.20 が真の drift introduction patch であることが
-          #     判明)。 `compat-k200` の compile が 2.0.20+ native classpath
-          #     では落ちる。
-          #   - これは既知 drift で、 `compat-k210` 側が 2.1.x baseline と
-          #     して既に absorb 済。
-          #   - 既存 plugin の出荷 artifact は **shadowJar 内に
-          #     `compat-k200` (2.0.0 baseline) + `compat-k210` (2.1.0 baseline)
-          #     を bundle して** いるため、 consumer の Kotlin が 2.0.20+ でも
-          #     `compat-k210` が選ばれる (resolveFactory の minVersion 選択
-          #     ロジック)。 つまり **plugin の出荷 artifact 自体は 2.0.20+
-          #     consumer で動く**。 ただし CI 上で `compat-k200` を 2.0.20
-          #     native でビルドしようとすると drift が露呈する、 という
-          #     CI 用の構造的制約 (= experimental tier で許容)。
+          # 構造的に解決済の問題:
+          #   - D1 drift (FirLiteralExpression<T> → FirLiteralExpression、
+          #     2.0.20 で introduction): compat-k210 が absorb。
+          #     resolveFactory の minVersion 選択で 2.0.20+ consumer は
+          #     compat-k210 を選ぶ。
+          #   - kctfork transitive (kotlin-compiler-embeddable:2.0.0 が
+          #     classpath に紛れ込む): task-066 で test execution split
+          #     (2.0.x: compat-k200/test、 2.1.x+: compat-k210/test)。
+          #   - CompilerPluginRegistrar legacy-load incompat (2.3.x+):
+          #     task-078 で META-INF/services bundle + supportsK2 を吸収。
           # ------------------------------------------------------------------
           - kotlin: "2.0.0"
             ksp: "2.0.0-1.0.24"
             experimental: false
-          # 2.0.10: D1 drift (FirLiteralExpression<T> generics) は 2.0.21 で
-          # 初めて発生するため、 2.0.10 はまだ `compat-k200` native build が
-          # 通る。 task-047 で実機検証済 → stable tier に追加。
           - kotlin: "2.0.10"
             ksp: "2.0.10-1.0.24"
             experimental: false
 
           # ------------------------------------------------------------------
-          # Experimental tier (failable=true) — drift 観察用。
-          # kctfork 0.5.1 は kotlin-compiler-
-          # embeddable:2.0.0 を transitive に持つため、 newer Kotlin baseline
-          # では test classpath 上の compiler-embeddable 2.0.0 と Gradle 側の
-          # Kotlin (matrix value) が混在する。 大部分の build/test は
-          # それでも動くが、 一部 spike テスト等で fail することがある。
+          # Stable tier (failable=false) — task-067 (task-078 で全 Kotlin
+          # version の `:integration-test:test-jvm:test` PASS を実機確認した
+          # 後の retry promotion) で 2.0.20 〜 2.3.21 を stable 昇格。
+          #
+          # 構造問題の解消:
+          #   - kctfork transitive 不整合 → task-066 で CI test execution split
+          #     済 (2.0.x では compat-k200/test、 2.1.x+ では compat-k210/test)
+          #   - D1 drift (FirLiteralExpression generics) → compat-k210/k220/
+          #     k230/k240rc + ServiceLoader resolveFactory で absorb 済
+          #   - CompilerPluginRegistrar legacy-load drift → task-078 で吸収
+          #
+          # 2.4.0-RC のみ pre-release (warn ポリシー) として experimental
+          # tier を維持する。
           # ------------------------------------------------------------------
           - kotlin: "2.0.20"
             ksp: "2.0.20-1.0.24"
-            experimental: true
+            experimental: false
           - kotlin: "2.0.21"
             ksp: "2.0.21-1.0.28"
-            experimental: true
+            experimental: false
           - kotlin: "2.1.0"
             ksp: "2.1.0-1.0.29"
-            experimental: true
+            experimental: false
           - kotlin: "2.1.10"
             ksp: "2.1.10-1.0.31"
-            experimental: true
+            experimental: false
           - kotlin: "2.1.20"
             ksp: "2.1.20-2.0.1"
-            experimental: true
+            experimental: false
           - kotlin: "2.1.21"
             ksp: "2.1.21-2.0.2"
-            experimental: true
+            experimental: false
           - kotlin: "2.2.0"
             ksp: "2.2.0-2.0.2"
-            experimental: true
+            experimental: false
           - kotlin: "2.2.10"
             ksp: "2.2.10-2.0.2"
-            experimental: true
+            experimental: false
           - kotlin: "2.2.20"
             ksp: "2.2.20-2.0.4"
-            experimental: true
+            experimental: false
           - kotlin: "2.2.21"
             ksp: "2.2.21-2.0.5"
-            experimental: true
+            experimental: false
           - kotlin: "2.3.0"
             ksp: "2.3.0"
-            experimental: true
+            experimental: false
           - kotlin: "2.3.10"
             ksp: "2.3.8"  # KSP 2.3.10 native 未 release のため最新 2.3.x で代用
-            experimental: true
+            experimental: false
           - kotlin: "2.3.20"
             ksp: "2.3.8"  # KSP 2.3.20 native 未 release のため最新 2.3.x で代用
-            experimental: true
+            experimental: false
           - kotlin: "2.3.21"
             ksp: "2.3.8"
-            experimental: true
+            experimental: false
           - kotlin: "2.4.0-RC"
             ksp: "2.3.8"  # KSP 2.4.x 未 release のため最新 2.3.x で代用
             experimental: true
