@@ -19,14 +19,14 @@ import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 //
 //   plugins {
 //       kotlin("multiplatform") version "2.0.0"
-//       id("me.tbsten.capture.code") version "0.1.1"
+//       id("me.tbsten.capture.code") version "0.1.2"
 //   }
 //
 //   kotlin {
 //       jvm(); js { nodejs() }
 //       sourceSets {
 //           commonMain.dependencies {
-//               implementation("me.tbsten.capture.code:annotation:0.1.1")
+//               implementation("me.tbsten.capture.code:annotation:0.1.2")
 //           }
 //       }
 //   }
