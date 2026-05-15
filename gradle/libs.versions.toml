@@ -3,6 +3,7 @@
 kotlin = "2.0.0"
 kotlin-k200 = "2.0.0"
 kotlin-k210 = "2.1.0"
+kotlin-k220 = "2.2.0"
 agp = "8.5.2"
 maven-publish = "0.30.0"
 ksp = "2.0.0-1.0.24"
@@ -26,6 +27,7 @@ maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", 
 kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin" }
 kotlin-compiler-embeddable-k200 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k200" }
 kotlin-compiler-embeddable-k210 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k210" }
+kotlin-compiler-embeddable-k220 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k220" }
 auto-service-annotations = { module = "com.google.auto.service:auto-service-annotations", version.ref = "auto-service" }
 auto-service-ksp = { module = "dev.zacsweers.autoservice:auto-service-ksp", version.ref = "auto-service-ksp" }
 kctfork-core = { module = "dev.zacsweers.kctfork:core", version.ref = "kctfork" }
