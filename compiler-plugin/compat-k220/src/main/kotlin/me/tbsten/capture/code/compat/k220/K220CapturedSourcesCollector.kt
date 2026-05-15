@@ -550,10 +550,19 @@ internal class K220CapturedSourcesCollector(
     ): String? {
         val fullText = cachedFileText ?: return null
 
-        val startOffset = declaration.startOffset
+        val rawDeclarationStart = declaration.startOffset
         val endOffset = declaration.endOffset
-        if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) return null
+        if (rawDeclarationStart < 0 || endOffset < 0 || rawDeclarationStart >= endOffset) return null
         if (endOffset > fullText.length) return null
+
+        // Kotlin 2.2+ の IR では declaration の startOffset が **`fun` / `val` 等の宣言キーワード**
+        // 位置を指し、 先行する modifier (`const` / `suspend` / `inline` / `operator` / `lateinit` /
+        // `private` 等) や annotation 行を含まない (K200/K210 では先頭の `@Marker` 行を含んでいた)。
+        // K200/K210 baseline と同等の挙動 (modifier を含み、 marker annotation 行のみ除外) に
+        // 揃えるため、 startOffset を行頭まで遡らせた上で、 直前の行が modifier-only / annotation
+        // のみで構成されていればさらに前へ拡張する。 拡張後 offset は既存の `skipLeadingAnnotationLines`
+        // に渡し、 marker annotation 行は token ベース skip でドロップする。
+        val startOffset = expandStartToCoverModifierAndAnnotationLines(fullText, rawDeclarationStart)
 
         // `includeKdoc = true` (デフォルト) の場合、 declaration の startOffset の
         // 直前にある KDoc を別途抽出する。 KDoc は `@Marker` 行より手前にあるため、
@@ -566,6 +575,131 @@ internal class K220CapturedSourcesCollector(
         val rawBody = SourceTextExtractor.substringOrNull(fullText, rawStart, endOffset) ?: return null
         val rawText = if (kdocPrefix.isNotEmpty()) kdocPrefix + "\n" + rawBody else rawBody
         return normalize(rawText, effective.toDeclarationNormalizeOptions())
+    }
+
+    /**
+     * `startOffset` を行頭まで遡らせ、 さらに直前の行が **declaration modifier のみで構成された行**
+     * または **annotation 行 (`@<Name>` で始まる行)** であれば、 さらに前の行までスキャンして
+     * 拡張する。 KDoc コメントブロックや declaration 本体行に到達した時点で停止する。
+     *
+     * Kotlin 2.2.x 以降の IR では `IrDeclaration.startOffset` が宣言キーワード (`val` / `fun` /
+     * `class` / `object` / `typealias`) の位置を指し、 modifier / annotation を含まない。
+     * K200/K210 baseline では `@Marker` 行を含む位置を指していたため、 本メソッドは 2.2+ で
+     * baseline と同等の startOffset を再構成するための補正レイヤ。
+     *
+     * 「modifier-only 行」の判定: 行内のトークン (空白区切り) がすべて [DECLARATION_MODIFIERS]
+     * の集合に属する場合のみ拡張対象。 1 トークンでも modifier 集合外があれば停止 (= 不正な
+     * 行を吸い込まないための保守的判定)。
+     *
+     * 「annotation 行」の判定: 行の最初の非空白文字が `@` であれば annotation 行とみなす。
+     * marker / 非 marker (`@JvmInline` 等) どちらも本メソッドでは拡張対象にし、 後段の
+     * [skipLeadingAnnotationLines] が token ベースで marker のみ drop する。
+     *
+     * 停止条件: 直前の行が空行・KDoc 装飾行 (asterisk 始まりやコメント開始 / 終端) ・modifier
+     * 集合外の token を含む行であれば、 そこで拡張を止める。 KDoc は別経路 ([extractKdocPrefix])
+     * で抽出するため、 本メソッドの責務は modifier / annotation のみ。
+     */
+    private fun expandStartToCoverModifierAndAnnotationLines(fullText: String, startOffset: Int): Int {
+        if (startOffset <= 0 || startOffset > fullText.length) return startOffset
+
+        // Phase 1: 同一行に modifier prefix が混じっているケース
+        //          (例: `    const val MAX_RETRY = 3`、 startOffset = `val` の位置) を扱う。
+        //          行頭から startOffset までの substring が空白 + modifier トークンのみなら
+        //          current を lineStart に移動。 そうでない (= 行内の startOffset 前に
+        //          declaration 本体や式があり、 startOffset が declaration 行の途中を指している
+        //          ケース、 例えば `val x: T = @Marker () (...)`) は同一行を遡らせない。
+        //          後者を遡らせると expression-only EXPRESSION 起源 site が declaration 全体に
+        //          化けてしまい、 期待値と乖離する。
+        val lineStart = lineStartOffsetOf(fullText, startOffset)
+        val prefix = fullText.substring(lineStart, startOffset)
+        var current = if (prefix.isBlank() || prefixIsAllModifierTokens(prefix)) lineStart else startOffset
+
+        // Phase 2: 直前の行が modifier-only 行または annotation 行 (`@<Name> ...`) であれば
+        //          そこまで遡る。 KDoc / declaration 本体 / 非 modifier トークンを含む行に
+        //          到達した時点で停止。
+        //          ただし Phase 1 で current を lineStart に動かしていない場合
+        //          (= 同一行の途中が startOffset) は、 前の行を遡らせるのは安全ではない
+        //          (declaration 行の中段から始まる expression 起源 site を declaration 全体に
+        //          化けさせないため)。
+        if (current != lineStart) return current
+        while (current > 0) {
+            val prevLineEnd = current - 1
+            if (prevLineEnd < 0) break
+            if (fullText[prevLineEnd] != '\n') break
+            val prevLineStart = lineStartOffsetOf(fullText, prevLineEnd)
+            val prevLine = fullText.substring(prevLineStart, prevLineEnd)
+            if (!isModifierOrAnnotationLine(prevLine)) break
+            current = prevLineStart
+        }
+        return current
+    }
+
+    /**
+     * 行頭 `lineStart` から `startOffset` までの prefix が、 空白とすべて modifier token
+     * (例: `const`, `suspend`, `inline` …) のみで構成されているかを判定する。
+     *
+     * 例:
+     * - `"    const "` → true (modifier `const` のみ)
+     * - `"    "` → caller 側で blank として扱うため本判定は通常呼ばれない (return true でもよい)
+     * - `"val x: T = "` → false (modifier 外 token が含まれる)
+     */
+    private fun prefixIsAllModifierTokens(prefix: String): Boolean {
+        val trimmed = prefix.trim()
+        if (trimmed.isEmpty()) return true
+        val tokens = trimmed.split(Regex("\\s+"))
+        return tokens.all { it in DECLARATION_MODIFIERS }
+    }
+
+    /** `offset` を含む行の行頭 offset (= 直前の `\n` の次、 または 0) を返す。 */
+    private fun lineStartOffsetOf(text: String, offset: Int): Int {
+        var i = offset.coerceAtMost(text.length)
+        while (i > 0 && text[i - 1] != '\n') i--
+        return i
+    }
+
+    /**
+     * 行が「modifier のみで構成された行」または「annotation で始まる行 (`@...`)」であるかを判定する。
+     *
+     * - 空行 / KDoc 装飾行 (asterisk 始まり、 ブロックコメント開始、 ブロックコメント終端) は **false** (= 拡張停止)。
+     * - 行頭の非空白文字が `@` なら annotation 行として **true**。
+     * - それ以外は、 行を空白で split し、 すべての token が [DECLARATION_MODIFIERS] に属する
+     *   場合のみ **true**。 1 つでも modifier 集合外があれば **false** (= 拡張停止)。
+     */
+    private fun isModifierOrAnnotationLine(line: String): Boolean {
+        val trimmed = line.trim()
+        if (trimmed.isEmpty()) return false
+        // KDoc 装飾行は別経路で扱うため拡張しない。
+        if (trimmed.startsWith("*") || trimmed.startsWith("/*")) return false
+        if (trimmed.startsWith("//")) return false
+        if (trimmed.startsWith("@")) return true
+        val tokens = trimmed.split(Regex("\\s+"))
+        return tokens.all { it in DECLARATION_MODIFIERS }
+    }
+
+    private companion object {
+        /**
+         * Kotlin の declaration modifier 集合。 K200 baseline で startOffset が含んでいたが、
+         * Kotlin 2.2+ では除外されるため、 これらを行レベルで吸い戻すために使う。
+         *
+         * source: https://kotlinlang.org/docs/reference/grammar.html#modifiers
+         */
+        private val DECLARATION_MODIFIERS = setOf(
+            // visibility
+            "public", "private", "protected", "internal",
+            // inheritance
+            "open", "final", "abstract", "sealed", "override",
+            // class / object
+            "data", "inner", "value", "enum", "annotation", "companion",
+            // function
+            "suspend", "inline", "noinline", "crossinline", "tailrec",
+            "operator", "infix", "external",
+            // property
+            "const", "lateinit",
+            // generic / param
+            "reified", "vararg",
+            // mpp
+            "expect", "actual",
+        )
     }
 
     /**
