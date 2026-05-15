@@ -52,6 +52,10 @@ dependencies {
 
     // 全 compat-kXXX を shadow JAR で同梱する。 バージョン追加時はここに足す。
     bundled(project(":compiler-plugin:compat-k200"))
+    // task-081: 2.0.10+ patch level drift (IrVarargImplKt 等の top-level factory 削除など)
+    // を吸収する 2.0.21 baseline module。 minVersion = "2.0.10" で 2.0.10/2.0.20/2.0.21
+    // が compat-k202 を選択する。
+    bundled(project(":compiler-plugin:compat-k202"))
     bundled(project(":compiler-plugin:compat-k210"))
     bundled(project(":compiler-plugin:compat-k220"))
     bundled(project(":compiler-plugin:compat-k230"))
@@ -64,6 +68,7 @@ dependencies {
     // test classpath には別途 `:compat` を追加する必要がある。
     testImplementation(project(":compiler-plugin:compat"))
     testImplementation(project(":compiler-plugin:compat-k200"))
+    testImplementation(project(":compiler-plugin:compat-k202"))
     testImplementation(project(":compiler-plugin:compat-k210"))
     testImplementation(project(":compiler-plugin:compat-k220"))
     testImplementation(project(":compiler-plugin:compat-k230"))
