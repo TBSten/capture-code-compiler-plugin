@@ -40,6 +40,9 @@ bcv = "0.16.3"
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 # task-037: buildSrc の publish convention plugin から参照するため library 化
 maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish" }
+# task-085: buildSrc に AGP を載せて、 `:annotation` の KMP plugin が AGP を
+# 同 classloader 内で検出できるようにする (Can't infer AGP version 回避)。
+android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin" }
 kotlin-compiler-embeddable-k200 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k200" }
 kotlin-compiler-embeddable-k202 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k202" }

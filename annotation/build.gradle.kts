@@ -1,5 +1,9 @@
 plugins {
     kotlin("multiplatform")
+    // task-085: AGP は buildSrc/build.gradle.kts で classpath に乗っているため
+    // version 指定は省略 (バージョン重複指定で `Error resolving plugin` になる)。
+    // version SSOT は libs.versions.toml の `agp = "8.5.2"`。
+    id("com.android.library")
     id("buildsrc.convention.publish")
 }
 
@@ -29,6 +33,11 @@ kotlin {
     jvmToolchain(17)
 
     jvm()
+    androidTarget {
+        // release variant のみ Maven Central に publish する。 debug variant は
+        // テスト/プレビュー用なので artifact には含めない (一般的な KMP library パターン)。
+        publishLibraryVariants("release")
+    }
     js { browser(); nodejs() }
     wasmJs { browser(); nodejs() }
     linuxX64()
@@ -49,6 +58,25 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// AGP 設定 (Android target を持つ KMP library として必須)
+//
+// `:annotation` は runtime API 宣言のみで Android 固有 code は無いが、
+// `androidTarget()` を有効化した KMP project には AGP `android { ... }` block が
+// 必須となる (namespace / compileSdk / minSdk)。
+//
+// minSdk = 21: Android 5.0+ (約 99% のデバイスをカバー)。 LeakCanary 等の
+// 主要 KMP library と同じデフォルト。
+// compileSdk = 35: AGP 8.5.2 がサポートする最新 stable Android SDK。
+// ----------------------------------------------------------------------------
+android {
+    namespace = "me.tbsten.capture.code.annotation"
+    compileSdk = 35
+    defaultConfig {
+        minSdk = 21
     }
 }
 

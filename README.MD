@@ -184,6 +184,7 @@ plugins {
 
 kotlin {
     jvm()
+    androidTarget()                 // requires com.android.library plugin + android { ... } block
     js(IR) { browser(); nodejs() }
     wasmJs { browser(); nodejs() }
     linuxX64()

@@ -260,6 +260,17 @@ jobs:
             --no-configuration-cache \
             --stacktrace
 
+      # task-085: `:annotation` の android target (AAR) 出力を検証する。
+      # GitHub-hosted ubuntu runner には Android SDK が pre-installed
+      # (`ANDROID_HOME=/usr/local/lib/android/sdk`) されており、 ライセンスも
+      # 受諾済なので追加 setup-android action は不要。
+      - name: Assemble :annotation android target (AAR)
+        run: |
+          ./gradlew \
+            :annotation:assembleRelease \
+            --no-configuration-cache \
+            --stacktrace
+
   # ---------------------------------------------------------------------------
   # apple-targets: macos-latest runner で Apple native target
   # (iosArm64 / iosSimulatorArm64 / iosX64 / macosArm64 / macosX64) の
