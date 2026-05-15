@@ -54,6 +54,7 @@ dependencies {
     bundled(project(":compiler-plugin:compat-k200"))
     bundled(project(":compiler-plugin:compat-k210"))
     bundled(project(":compiler-plugin:compat-k220"))
+    bundled(project(":compiler-plugin:compat-k230"))
 
     testImplementation(project(":annotation"))
     // Unit test では shadow JAR ではなく素の classpath を使うので、
@@ -64,6 +65,7 @@ dependencies {
     testImplementation(project(":compiler-plugin:compat-k200"))
     testImplementation(project(":compiler-plugin:compat-k210"))
     testImplementation(project(":compiler-plugin:compat-k220"))
+    testImplementation(project(":compiler-plugin:compat-k230"))
     // task-071: test classpath も 2.0.0 固定 (main と合わせる)
     testImplementation(libs.kotlin.compiler.embeddable.k200)
     testImplementation(libs.kctfork.core)
