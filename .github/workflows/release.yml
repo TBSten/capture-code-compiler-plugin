@@ -41,10 +41,12 @@
 #
 # ## Apple native target
 #
-# 本 workflow は ubuntu-latest 単独で publish する。 KMP iOS/macOS target は
-# `enableAppleTargets=false` の default 設定では publish されない (= Apple
-# 向け artifact が必要になったら macos runner job を追加する)。 現状はスコープ
-# 外。
+# 本 workflow は macos-latest 単独で publish する。 macOS runner は Apple
+# (ios* / macos*) を含む KMP 全 target を 1 回の `publishAndReleaseToMavenCentral`
+# で出荷できる (= JVM / JS / WasmJS / Linux / Mingw も同 runner で
+# cross-compile)。 `:annotation/build.gradle.kts` は Apple target を
+# unconditional に宣言しているため、 macOS runner では Xcode が常に
+# 利用可能で iOS / macOS native artifact がそのまま publish される。
 # ----------------------------------------------------------------------------
 name: Release
 
@@ -66,8 +68,8 @@ on:
 jobs:
   release:
     name: Release (publish + GitHub Release)
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+    runs-on: macos-latest
+    timeout-minutes: 90
     permissions:
       contents: write  # GitHub Release の作成に必要
 
@@ -117,6 +119,7 @@ jobs:
             :annotation:publishAndReleaseToMavenCentral \
             :compiler-plugin:publishAndReleaseToMavenCentral \
             :gradle-plugin:publishAndReleaseToMavenCentral \
+            -PenableAppleTargets=true \
             --no-configuration-cache \
             --stacktrace
 

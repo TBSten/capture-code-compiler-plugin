@@ -7,19 +7,40 @@ plugins {
 // Kotlin 2.3 で削除予定の API になっており 2.3.x compile を壊す。 wasmJs は 2.3 以降
 // stable 扱いで OptIn 不要。 2.2 系では `@OptIn` 無しでも warning のみで build は通る
 // (= experimental API への参照は無い: `kotlin { wasmJs { ... } }` のみで OptIn 不要)。
+
+// ----------------------------------------------------------------------------
+// Apple native target の opt-in/opt-out (`:integration-test:test-kmp` と同方式)
+//
+// Xcode 未インストール環境 (CommandLineTools のみ等) では ios* / macos* の link
+// が `xcrun exit code 72` で失敗するため、 Gradle property `enableAppleTargets`
+// で切り替え可能にする。
+//
+//   - `-PenableAppleTargets=true`  : ios* / macos* を有効化 (Xcode 必須)
+//   - `-PenableAppleTargets=false` : 無効化 (デフォルト、 ローカル dev 互換)
+//
+// Maven Central publish 時は `release.yml` が macos-latest runner で
+// `-PenableAppleTargets=true` を付けるため、 Apple native artifact は全て
+// publish される。
+// ----------------------------------------------------------------------------
+val enableAppleTargets: Boolean =
+    (project.findProperty("enableAppleTargets") as? String)?.toBoolean() ?: false
+
 kotlin {
     jvmToolchain(17)
 
     jvm()
     js { browser(); nodejs() }
     wasmJs { browser(); nodejs() }
-    iosArm64()
-    iosSimulatorArm64()
-    iosX64()
-    macosArm64()
-    macosX64()
     linuxX64()
     mingwX64()
+
+    if (enableAppleTargets) {
+        iosArm64()
+        iosSimulatorArm64()
+        iosX64()
+        macosArm64()
+        macosX64()
+    }
 
     sourceSets {
         commonMain.dependencies {

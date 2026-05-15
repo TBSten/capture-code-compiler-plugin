@@ -83,3 +83,47 @@ mavenPublishing {
         description.set("Gradle plugin wrapper for the Capture Code Kotlin compiler plugin")
     }
 }
+
+// ----------------------------------------------------------------------------
+// VERSION 注入: gradle.properties の VERSION_NAME を build-time 生成の
+// `PluginVersion.kt` に書き込み、 `CaptureCodeGradlePlugin.VERSION` の SSOT を
+// gradle.properties に統一する。
+//
+// この生成された `VERSION` 値は `getPluginArtifact()` の
+// `SubpluginArtifact.version` に渡され、 consumer の Kotlin compile task に
+// `compiler-plugin:<VERSION>` を classpath として注入する用途で使われる。
+// ハードコードのままだと publish 後に `compiler-plugin:0.1.0-SNAPSHOT` を
+// resolve しようとして fail するため、 gradle.properties → 生成 const に
+// 統一する必要がある (SSOT)。
+// ----------------------------------------------------------------------------
+val generatedVersionDir = layout.buildDirectory.dir("generated/source/pluginVersion/kotlin")
+
+val generatePluginVersion = tasks.register("generatePluginVersion") {
+    val outDir = generatedVersionDir
+    val versionValue = project.version.toString()
+    inputs.property("version", versionValue)
+    outputs.dir(outDir)
+    doLast {
+        val dir = outDir.get().asFile.resolve("me/tbsten/capture/code/gradle")
+        dir.mkdirs()
+        dir.resolve("PluginVersion.kt").writeText(
+            """
+            |// 自動生成。 編集禁止 (build script の generatePluginVersion task で出力される)。
+            |package me.tbsten.capture.code.gradle
+            |
+            |internal const val CAPTURE_CODE_PLUGIN_VERSION: String = "$versionValue"
+            |
+            """.trimMargin()
+        )
+    }
+}
+
+kotlin {
+    sourceSets["main"].kotlin.srcDir(generatedVersionDir)
+}
+
+// `compileKotlin` だけでなく、 sources jar / dokka 等の生成 source を読む全 task
+// に依存させる。 個別 dependsOn を書かずに matching で網羅する方が安全。
+tasks.matching { it.name == "compileKotlin" || it.name == "sourcesJar" || it.name == "kotlinSourcesJar" || it.name == "dokkaHtml" || it.name == "dokkaJavadoc" }.configureEach {
+    dependsOn(generatePluginVersion)
+}

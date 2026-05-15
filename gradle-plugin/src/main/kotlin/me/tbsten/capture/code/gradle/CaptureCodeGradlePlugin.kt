@@ -152,8 +152,9 @@ public class CaptureCodeGradlePlugin : KotlinCompilerPluginSupportPlugin {
     private companion object {
         const val GROUP_ID = "me.tbsten.capture.code"
         const val PLUGIN_ID = "me.tbsten.capture.code"
-        // TODO: バージョンは Gradle property または BuildConfig から注入する
-        const val VERSION = "0.1.0-SNAPSHOT"
+        // 自動生成された const (build.gradle.kts: generatePluginVersion task)。
+        // SSOT は root の gradle.properties の VERSION_NAME。
+        val VERSION: String = CAPTURE_CODE_PLUGIN_VERSION
 
         // CommandLineProcessor 側 (`CaptureCodeCommandLineProcessor.OPTION_*`) と key 名を一致させる。
         // gradle-plugin は compiler-plugin に compileOnly 依存していないため、const 文字列を此処で再宣言する
