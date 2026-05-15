@@ -20,7 +20,6 @@ import org.jetbrains.kotlin.fir.declarations.utils.isExpect
 import org.jetbrains.kotlin.fir.declarations.utils.visibility
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.expressions.unwrapAndFlattenArgument
-import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.types.ConeKotlinTypeProjection
 import org.jetbrains.kotlin.fir.types.ConeLookupTagBasedType
@@ -144,8 +143,15 @@ internal object K200MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerK
 
         for (parameterSymbol in primaryConstructor.valueParameterSymbols) {
             val parameterName = parameterSymbol.name.asString()
+            // task-080: dispatch type alias expansion via [FullyExpandedTypeShim]
+            // instead of a direct `fullyExpandedType(session)` call. Both the
+            // `ConeKotlinType` and `ConeSimpleKotlinType` 2-arg overloads available
+            // in 2.0.0 were removed in 2.0.20 (JetBrains/kotlin commit e0126530),
+            // and the surviving 3-arg overload `(ConeKotlinType, FirSession, Function1)`
+            // does not exist in 2.0.0. A reflection shim is the only drift-safe
+            // path inside compat-k200 (which gets selected for every 2.0.x consumer).
             val returnType = parameterSymbol.resolvedReturnTypeRef.coneTypeSafe<ConeLookupTagBasedType>()
-                ?.fullyExpandedType(session) as? ConeLookupTagBasedType
+                ?.let { FullyExpandedTypeShim.expand(it, session) } as? ConeLookupTagBasedType
             val parameterClassId = returnType?.classId
 
             val isAllowed = returnType != null && isAllowedAnnotationParameterType(returnType, session)
@@ -196,9 +202,10 @@ internal object K200MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerK
         session: FirSession,
     ): Boolean {
         if (!arrayType.isNonPrimitiveArray) return false
+        // task-080: see [FullyExpandedTypeShim] — same 2.0.x drift applies here.
         val elementType = (arrayType.typeArguments.firstOrNull() as? ConeKotlinTypeProjection)
             ?.type
-            ?.fullyExpandedType(session)
+            ?.let { FullyExpandedTypeShim.expand(it, session) }
             ?: return false
         val elementClassId = elementType.classId ?: return false
         return when {
