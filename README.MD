@@ -156,7 +156,7 @@ pluginManagement {
 // build.gradle.kts
 plugins {
     kotlin("jvm") version "2.1.0"
-    id("me.tbsten.capture.code") version "<plugin-version>"
+    id("me.tbsten.capture.code") version "0.1.0"
 }
 
 captureCode {
@@ -179,7 +179,7 @@ need to apply the plugin.
 ```kotlin
 plugins {
     kotlin("multiplatform") version "2.1.0"
-    id("me.tbsten.capture.code") version "<plugin-version>"
+    id("me.tbsten.capture.code") version "0.1.0"
 }
 
 kotlin {
