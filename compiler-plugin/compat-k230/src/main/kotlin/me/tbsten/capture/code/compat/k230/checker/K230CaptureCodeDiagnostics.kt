@@ -66,7 +66,15 @@ public object K230CaptureCodeDiagnostics : KtDiagnosticsContainer() {
         // task-075: 2.3.x で `KtDiagnosticFactoryToRendererMap(String)` constructor は
         // Kotlin metadata 上 `internal` のままなので Java shim 経由で構築する
         // (JVM bytecode 上は public)。
-        override val MAP: KtDiagnosticFactoryToRendererMap =
+        //
+        // task-088: **`by lazy` で MAP の初期化を遅延** させる。 eager (= `=` で
+        // immediate init) だと、 outer `K230CaptureCodeDiagnostics` の最初の
+        // `by error0` の `provideDelegate` が `getRendererFactory()` を呼んで
+        // この inner object の `<clinit>` がトリガーされた瞬間、 `put(CC_MARKER_*, ...)`
+        // が outer の **まだ delegate が null の property** を参照して NPE する
+        // (static init の循環依存)。 `by lazy` ならば 1st access が outer init
+        // 完了後になるため安全。 報告された unstoppable consumer NPE の根本原因。
+        override val MAP: KtDiagnosticFactoryToRendererMap by lazy {
             K230RendererMapShim.create("CaptureCode").apply {
                 put(
                     CC_MARKER_VISIBILITY_VIOLATION,
@@ -114,5 +122,6 @@ public object K230CaptureCodeDiagnostics : KtDiagnosticsContainer() {
                     org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
                 )
             }
+        }
     }
 }

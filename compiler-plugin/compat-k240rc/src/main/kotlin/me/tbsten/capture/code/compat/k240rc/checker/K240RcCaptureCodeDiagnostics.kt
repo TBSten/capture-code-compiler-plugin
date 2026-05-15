@@ -66,7 +66,10 @@ public object K240RcCaptureCodeDiagnostics : KtDiagnosticsContainer() {
         // task-075: 2.3.x で `KtDiagnosticFactoryToRendererMap(String)` constructor は
         // Kotlin metadata 上 `internal` のままなので Java shim 経由で構築する
         // (JVM bytecode 上は public)。
-        override val MAP: KtDiagnosticFactoryToRendererMap =
+        //
+        // task-088: K230 と同じ理由で `by lazy` 化 (static init 循環依存の回避)。
+        // 詳細は K230CaptureCodeDiagnostics の comment 参照。
+        override val MAP: KtDiagnosticFactoryToRendererMap by lazy {
             K240RcRendererMapShim.create("CaptureCode").apply {
                 put(
                     CC_MARKER_VISIBILITY_VIOLATION,
@@ -114,5 +117,6 @@ public object K240RcCaptureCodeDiagnostics : KtDiagnosticsContainer() {
                     org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
                 )
             }
+        }
     }
 }
