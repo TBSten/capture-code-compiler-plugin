@@ -2,6 +2,20 @@
 
 kotlin = "2.0.0"
 kotlin-k200 = "2.0.0"
+# task-081: 2.0.20+ patch-level binary drift を吸収するため 2.0.21 native API で compile
+# される compat-k202 module 用 baseline。 主な drift (compat-k200 では reflection shim
+# 化が広範囲に必要だった):
+#   - `IrVarargImplKt` / `IrGetEnumValueImplKt` / `IrConstImplKt` の top-level factory 削除
+#   - `IrCallImpl(..., valueArgumentsCount = ...)` constructor → top-level factory に切替
+#   - `IrConst<T>` / `IrConstKind<T>` の型パラ削除
+#   - `FirLiteralExpression<T>` の型パラ削除
+#   - `DeepCopyTypeRemapper(SymbolRemapper)` ctor → `(ReferencedSymbolRemapper)`
+# compat-k202.Factory.minVersion = "2.0.20" で 2.0.20 / 2.0.21 patch を dispatch する。
+# 2.0.10 については 2.0.21 native binary が依存する `org.jetbrains.kotlin.ir.expressions.
+# impl.BuildersKt` (= top-level IR factory file) が 2.0.20 で追加されたため使えない。
+# 2.0.10 patch は引き続き compat-k200 (2.0.0 baseline + task-080 reflection shim) が
+# dispatch する。 2.1.0+ では compat-k210+ が選ばれる。
+kotlin-k202 = "2.0.21"
 kotlin-k210 = "2.1.0"
 kotlin-k220 = "2.2.0"
 kotlin-k230 = "2.3.0"
@@ -28,6 +42,7 @@ kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", v
 maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish" }
 kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin" }
 kotlin-compiler-embeddable-k200 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k200" }
+kotlin-compiler-embeddable-k202 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k202" }
 kotlin-compiler-embeddable-k210 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k210" }
 kotlin-compiler-embeddable-k220 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k220" }
 kotlin-compiler-embeddable-k230 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k230" }
