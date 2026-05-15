@@ -8,12 +8,12 @@
 //
 //   plugins {
 //       kotlin("jvm") version "2.0.0"
-//       id("me.tbsten.capture.code") version "0.1.0"
+//       id("me.tbsten.capture.code") version "0.1.1"
 //       application
 //   }
 //
 //   dependencies {
-//       implementation("me.tbsten.capture.code:annotation:0.1.0")
+//       implementation("me.tbsten.capture.code:annotation:0.1.1")
 //       // ↑ gradle-plugin が afterEvaluate で自動追加もする (IDE 補完のため明示推奨)
 //   }
 //

@@ -7,8 +7,6 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val isSnapshot = (project.version as String).endsWith("-SNAPSHOT")
-
 extensions.configure<MavenPublishBaseExtension> {
     // **新 Sonatype Central Portal** (https://central.sonatype.com) を明示。
     // default の `SonatypeHost.DEFAULT` は legacy OSSRH (https://oss.sonatype.org)
@@ -16,8 +14,10 @@ extensions.configure<MavenPublishBaseExtension> {
     // (legacy Nexus profile が無い)。 namespace 取得時に Central Portal を選んだ
     // 場合は必ず `CENTRAL_PORTAL` を渡すこと。
     //
-    // SNAPSHOT は automaticRelease しない (Sonatype の SNAPSHOT repo は手動 close 不要)。
-    publishToMavenCentral(host = SonatypeHost.CENTRAL_PORTAL, automaticRelease = !isSnapshot)
+    // 本プロジェクトは `-SNAPSHOT` 接尾辞を使わない方針 (docs/versioning.md
+    // "Between releases" 参照)。 `automaticRelease = true` を常時、 release は
+    // tag push trigger に限定する設計。
+    publishToMavenCentral(host = SonatypeHost.CENTRAL_PORTAL, automaticRelease = true)
 
     // signing は credentials 揃った時のみ有効化 (publishToMavenLocal を阻害しない)
     val hasInMemoryKey = providers.gradleProperty("signingInMemoryKey").isPresent

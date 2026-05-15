@@ -156,7 +156,7 @@ pluginManagement {
 // build.gradle.kts
 plugins {
     kotlin("jvm") version "2.1.0"
-    id("me.tbsten.capture.code") version "0.1.0"
+    id("me.tbsten.capture.code") version "0.1.1"
 }
 
 captureCode {
@@ -179,7 +179,7 @@ need to apply the plugin.
 ```kotlin
 plugins {
     kotlin("multiplatform") version "2.1.0"
-    id("me.tbsten.capture.code") version "0.1.0"
+    id("me.tbsten.capture.code") version "0.1.1"
 }
 
 kotlin {
@@ -303,7 +303,7 @@ Full list with reproductions and root-cause analysis:
 - [docs/publishing.md](docs/publishing.md) — Maven Central publishing setup,
   credentials, and release workflow.
 - [docs/versioning.md](docs/versioning.md) — semver policy, pre-1.0
-  guarantees, release artefacts, and SNAPSHOT handling.
+  guarantees, release artefacts, and between-release VERSION_NAME handling.
 
 
 ---

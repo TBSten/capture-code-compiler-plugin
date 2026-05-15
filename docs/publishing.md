@@ -22,7 +22,7 @@ publish しない (internal) module:
 
 ## 設計
 
-- バージョン SSOT: ルート `gradle.properties` の `VERSION_NAME` (例: `0.1.0-SNAPSHOT`)。
+- バージョン SSOT: ルート `gradle.properties` の `VERSION_NAME` (例: `0.1.2`)。 詳細は [docs/versioning.md](versioning.md) 参照。
 - groupId SSOT: ルート `gradle.properties` の `GROUP` (`me.tbsten.capture.code`)。
 - ルート `build.gradle.kts` で `allprojects { group = GROUP; version = VERSION_NAME }` として全 subproject に伝搬。
 - 共通 POM (license / developer / scm) と signing 条件は `buildSrc/src/main/kotlin/buildsrc/convention/publish.gradle.kts` で集約。
@@ -96,30 +96,35 @@ ls ~/.m2/repository/me/tbsten/capture/code/
 
 > KMP の native target (iOS / macOS) の publish には Xcode フル版が必要。CommandLineTools のみの環境では `iosArm64` 等が SDK lookup error で失敗する。CI Mac runner では問題ない。
 
-## SNAPSHOT release
+## バージョン管理方針 (no SNAPSHOT)
 
-```shell
-# VERSION_NAME=0.1.0-SNAPSHOT のまま
-./gradlew publishAndReleaseToMavenCentral
-```
+本プロジェクトは **`-SNAPSHOT` 接尾辞を使わない**。 main branch の
+`gradle.properties:VERSION_NAME` は **常に「次にリリースする予定の version」**
+を保持する (詳細は [docs/versioning.md](versioning.md) の "Between releases"
+section)。
 
-`-SNAPSHOT` が末尾にあるため `publish.gradle.kts` の `isSnapshot` ロジックで `publishToMavenCentral(automaticRelease = false)` が選択され、Sonatype の SNAPSHOT repository (`https://central.sonatype.com/repository/maven-snapshots/`) に publish される。
+- 通常開発中: `VERSION_NAME = 次の MINOR 予定` (例: `0.2.0`)
+- 直近 release に対して unexpected bug fix が必要なとき: `VERSION_NAME = PATCH` (例: `0.1.2`)
+- release は **tag push** が trigger。 ローカルでの `publishAndReleaseToMavenCentral`
+  は credentials 持たない通常開発では走らない設計
 
 ## 本番 release
 
-1. `gradle.properties` の `VERSION_NAME` から `-SNAPSHOT` を外す (例: `0.1.0`)。
-2. tag を打つ (例: `v0.1.0`)。
-3. 以下を実行:
+1. `gradle.properties` の `VERSION_NAME` が release したい version になっていることを確認 (例: `0.1.2`)。
+2. tag を打つ (例: `v0.1.2`)、 main に push:
 
-```shell
-# release publish (vanniktech plugin が staging repo の close / release まで自動化)
-./gradlew publishAndReleaseToMavenCentral --no-configuration-cache
-```
+   ```shell
+   git tag v0.1.2
+   git push origin v0.1.2
+   ```
+
+3. GitHub Actions の **Release** workflow が自動起動、 smoke test → Maven Central publish → GitHub Release 作成。
+4. https://central.sonatype.com/ で release status を確認。
+5. release 後、 `VERSION_NAME` を **次の planned version** に bump して commit:
+   - 次が機能追加サイクル → `0.2.0`
+   - 次が更なる patch (= さらにバグ修正用) → `0.1.3`
 
 `--no-configuration-cache` は vanniktech plugin の制約 (HTTP request task が CC 非対応) による回避策。
-
-4. https://central.sonatype.com/ で release status を確認。
-5. release 後、 `VERSION_NAME` を次の SNAPSHOT (例: `0.2.0-SNAPSHOT`) に bump して commit。
 
 ## CI からの自動 release
 
@@ -149,17 +154,20 @@ GitHub repository の **Settings → Secrets and variables → Actions → New r
 
 実 release は以下の手順で実施する:
 
-1. **`gradle.properties` の `VERSION_NAME` から `-SNAPSHOT` を外す** (例: `0.1.0-SNAPSHOT` → `0.1.0`)
+1. **`gradle.properties` の `VERSION_NAME` が release したい version になっていることを確認**
+   (例: `0.1.2`)。 release 中の bug fix を出す場合は patch version へ書き換える
+   (`0.2.0` → `0.1.2` 等)。
 2. **release commit を main にマージ** (PR 経由推奨)
 3. **tag を push**:
 
    ```shell
-   git tag v0.1.0
-   git push origin v0.1.0
+   git tag v0.1.2
+   git push origin v0.1.2
    ```
 
 4. GitHub Actions の **Release** workflow が起動し、 上記 1〜5 のステップを自動実行する。
-5. **完了後**: `gradle.properties` の `VERSION_NAME` を次の SNAPSHOT (例: `0.2.0-SNAPSHOT`) に bump して commit。
+5. **完了後**: `gradle.properties` の `VERSION_NAME` を **次の planned version** に bump して commit
+   (次が機能追加サイクル → `0.2.0`、 さらに patch 予定 → `0.1.3`)。
 
 ### Dry-run (動作確認)
 

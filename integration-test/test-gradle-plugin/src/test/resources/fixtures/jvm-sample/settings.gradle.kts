@@ -31,7 +31,7 @@
 // この 2 重 include 構成によって:
 //   - `plugins { id("me.tbsten.capture.code") version "..." }` の解決が
 //     gradlePluginPortal でなく includeBuild 内の `:gradle-plugin` を使う
-//   - `implementation("me.tbsten.capture.code:annotation:0.1.0-SNAPSHOT")` が
+//   - `implementation("me.tbsten.capture.code:annotation:<version>")` が
 //     `:annotation` project に substitution される
 // の両立が可能。
 // ----------------------------------------------------------------------------

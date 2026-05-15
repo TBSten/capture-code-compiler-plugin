@@ -38,6 +38,7 @@ change in any release.
 | Dropping support for a previously supported Kotlin version | `MAJOR` |
 | New filler type, new DSL option, new capture site kind, additive only | `MINOR` |
 | Bug fix that does not change the public API | `PATCH` |
+| **Unexpected bug fix discovered after a release** (e.g. a regression that escaped CI) | **`PATCH`** |
 | Internal refactor without observable behaviour change | `PATCH` |
 
 Adding support for a newer Kotlin version is deliberately a `MINOR`
@@ -96,14 +97,24 @@ A `1.0.0` release will be cut once:
 The actual release process (signing, staging, promotion) is documented
 in [docs/publishing.md](publishing.md).
 
-## SNAPSHOT versions
+## Between releases
 
-Between releases the version in `gradle.properties` carries the
-`-SNAPSHOT` suffix (e.g. `0.1.1-SNAPSHOT`). Snapshots are published to
-the Maven Central snapshot repository when the release workflow runs on
-a non-tag push. The `-SNAPSHOT` suffix is detected in each publishable
-module's `mavenPublishing { ... }` block via
-`endsWith("-SNAPSHOT")` to gate `automaticRelease`.
+`-SNAPSHOT` suffix を **使わない** 方針。 main branch の
+`gradle.properties:VERSION_NAME` は **常に「次にリリースする予定の version」**
+を素の `MAJOR.MINOR.PATCH` 形式で保持する:
 
-For the release / SNAPSHOT bump procedure, see the **Release procedure**
-section of [docs/publishing.md](publishing.md).
+- 通常の機能追加サイクル中: `0.2.0` (次の MINOR 予定)
+- 直近 release に対して unexpected bug fix が必要になったとき: `0.1.2`
+  などの PATCH に書き換えてから release
+
+これにより:
+- `publishToMavenLocal` 等で生成される artifact が常に意味ある version 文字列
+  を持つ (`-SNAPSHOT` がついた中途半端な artifact が混ざらない)
+- 「unexpected bug fix = patch release」 のルールが build script ではなく
+  `VERSION_NAME` の数字そのもので表現される
+
+> 注意: `-SNAPSHOT` を外している分、 ローカルでの誤 `publishAndReleaseToMavenCentral`
+> が即 release につながる可能性がある。 本 repo では release を **CI tag push
+> trigger** に限定 (`release.yml`) しているため、 ローカル credentials を持たない
+> 通常開発者には影響しないが、 publishing credentials を設定する場合は
+> `publishToMavenLocal` 以外を慎重に扱うこと。
