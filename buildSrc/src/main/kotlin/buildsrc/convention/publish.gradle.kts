@@ -1,6 +1,7 @@
 package buildsrc.convention
 
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
+import com.vanniktech.maven.publish.SonatypeHost
 
 plugins {
     id("com.vanniktech.maven.publish")
@@ -9,8 +10,14 @@ plugins {
 val isSnapshot = (project.version as String).endsWith("-SNAPSHOT")
 
 extensions.configure<MavenPublishBaseExtension> {
-    // SNAPSHOT は automaticRelease しない (Sonatype の SNAPSHOT repo は手動 close 不要)
-    publishToMavenCentral(automaticRelease = !isSnapshot)
+    // **新 Sonatype Central Portal** (https://central.sonatype.com) を明示。
+    // default の `SonatypeHost.DEFAULT` は legacy OSSRH (https://oss.sonatype.org)
+    // で、 そちらに対して `getProfiles` を叩くと 402 Payment Required で fail
+    // (legacy Nexus profile が無い)。 namespace 取得時に Central Portal を選んだ
+    // 場合は必ず `CENTRAL_PORTAL` を渡すこと。
+    //
+    // SNAPSHOT は automaticRelease しない (Sonatype の SNAPSHOT repo は手動 close 不要)。
+    publishToMavenCentral(host = SonatypeHost.CENTRAL_PORTAL, automaticRelease = !isSnapshot)
 
     // signing は credentials 揃った時のみ有効化 (publishToMavenLocal を阻害しない)
     val hasInMemoryKey = providers.gradleProperty("signingInMemoryKey").isPresent
