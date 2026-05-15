@@ -11,14 +11,12 @@ import me.tbsten.capture.code.compat.k240rc.checker.K240RcCaptureCodeDiagnostics
 class K240RcCaptureCodeDiagnosticsStaticInitTest : StringSpec({
 
     "K240Rc CaptureCodeDiagnostics の outer/inner object は static init 循環依存無しで load できる" {
-        val factory = K240RcCaptureCodeDiagnostics.CC_MARKER_VISIBILITY_VIOLATION
+        // task-091: VISIBILITY_VIOLATION 撤廃に伴い、 PARAMETER_TYPE_INVALID で代替。
+        val factory = K240RcCaptureCodeDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID
         factory shouldNotBe null
     }
 
     "全 diagnostic factory が <clinit> 完了後に read できる" {
-        K240RcCaptureCodeDiagnostics.CC_MARKER_VISIBILITY_VIOLATION shouldNotBe null
-        K240RcCaptureCodeDiagnostics.CC_MARKER_RETENTION_VIOLATION shouldNotBe null
-        K240RcCaptureCodeDiagnostics.CC_MARKER_TARGET_EMPTY shouldNotBe null
         K240RcCaptureCodeDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID shouldNotBe null
         K240RcCaptureCodeDiagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT shouldNotBe null
         K240RcCaptureCodeDiagnostics.CC_MARKER_IS_EXPECT shouldNotBe null

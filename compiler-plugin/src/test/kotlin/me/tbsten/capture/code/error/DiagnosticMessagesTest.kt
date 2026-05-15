@@ -75,15 +75,9 @@ class DiagnosticMessagesTest : FunSpec({
     context("English phrases — backward compatibility with existing checker tests") {
         val msg = CaptureCodeDiagnosticMessages
 
-        test("MARKER_VISIBILITY_VIOLATION contains \"must be 'internal' or 'private'\"") {
-            msg.MARKER_VISIBILITY_VIOLATION.en shouldContain "must be 'internal' or 'private'"
-        }
-        test("MARKER_RETENTION_VIOLATION mentions @Retention(AnnotationRetention.SOURCE)") {
-            msg.MARKER_RETENTION_VIOLATION.en shouldContain "@Retention(AnnotationRetention.SOURCE)"
-        }
-        test("MARKER_TARGET_EMPTY mentions @Target site") {
-            msg.MARKER_TARGET_EMPTY.en shouldContain "@Target site"
-        }
+        // task-091: MARKER_VISIBILITY_VIOLATION / MARKER_RETENTION_VIOLATION /
+        // MARKER_TARGET_EMPTY は撤廃済 (制約自体を無くしたため message も不要)。
+
         test("MARKER_PARAMETER_TYPE_INVALID mentions 'has an unsupported type'") {
             msg.MARKER_PARAMETER_TYPE_INVALID.en shouldContain "has an unsupported type"
         }
@@ -105,9 +99,6 @@ class DiagnosticMessagesTest : FunSpec({
     context("Suggested fix hints (English)") {
         val msg = CaptureCodeDiagnosticMessages
         val all = listOf(
-            "MARKER_VISIBILITY_VIOLATION" to msg.MARKER_VISIBILITY_VIOLATION,
-            "MARKER_RETENTION_VIOLATION" to msg.MARKER_RETENTION_VIOLATION,
-            "MARKER_TARGET_EMPTY" to msg.MARKER_TARGET_EMPTY,
             "MARKER_PARAMETER_TYPE_INVALID" to msg.MARKER_PARAMETER_TYPE_INVALID,
             "MARKER_FILLER_REQUIRES_DEFAULT" to msg.MARKER_FILLER_REQUIRES_DEFAULT,
             "MARKER_IS_EXPECT" to msg.MARKER_IS_EXPECT,
@@ -131,9 +122,6 @@ class DiagnosticMessagesTest : FunSpec({
     context("BILINGUAL rendering for each diagnostic") {
         val msg = CaptureCodeDiagnosticMessages
         val cases = mapOf(
-            "MARKER_VISIBILITY_VIOLATION" to msg.MARKER_VISIBILITY_VIOLATION,
-            "MARKER_RETENTION_VIOLATION" to msg.MARKER_RETENTION_VIOLATION,
-            "MARKER_TARGET_EMPTY" to msg.MARKER_TARGET_EMPTY,
             "MARKER_PARAMETER_TYPE_INVALID" to msg.MARKER_PARAMETER_TYPE_INVALID,
             "MARKER_FILLER_REQUIRES_DEFAULT" to msg.MARKER_FILLER_REQUIRES_DEFAULT,
             "MARKER_IS_EXPECT" to msg.MARKER_IS_EXPECT,
@@ -166,20 +154,8 @@ class DiagnosticMessagesTest : FunSpec({
     context("Full English snapshot (regression detector)") {
         val msg = CaptureCodeDiagnosticMessages
 
-        test("MARKER_VISIBILITY_VIOLATION English snapshot") {
-            msg.MARKER_VISIBILITY_VIOLATION.en shouldBe (
-                "@CaptureCode marker annotation must be 'internal' or 'private'. " +
-                    "Cross-module capture is not supported in v1.\n" +
-                    "Suggested fix: change the visibility modifier to 'internal' or 'private'."
-                )
-        }
-        test("MARKER_VISIBILITY_VIOLATION Japanese snapshot") {
-            msg.MARKER_VISIBILITY_VIOLATION.ja shouldBe (
-                "@CaptureCode marker annotation は 'internal' または 'private' で宣言する必要があります。" +
-                    "v1 ではモジュール跨ぎのキャプチャはサポートしていません。\n" +
-                    "修正方法: visibility modifier を 'internal' または 'private' に変更してください。"
-                )
-        }
+        // task-091: MARKER_VISIBILITY_VIOLATION snapshot は対応 message ごと撤廃。
+
         test("CAPTUREDSOURCES_T_NOT_CAPTURE_CODE English snapshot uses {0} placeholder") {
             msg.CAPTUREDSOURCES_T_NOT_CAPTURE_CODE.en shouldContain "{0}"
         }

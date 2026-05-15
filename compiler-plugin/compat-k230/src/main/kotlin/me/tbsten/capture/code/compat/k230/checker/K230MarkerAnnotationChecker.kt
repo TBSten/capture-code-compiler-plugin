@@ -59,75 +59,14 @@ public object K230MarkerAnnotationCheckerLogic {
             reporter.reportOn(source, K230CaptureCodeDiagnostics.CC_MARKER_IS_EXPECT, context)
         }
 
-        checkVisibility(declaration, context, reporter)
-        checkRetention(declaration, context, reporter)
-        checkTargetSites(declaration, context, reporter)
+        // task-091: visibility / retention / target の 3 制約は 0.1.x まで強制して
+        // いたが「不便なだけ」 という判断で撤廃。 残った check は marker parameter
+        // の correctness のみ (型 / filler default / isExpect)。
         checkParameters(declaration, session, context, reporter)
     }
 
     private fun FirRegularClass.hasCaptureCodeMeta(session: FirSession): Boolean =
         annotations.any { it.toAnnotationClassId(session) == CaptureCodeMetaAnnotation.classId }
-
-    private fun checkVisibility(
-        declaration: FirRegularClass,
-        context: CheckerContext,
-        reporter: DiagnosticReporter,
-    ) {
-        val visibility = declaration.visibility
-        if (visibility != Visibilities.Internal && visibility != Visibilities.Private) {
-            reporter.reportOn(
-                declaration.source,
-                K230CaptureCodeDiagnostics.CC_MARKER_VISIBILITY_VIOLATION,
-                context,
-            )
-        }
-    }
-
-    private fun checkRetention(
-        declaration: FirRegularClass,
-        context: CheckerContext,
-        reporter: DiagnosticReporter,
-    ) {
-        if (declaration.getRetention(context.session) != AnnotationRetention.SOURCE) {
-            reporter.reportOn(
-                declaration.source,
-                K230CaptureCodeDiagnostics.CC_MARKER_RETENTION_VIOLATION,
-                context,
-            )
-        }
-    }
-
-    private fun checkTargetSites(
-        declaration: FirRegularClass,
-        context: CheckerContext,
-        reporter: DiagnosticReporter,
-    ) {
-        val targetAnnotation = targetAnnotationOf(declaration, context.session)
-        if (targetAnnotation == null) {
-            reporter.reportOn(
-                declaration.source,
-                K230CaptureCodeDiagnostics.CC_MARKER_TARGET_EMPTY,
-                context,
-            )
-            return
-        }
-        val sites = extractTargetSites(targetAnnotation)
-        if (sites.isEmpty()) {
-            reporter.reportOn(
-                targetAnnotation.source,
-                K230CaptureCodeDiagnostics.CC_MARKER_TARGET_EMPTY,
-                context,
-            )
-        }
-    }
-
-    private fun extractTargetSites(targetAnnotation: FirAnnotation): List<String> {
-        val args = targetAnnotation
-            .findArgumentByName(StandardClassIds.Annotations.ParameterNames.targetAllowedTargets)
-            ?.unwrapAndFlattenArgument(flattenArrays = true)
-            .orEmpty()
-        return args.mapNotNull { it.extractEnumValueArgumentInfo()?.enumEntryName?.asString() }
-    }
 
     @OptIn(SymbolInternals::class)
     private fun checkParameters(
@@ -216,11 +155,4 @@ public object K230MarkerAnnotationCheckerLogic {
         return kind == ClassKind.ANNOTATION_CLASS || kind == ClassKind.ENUM_CLASS
     }
 
-    private fun targetAnnotationOf(
-        declaration: FirRegularClass,
-        session: FirSession,
-    ): FirAnnotation? =
-        declaration.annotations.firstOrNull { annotation ->
-            annotation.toAnnotationClassId(session) == StandardClassIds.Annotations.Target
-        }
 }

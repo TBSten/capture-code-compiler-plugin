@@ -37,14 +37,7 @@ import org.jetbrains.kotlin.psi.KtElement
  */
 public object K240RcCaptureCodeDiagnostics : KtDiagnosticsContainer() {
 
-    public val CC_MARKER_VISIBILITY_VIOLATION: KtDiagnosticFactory0 by error0<PsiElement>(
-        SourceElementPositioningStrategies.VISIBILITY_MODIFIER,
-    )
-
-    public val CC_MARKER_RETENTION_VIOLATION: KtDiagnosticFactory0 by error0<PsiElement>()
-
-    public val CC_MARKER_TARGET_EMPTY: KtDiagnosticFactory0 by error0<PsiElement>()
-
+    // task-091: visibility / retention / target の 3 factory は撤廃。
     public val CC_MARKER_PARAMETER_TYPE_INVALID: KtDiagnosticFactory1<String> by error1<PsiElement, String>()
 
     public val CC_MARKER_FILLER_REQUIRES_DEFAULT: KtDiagnosticFactory1<String> by error1<PsiElement, String>()
@@ -71,24 +64,6 @@ public object K240RcCaptureCodeDiagnostics : KtDiagnosticsContainer() {
         // 詳細は K230CaptureCodeDiagnostics の comment 参照。
         override val MAP: KtDiagnosticFactoryToRendererMap by lazy {
             K240RcRendererMapShim.create("CaptureCode").apply {
-                put(
-                    CC_MARKER_VISIBILITY_VIOLATION,
-                    CaptureCodeDiagnosticMessages.render(
-                        CaptureCodeDiagnosticMessages.MARKER_VISIBILITY_VIOLATION,
-                    ),
-                )
-                put(
-                    CC_MARKER_RETENTION_VIOLATION,
-                    CaptureCodeDiagnosticMessages.render(
-                        CaptureCodeDiagnosticMessages.MARKER_RETENTION_VIOLATION,
-                    ),
-                )
-                put(
-                    CC_MARKER_TARGET_EMPTY,
-                    CaptureCodeDiagnosticMessages.render(
-                        CaptureCodeDiagnosticMessages.MARKER_TARGET_EMPTY,
-                    ),
-                )
                 put(
                     CC_MARKER_PARAMETER_TYPE_INVALID,
                     CaptureCodeDiagnosticMessages.render(

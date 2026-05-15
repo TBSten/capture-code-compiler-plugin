@@ -6,6 +6,7 @@ import com.tschuchort.compiletesting.SourceFile
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
 
 /**
@@ -33,9 +34,9 @@ class MarkerAnnotationCheckerTest : FunSpec({
         }.compile()
 
     // ----------------------------------------------------------------
-    // (1) public marker → error
+    // (1) public marker → 制約撤廃後は正常 compile (task-091)
     // ----------------------------------------------------------------
-    test("public marker annotation reports MARKER_NOT_INTERNAL_OR_PRIVATE") {
+    test("public marker annotation compiles (visibility constraint dropped in task-091)") {
         val result = compile(
             SourceFile.kotlin(
                 "PublicMarker.kt",
@@ -49,17 +50,19 @@ class MarkerAnnotationCheckerTest : FunSpec({
                 @Target(AnnotationTarget.PROPERTY)
                 @Retention(AnnotationRetention.SOURCE)
                 annotation class PublicMarker(val source: Source = Source())
+
+                @PublicMarker val x: String = "x"
                 """.trimIndent(),
             ),
         )
-        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "must be 'internal' or 'private'"
+        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+        result.messages shouldNotContain "must be 'internal' or 'private'"
     }
 
     // ----------------------------------------------------------------
-    // (2) @Retention(AnnotationRetention.BINARY) marker → error
+    // (2) @Retention(AnnotationRetention.BINARY) marker → 制約撤廃後は正常 compile (task-091)
     // ----------------------------------------------------------------
-    test("BINARY retention marker reports MARKER_RETENTION_NOT_SOURCE") {
+    test("BINARY retention marker compiles (retention constraint dropped in task-091)") {
         val result = compile(
             SourceFile.kotlin(
                 "BinaryRetention.kt",
@@ -73,17 +76,19 @@ class MarkerAnnotationCheckerTest : FunSpec({
                 @Target(AnnotationTarget.PROPERTY)
                 @Retention(AnnotationRetention.BINARY)
                 internal annotation class BinaryRetentionMarker(val source: Source = Source())
+
+                @BinaryRetentionMarker val x: String = "x"
                 """.trimIndent(),
             ),
         )
-        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "@Retention(AnnotationRetention.SOURCE)"
+        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+        result.messages shouldNotContain "@Retention(AnnotationRetention.SOURCE)"
     }
 
     // ----------------------------------------------------------------
-    // (2b) @Retention 未指定 (default RUNTIME) でも error になることを確認
+    // (2b) @Retention 未指定 (default RUNTIME) でも正常 compile (task-091)
     // ----------------------------------------------------------------
-    test("missing @Retention defaults to RUNTIME and reports MARKER_RETENTION_NOT_SOURCE") {
+    test("missing @Retention compiles (retention constraint dropped in task-091)") {
         val result = compile(
             SourceFile.kotlin(
                 "DefaultRetention.kt",
@@ -96,17 +101,23 @@ class MarkerAnnotationCheckerTest : FunSpec({
                 @CaptureCode
                 @Target(AnnotationTarget.PROPERTY)
                 internal annotation class DefaultRetentionMarker(val source: Source = Source())
+
+                @DefaultRetentionMarker val x: String = "x"
                 """.trimIndent(),
             ),
         )
-        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "@Retention(AnnotationRetention.SOURCE)"
+        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+        result.messages shouldNotContain "@Retention(AnnotationRetention.SOURCE)"
     }
 
     // ----------------------------------------------------------------
-    // (3) @Target() (空) marker → error
+    // (3) @Target() (空) marker → 制約撤廃後は正常 compile (task-091)
+    //
+    // note: 実際は kotlin compiler 自身が "Target は空にできない" 系 error を
+    // 出す可能性があるため、 ここでは plugin 側の "@Target site" 文面が出ない
+    // ことのみ確認する (kotlin compiler の error は受け入れる)。
     // ----------------------------------------------------------------
-    test("empty @Target reports MARKER_TARGET_EMPTY") {
+    test("empty @Target marker does not trigger plugin 'Target site' diagnostic (task-091)") {
         val result = compile(
             SourceFile.kotlin(
                 "EmptyTarget.kt",
@@ -123,14 +134,13 @@ class MarkerAnnotationCheckerTest : FunSpec({
                 """.trimIndent(),
             ),
         )
-        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "@Target site"
+        result.messages shouldNotContain "@Target site"
     }
 
     // ----------------------------------------------------------------
-    // (3b) @Target 未指定 (annotation 自体が無い) でも error になることを確認
+    // (3b) @Target 未指定 (annotation 自体が無い) でも正常 compile (task-091)
     // ----------------------------------------------------------------
-    test("missing @Target reports MARKER_TARGET_EMPTY") {
+    test("missing @Target compiles (target constraint dropped in task-091)") {
         val result = compile(
             SourceFile.kotlin(
                 "MissingTarget.kt",
@@ -143,11 +153,13 @@ class MarkerAnnotationCheckerTest : FunSpec({
                 @CaptureCode
                 @Retention(AnnotationRetention.SOURCE)
                 internal annotation class MissingTargetMarker(val source: Source = Source())
+
+                @MissingTargetMarker val x: String = "x"
                 """.trimIndent(),
             ),
         )
-        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
-        result.messages shouldContain "@Target site"
+        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+        result.messages shouldNotContain "@Target site"
     }
 
     // ----------------------------------------------------------------

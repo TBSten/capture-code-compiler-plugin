@@ -31,37 +31,18 @@ public object CaptureCodeDiagnosticMessages {
 
     // ------------------------------------------------------------------
     // Logic F (ID: CC_MARKER_*): marker annotation の制約違反
+    //
+    // task-091: visibility / retention / target の 3 制約は 0.1.x まで強制して
+    // いたが、 「不便なだけ」 という判断で撤廃。 これらの constraint 違反は
+    // FIR checker では report しない。 cross-module capture や non-SOURCE
+    // retention での挙動は README / known-limitations.md で「動作保証無し」
+    // と明示する。
+    //
+    // 残った CC_MARKER_* は marker parameter の correctness 系のみ:
+    //   - PARAMETER_TYPE_INVALID: 型が Kotlin annotation 制約外
+    //   - FILLER_REQUIRES_DEFAULT: filler 型に default 値が無い
+    //   - IS_EXPECT: marker 自体が expect 宣言
     // ------------------------------------------------------------------
-
-    /** `CC_MARKER_VISIBILITY_VIOLATION` — visibility が `internal` / `private` でない */
-    public val MARKER_VISIBILITY_VIOLATION: BilingualMessage = BilingualMessage(
-        en = "@CaptureCode marker annotation must be 'internal' or 'private'. " +
-            "Cross-module capture is not supported in v1.\n" +
-            "Suggested fix: change the visibility modifier to 'internal' or 'private'.",
-        ja = "@CaptureCode marker annotation は 'internal' または 'private' で宣言する必要があります。" +
-            "v1 ではモジュール跨ぎのキャプチャはサポートしていません。\n" +
-            "修正方法: visibility modifier を 'internal' または 'private' に変更してください。",
-    )
-
-    /** `CC_MARKER_RETENTION_VIOLATION` — `@Retention` が `SOURCE` ではない (default `RUNTIME` 含む) */
-    public val MARKER_RETENTION_VIOLATION: BilingualMessage = BilingualMessage(
-        en = "@CaptureCode marker annotation must use @Retention(AnnotationRetention.SOURCE).\n" +
-            "Suggested fix: add or change to '@Retention(AnnotationRetention.SOURCE)' on the marker.",
-        ja = "@CaptureCode marker annotation には @Retention(AnnotationRetention.SOURCE) が必要です。" +
-            "未指定は default RUNTIME 扱いとなり許可されません。\n" +
-            "修正方法: marker に '@Retention(AnnotationRetention.SOURCE)' を追加してください。",
-    )
-
-    /** `CC_MARKER_TARGET_EMPTY` — `@Target(...)` 未指定 / 空 */
-    public val MARKER_TARGET_EMPTY: BilingualMessage = BilingualMessage(
-        en = "@CaptureCode marker annotation must specify at least one @Target site " +
-            "(e.g., AnnotationTarget.PROPERTY).\n" +
-            "Suggested fix: add '@Target(AnnotationTarget.PROPERTY, ...)' with one or more sites.",
-        ja = "@CaptureCode marker annotation には少なくとも 1 つの @Target site を指定する必要があります " +
-            "(例: AnnotationTarget.PROPERTY)。\n" +
-            "修正方法: marker に '@Target(AnnotationTarget.PROPERTY, ...)' を追加し、" +
-            "対象 site を 1 つ以上指定してください。",
-    )
 
     /**
      * `CC_MARKER_PARAMETER_TYPE_INVALID` — parameter 型が Kotlin annotation 制約外

@@ -46,14 +46,15 @@ class K230CaptureCodeDiagnosticsStaticInitTest : StringSpec({
 
     "K230CaptureCodeDiagnostics の outer/inner object は static init 循環依存無しで load できる" {
         // 単に property を read するだけで <clinit> が走る。 NPE が出なければ pass。
-        val factory = K230CaptureCodeDiagnostics.CC_MARKER_VISIBILITY_VIOLATION
+        // task-091: VISIBILITY_VIOLATION 撤廃に伴い、 最初の property を
+        // CC_MARKER_PARAMETER_TYPE_INVALID に変更 (declaration 順で同等の test)。
+        val factory = K230CaptureCodeDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID
         factory shouldNotBe null
     }
 
     "全 diagnostic factory が <clinit> 完了後に read できる" {
-        K230CaptureCodeDiagnostics.CC_MARKER_VISIBILITY_VIOLATION shouldNotBe null
-        K230CaptureCodeDiagnostics.CC_MARKER_RETENTION_VIOLATION shouldNotBe null
-        K230CaptureCodeDiagnostics.CC_MARKER_TARGET_EMPTY shouldNotBe null
+        // task-091: CC_MARKER_VISIBILITY_VIOLATION / CC_MARKER_RETENTION_VIOLATION /
+        // CC_MARKER_TARGET_EMPTY は撤廃済。
         K230CaptureCodeDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID shouldNotBe null
         K230CaptureCodeDiagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT shouldNotBe null
         K230CaptureCodeDiagnostics.CC_MARKER_IS_EXPECT shouldNotBe null

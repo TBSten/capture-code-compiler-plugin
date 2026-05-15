@@ -38,19 +38,9 @@ import org.jetbrains.kotlin.psi.KtElement
 public object K202CaptureCodeDiagnostics {
 
     // ----------------------------------------------------------------
-    // Logic F: marker annotation の制約違反 (6 種類)
+    // Logic F: marker annotation の制約違反 (task-091 後: parameter type /
+    // filler default / isExpect の 3 種類)
     // ----------------------------------------------------------------
-
-    /** `CC_MARKER_VISIBILITY_VIOLATION` — visibility が `internal` / `private` のいずれでもない。 */
-    public val CC_MARKER_VISIBILITY_VIOLATION: KtDiagnosticFactory0 by error0<PsiElement>(
-        SourceElementPositioningStrategies.VISIBILITY_MODIFIER,
-    )
-
-    /** `CC_MARKER_RETENTION_VIOLATION` — `@Retention` が `SOURCE` 以外 (default `RUNTIME` 含む)。 */
-    public val CC_MARKER_RETENTION_VIOLATION: KtDiagnosticFactory0 by error0<PsiElement>()
-
-    /** `CC_MARKER_TARGET_EMPTY` — `@Target(...)` が空 / 未指定。 */
-    public val CC_MARKER_TARGET_EMPTY: KtDiagnosticFactory0 by error0<PsiElement>()
 
     /** `CC_MARKER_PARAMETER_TYPE_INVALID` — Kotlin annotation 制約 外の parameter 型。 */
     public val CC_MARKER_PARAMETER_TYPE_INVALID: KtDiagnosticFactory1<String> by error1<PsiElement, String>()
@@ -85,24 +75,6 @@ public object K202CaptureCodeDiagnostics {
     private object K202CaptureCodeDefaultMessages : BaseDiagnosticRendererFactory() {
         override val MAP: KtDiagnosticFactoryToRendererMap =
             KtDiagnosticFactoryToRendererMap("CaptureCode").apply {
-                put(
-                    CC_MARKER_VISIBILITY_VIOLATION,
-                    CaptureCodeDiagnosticMessages.render(
-                        CaptureCodeDiagnosticMessages.MARKER_VISIBILITY_VIOLATION,
-                    ),
-                )
-                put(
-                    CC_MARKER_RETENTION_VIOLATION,
-                    CaptureCodeDiagnosticMessages.render(
-                        CaptureCodeDiagnosticMessages.MARKER_RETENTION_VIOLATION,
-                    ),
-                )
-                put(
-                    CC_MARKER_TARGET_EMPTY,
-                    CaptureCodeDiagnosticMessages.render(
-                        CaptureCodeDiagnosticMessages.MARKER_TARGET_EMPTY,
-                    ),
-                )
                 put(
                     CC_MARKER_PARAMETER_TYPE_INVALID,
                     CaptureCodeDiagnosticMessages.render(
