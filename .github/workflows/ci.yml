@@ -9,13 +9,18 @@ jobs:
   # ---------------------------------------------------------------------------
   # core-matrix: Kotlin × JDK の全 stable + 最新 pre-release を回す主要 matrix。
   #
-  # Kotlin 2.0.0 以降の全 stable patch (4 minor track × 4 patch = 16 stable)
-  # + 最新 pre-release 1 つを含める。 task-067 retry で 2.0.20 〜 2.3.21 を
-  # stable 昇格 (task-066 test split + compat-k210/k220/k230/k240rc + task-078
-  # CompilerPluginRegistrar 吸収によって drift 問題が構造解決された)。
+  # task-082 で experimental tier を撤廃し、 全 cell を stable tier に統一した。
+  # 2.4.0-RC (pre-release) と JDK 21 cell も含めて全 cell が fail-on-error。
+  # ある cell が fail すれば workflow も fail する。
   #
-  # JDK は 17 を stable tier、 21 は experimental tier (代表 versions のみ)。
+  # 構造解決済みの drift:
+  #   - D1 drift (FirLiteralExpression 型パラ削除): compat-k210 で absorb
+  #   - kctfork transitive (kotlin-compiler-embeddable:2.0.0): task-066 で
+  #     compat module 別に test execution split
+  #   - CompilerPluginRegistrar legacy-load incompat: task-078 で吸収
+  #   - fullyExpandedType drift: task-080 で reflection shim 経由で吸収
   #
+  # JDK は 17 を baseline、 21 は代表 versions の sanity 用 cell として追加。
   # 各 cell の `ksp` 値は Kotlin version に追従する必要がある (Kotlin 2.0.0
   # baseline 用 KSP は 2.2.x 以降では `too old` エラーで refuse される) ため、
   # matrix `include` で kotlin → ksp の version mapping を明示する。
@@ -30,32 +35,32 @@ jobs:
         os: ["ubuntu-latest"]
         jdk: ["17"]
         kotlin:
-          # === 2.0.x track === (全 stable: compat-k200 baseline)
+          # === 2.0.x track === (compat-k200 baseline)
           - "2.0.0"   # base — SSOT, libs.versions.toml に固定
-          - "2.0.10"  # stable (task-047): compat-k200 が 2.0.10 native でも PASS
-          - "2.0.20"  # stable (task-067 retry): compat-k210 が D1 drift 吸収
+          - "2.0.10"  # task-047: compat-k200 が 2.0.10 native でも PASS
+          - "2.0.20"  # task-067 retry: compat-k210 が D1 drift 吸収
           - "2.0.21"  # latest 2.0.x patch
-          # === 2.1.x track === (全 stable: compat-k210 baseline)
+          # === 2.1.x track === (compat-k210 baseline)
           - "2.1.0"
-          - "2.1.10"  # stable (task-067 retry): kctfork split で transitive 不整合解消
+          - "2.1.10"  # task-067 retry: kctfork split で transitive 不整合解消
           - "2.1.20"
           - "2.1.21"  # latest 2.1.x patch
-          # === 2.2.x track === (全 stable: compat-k220 baseline)
+          # === 2.2.x track === (compat-k220 baseline)
           - "2.2.0"
           - "2.2.10"
           - "2.2.20"
           - "2.2.21"
-          # === 2.3.x track === (全 stable: compat-k230 baseline、 task-078 で legacy-load 修正)
+          # === 2.3.x track === (compat-k230 baseline、 task-078 で legacy-load 修正)
           - "2.3.0"
           - "2.3.10"
           - "2.3.20"
           - "2.3.21"
-          # === pre-release (warn policy) === (compat-k240rc baseline)
+          # === pre-release === (compat-k240rc baseline)
           - "2.4.0-RC"
         include:
           # ------------------------------------------------------------------
-          # Stable tier (failable=false) — task-067 retry で 2.0.0 〜 2.3.21
-          # の全 stable patch を昇格。
+          # 全 cell stable tier (task-082): 2.0.0 〜 2.3.21 全 stable patch +
+          # 2.4.0-RC pre-release を一律 fail-on-error で扱う。
           #
           # 構造的に解決済の問題:
           #   - D1 drift (FirLiteralExpression<T> → FirLiteralExpression、
@@ -70,91 +75,55 @@ jobs:
           # ------------------------------------------------------------------
           - kotlin: "2.0.0"
             ksp: "2.0.0-1.0.24"
-            experimental: false
           - kotlin: "2.0.10"
             ksp: "2.0.10-1.0.24"
-            experimental: false
-
-          # ------------------------------------------------------------------
-          # Stable tier (failable=false) — task-067 (task-078 で全 Kotlin
-          # version の `:integration-test:test-jvm:test` PASS を実機確認した
-          # 後の retry promotion) で 2.0.20 〜 2.3.21 を stable 昇格。
-          #
-          # 構造問題の解消:
-          #   - kctfork transitive 不整合 → task-066 で CI test execution split
-          #     済 (2.0.x では compat-k200/test、 2.1.x+ では compat-k210/test)
-          #   - D1 drift (FirLiteralExpression generics) → compat-k210/k220/
-          #     k230/k240rc + ServiceLoader resolveFactory で absorb 済
-          #   - CompilerPluginRegistrar legacy-load drift → task-078 で吸収
-          #
-          # 2.4.0-RC のみ pre-release (warn ポリシー) として experimental
-          # tier を維持する。
-          # ------------------------------------------------------------------
           - kotlin: "2.0.20"
             ksp: "2.0.20-1.0.24"
-            experimental: false
           - kotlin: "2.0.21"
             ksp: "2.0.21-1.0.28"
-            experimental: false
           - kotlin: "2.1.0"
             ksp: "2.1.0-1.0.29"
-            experimental: false
           - kotlin: "2.1.10"
             ksp: "2.1.10-1.0.31"
-            experimental: false
           - kotlin: "2.1.20"
             ksp: "2.1.20-2.0.1"
-            experimental: false
           - kotlin: "2.1.21"
             ksp: "2.1.21-2.0.2"
-            experimental: false
           - kotlin: "2.2.0"
             ksp: "2.2.0-2.0.2"
-            experimental: false
           - kotlin: "2.2.10"
             ksp: "2.2.10-2.0.2"
-            experimental: false
           - kotlin: "2.2.20"
             ksp: "2.2.20-2.0.4"
-            experimental: false
           - kotlin: "2.2.21"
             ksp: "2.2.21-2.0.5"
-            experimental: false
           - kotlin: "2.3.0"
             ksp: "2.3.0"
-            experimental: false
           - kotlin: "2.3.10"
             ksp: "2.3.8"  # KSP 2.3.10 native 未 release のため最新 2.3.x で代用
-            experimental: false
           - kotlin: "2.3.20"
             ksp: "2.3.8"  # KSP 2.3.20 native 未 release のため最新 2.3.x で代用
-            experimental: false
           - kotlin: "2.3.21"
             ksp: "2.3.8"
-            experimental: false
           - kotlin: "2.4.0-RC"
             ksp: "2.3.8"  # KSP 2.4.x 未 release のため最新 2.3.x で代用
-            experimental: true
 
           # ------------------------------------------------------------------
           # JDK 21 の代表 cell (各 minor track の latest patch + pre-release)。
-          # core stable tier (2.0.x) は jdk 17 only、 21 は experimental 扱い。
+          # task-082 以降は JDK 21 cell も stable tier として扱う。
           # ------------------------------------------------------------------
           - os: "ubuntu-latest"
             jdk: "21"
             kotlin: "2.0.21"
             ksp: "2.0.21-1.0.28"
-            experimental: true
           - os: "ubuntu-latest"
             jdk: "21"
             kotlin: "2.1.21"
             ksp: "2.1.21-2.0.2"
-            experimental: true
           - os: "ubuntu-latest"
             jdk: "21"
             kotlin: "2.3.21"
             ksp: "2.3.8"
-            experimental: true
     steps:
       - uses: actions/checkout@v4
 
@@ -200,7 +169,6 @@ jobs:
       # test execution split 済)。
       # ---------------------------------------------------------------------
       - name: Run unit + KMP integration tests (jvm target)
-        continue-on-error: ${{ matrix.experimental }}
         run: |
           case "${{ matrix.kotlin }}" in
             2.0.0)
@@ -235,7 +203,6 @@ jobs:
       # TestKit + fixture project による真の E2E。 別 step に分けて
       # CI ログを読みやすくする。
       - name: Run Gradle plugin E2E tests (TestKit)
-        continue-on-error: ${{ matrix.experimental }}
         run: |
           ./gradlew \
             :integration-test:test-gradle-plugin:test \
