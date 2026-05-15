@@ -24,7 +24,19 @@ kotlin {
         // `context(KtDiagnosticsContainer)` / 受け手付きの contextual declaration に
         // 変わっている。 root KGP (Kotlin 2.0.0) compile path で本 module を build
         // するため、 context-receivers 機能の opt-in flag を有効化する。
-        freeCompilerArgs.add("-Xcontext-receivers")
+        //
+        // task-077: Kotlin 2.3+ では `-Xcontext-receivers` が削除済 (error) に
+        // なっているため、 root Kotlin が 2.3+ のときは代わりに `-Xcontext-parameters`
+        // を使う。 root の Kotlin バージョンに応じて切り替える。
+        val rootKotlinVersion = org.jetbrains.kotlin.config.KotlinCompilerVersion.VERSION
+        val (major, minor) = rootKotlinVersion.split('.').let {
+            (it.getOrNull(0)?.toIntOrNull() ?: 0) to (it.getOrNull(1)?.toIntOrNull() ?: 0)
+        }
+        if (major > 2 || (major == 2 && minor >= 3)) {
+            freeCompilerArgs.add("-Xcontext-parameters")
+        } else {
+            freeCompilerArgs.add("-Xcontext-receivers")
+        }
     }
 }
 
