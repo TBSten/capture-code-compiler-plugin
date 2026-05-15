@@ -7,11 +7,15 @@ import me.tbsten.capture.code.compat.k200.checker.K200CapturedSourcesCallChecker
 import me.tbsten.capture.code.compat.k200.checker.K200ExpressionAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k200.checker.K200MarkerAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k200.checker.K200MarkerCheckersExtension
+import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
+import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
+import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.types.toRegularClassSymbol
@@ -69,6 +73,25 @@ public class CompatContextImpl : CompatContext {
         ::K200CapturedSourcesCallCheckersExtension,
         ::K200ExpressionAnnotationCheckersExtension,
     )
+
+    // task-078: FIR / IR 拡張の登録は CompilerPluginRegistrar.ExtensionStorage の
+    // `registerExtension(<Descriptor>, T)` を呼ぶが、 その descriptor の super class
+    // (ProjectExtensionDescriptor vs ExtensionPointDescriptor) と
+    // ExtensionStorage 側の引数型が Kotlin 2.3.0 で drift している。
+    // 本 module は 2.0.0 native API でビルドされるため、 ここでの call site は
+    // 2.0.x の ProjectExtensionDescriptor シグネチャに正しくリンクされる。
+    override fun registerExtensions(
+        extensionStorage: CompilerPluginRegistrar.ExtensionStorage,
+        configuration: CompilerConfiguration,
+        config: CaptureCodePluginConfig,
+        firRegistrar: FirExtensionRegistrarAdapter,
+        irExtension: IrGenerationExtension,
+    ) {
+        with(extensionStorage) {
+            FirExtensionRegistrarAdapter.registerExtension(firRegistrar)
+            IrGenerationExtension.registerExtension(irExtension)
+        }
+    }
 
     @AutoService(CompatContext.Factory::class)
     public class Factory : CompatContext.Factory {

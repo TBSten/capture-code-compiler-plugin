@@ -7,11 +7,15 @@ import me.tbsten.capture.code.compat.k210.checker.K210CapturedSourcesCallChecker
 import me.tbsten.capture.code.compat.k210.checker.K210ExpressionAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k210.checker.K210MarkerAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k210.checker.K210MarkerCheckersExtension
+import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
+import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
+import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
@@ -88,6 +92,20 @@ public class CompatContextImpl : CompatContext {
         ::K210CapturedSourcesCallCheckersExtension,
         ::K210ExpressionAnnotationCheckersExtension,
     )
+
+    // task-078: 詳細は CompatContext.registerExtensions の KDoc 参照。
+    override fun registerExtensions(
+        extensionStorage: CompilerPluginRegistrar.ExtensionStorage,
+        configuration: CompilerConfiguration,
+        config: CaptureCodePluginConfig,
+        firRegistrar: FirExtensionRegistrarAdapter,
+        irExtension: IrGenerationExtension,
+    ) {
+        with(extensionStorage) {
+            FirExtensionRegistrarAdapter.registerExtension(firRegistrar)
+            IrGenerationExtension.registerExtension(irExtension)
+        }
+    }
 
     @AutoService(CompatContext.Factory::class)
     public class Factory : CompatContext.Factory {

@@ -2,10 +2,14 @@ package me.tbsten.capture.code.compat
 
 import java.util.ServiceLoader
 import me.tbsten.capture.code.CaptureCodePluginConfig
+import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
+import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 import org.jetbrains.kotlin.fir.expressions.FirExpression
+import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
@@ -146,6 +150,52 @@ public interface CompatContext {
      */
     public fun firAdditionalCheckersExtensions():
         List<(FirSession) -> FirAdditionalCheckersExtension>
+
+    /**
+     * Registers the plugin's FIR registrar adapter and IR generation extension
+     * onto the supplied [extensionStorage].
+     *
+     * **Why this lives in the compat layer (drift D10)**:
+     * The signatures of `CompilerPluginRegistrar.ExtensionStorage.registerExtension(...)`
+     * and the related `Companion` objects (`FirExtensionRegistrarAdapter.Companion`,
+     * `IrGenerationExtension.Companion`) changed their **super class** between
+     * Kotlin 2.2.x and 2.3.x:
+     *
+     * - 2.0.x .. 2.2.x: `Companion : ProjectExtensionDescriptor<...>`
+     *   `ExtensionStorage.registerExtension(ProjectExtensionDescriptor<T>, T)`
+     * - 2.3.x .. 2.4.x: `Companion : ExtensionPointDescriptor<...>`
+     *   `ExtensionStorage.registerExtension(ExtensionPointDescriptor<T>, T)`
+     *
+     * Bytecode compiled against 2.0.x baseline still references
+     * `registerExtension(ProjectExtensionDescriptor, Object)` and casts the
+     * Companion to `ProjectExtensionDescriptor`, both of which fail at runtime
+     * on 2.3.x+ (NoSuchMethodError / ClassCastException). Since each
+     * `compat-kXXX` module is compiled against its native
+     * `kotlin-compiler-embeddable`, delegating registration to the compat layer
+     * resolves the call site against the correct signature for the current
+     * Kotlin runtime.
+     *
+     * The [extensionStorage] is passed as `Any` to avoid the main module
+     * needing a stable reference to its inner-class form across versions.
+     * Implementations cast it to
+     * `CompilerPluginRegistrar.ExtensionStorage` internally.
+     *
+     * @param extensionStorage actually a
+     *   `CompilerPluginRegistrar.ExtensionStorage` instance (the receiver of
+     *   `registerExtensions`)
+     * @param configuration the `CompilerConfiguration` of the current compile
+     * @param config the resolved [CaptureCodePluginConfig]
+     * @param firRegistrar the plugin's [FirExtensionRegistrarAdapter] subclass
+     *   instance to register
+     * @param irExtension the plugin's [IrGenerationExtension] instance to register
+     */
+    public fun registerExtensions(
+        extensionStorage: CompilerPluginRegistrar.ExtensionStorage,
+        configuration: CompilerConfiguration,
+        config: CaptureCodePluginConfig,
+        firRegistrar: FirExtensionRegistrarAdapter,
+        irExtension: IrGenerationExtension,
+    )
 
     /**
      * Factory for compat implementations. Each `compat-kXXX` module registers
