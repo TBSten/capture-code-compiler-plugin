@@ -206,13 +206,19 @@ jobs:
             2.0.0)
               plugin_tests=":compiler-plugin:test :compiler-plugin:compat-k200:test"
               ;;
-            2.0.*)
-              # 2.0.10+ では kctfork 0.5.1 (kotlin-compiler-embeddable 2.0.0
-              # transitive) と consumer kotlin 2.0.20+ の D1 drift で
-              # `:compiler-plugin:test` が壊れる。 plugin 実機動作は
-              # shadowJar 経由で compat-k200 が選ばれて正常、 unit test
-              # だけ baseline (2.0.0) 専用扱いとする。
+            2.0.10)
+              # 2.0.10 では `BuildersKt` が未導入のため compat-k202 は dispatch されず、
+              # compat-k200 が引き続き使われる (task-081 で minVersion = "2.0.20" に
+              # 設定したため)。 task-080 の fullyExpandedType reflection shim 経由で
+              # drift-safe。
               plugin_tests=":compiler-plugin:compat-k200:test"
+              ;;
+            2.0.*)
+              # 2.0.20 / 2.0.21 patch では compat-k202 (Factory.minVersion = "2.0.20")
+              # が dispatch される。 task-081 で IrVarargImplKt / IrConstImplKt /
+              # IrGetEnumValueImplKt の top-level factory 削除や BuildersKt 導入を
+              # 2.0.21 native binary で吸収。
+              plugin_tests=":compiler-plugin:compat-k202:test"
               ;;
             *)
               plugin_tests=":compiler-plugin:compat-k210:test"
