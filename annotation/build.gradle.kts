@@ -1,11 +1,12 @@
-import org.jetbrains.kotlin.gradle.targets.js.dsl.ExperimentalWasmDsl
-
 plugins {
     kotlin("multiplatform")
     id("buildsrc.convention.publish")
 }
 
-@OptIn(ExperimentalWasmDsl::class)
+// Note: `ExperimentalWasmDsl` import + `@OptIn` は Kotlin 2.2.x まで必要だったが、
+// Kotlin 2.3 で削除予定の API になっており 2.3.x compile を壊す。 wasmJs は 2.3 以降
+// stable 扱いで OptIn 不要。 2.2 系では `@OptIn` 無しでも warning のみで build は通る
+// (= experimental API への参照は無い: `kotlin { wasmJs { ... } }` のみで OptIn 不要)。
 kotlin {
     jvmToolchain(17)
 

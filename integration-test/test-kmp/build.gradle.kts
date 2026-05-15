@@ -1,9 +1,12 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
-import org.jetbrains.kotlin.gradle.targets.js.dsl.ExperimentalWasmDsl
 
 plugins {
     kotlin("multiplatform")
 }
+
+// Note: `ExperimentalWasmDsl` import + `@OptIn` は Kotlin 2.2.x まで必要だったが、
+// Kotlin 2.3 で削除予定の API になっており 2.3.x compile を壊す。 wasmJs は 2.3 以降
+// stable で OptIn 不要。 2.2 系では warning が出るのみで build は通る。
 
 // ----------------------------------------------------------------------------
 // Apple native target の opt-in/opt-out
@@ -23,7 +26,7 @@ plugins {
 val enableAppleTargets: Boolean =
     (project.findProperty("enableAppleTargets") as? String)?.toBoolean() ?: false
 
-@OptIn(ExperimentalKotlinGradlePluginApi::class, ExperimentalWasmDsl::class)
+@OptIn(ExperimentalKotlinGradlePluginApi::class)
 kotlin {
     // KMP 公式の階層テンプレートを有効化。
     // jvm/js/native の標準 source set 関係 (nativeMain → linuxX64Main 等) を提供する。
