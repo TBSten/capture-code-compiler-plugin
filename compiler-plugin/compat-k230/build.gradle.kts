@@ -49,13 +49,12 @@ dependencies {
 
     implementation(project(":compiler-plugin:compat"))
 
-    // task-075: compat-k230 専用 unit test (ServiceLoader-based sanity)。
-    // kctfork は意図的に使わず pure JVM test に留める。 こうすることで
-    // kctfork transitive embeddable と consumer Kotlin (matrix bumped to 2.3.x+)
-    // の drift 問題を本 module の test では完全回避できる。
-    // testRuntime に kotlin-compiler-embeddable-k230 (= 2.3.0 固定) を入れて
-    // K230CompatContextImpl が ServiceLoader 経由でロードされる際に
-    // 必要な FIR / IR symbol を解決可能にする。
+    // task-075: compat-k230 専用 unit test (ServiceLoader sanity + task-088 で追加した
+    // static init smoke test)。 kctfork は意図的に使わず pure JVM test に留める
+    // (kctfork 0.5.1 は Kotlin 2.0.x baseline で固定されており、 K230 native API には
+    // NoSuchMethodError で fail する)。 task-088 の `K230CaptureCodeDiagnosticsStaticInitTest`
+    // は kctfork 不要で **直接 diagnostic property を read** することで static init の
+    // 循環依存を検出する設計。
     testImplementation(libs.kotlin.compiler.embeddable.k230)
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)

@@ -188,7 +188,24 @@ jobs:
               # 2.0.21 native binary で吸収。
               plugin_tests=":compiler-plugin:compat-k202:test"
               ;;
+            2.1.*)
+              plugin_tests=":compiler-plugin:compat-k210:test"
+              ;;
+            2.2.*)
+              plugin_tests=":compiler-plugin:compat-k220:test"
+              ;;
+            2.3.*)
+              # task-088 / task-089: compat-k230 は K230CaptureCodeDiagnostics の
+              # static init 循環依存 regression test を含む。 2.3.x cell で必ず
+              # `:compat-k230:test` を実行することで再発を即捕捉する。
+              plugin_tests=":compiler-plugin:compat-k230:test"
+              ;;
+            2.4.0-RC)
+              # task-089: K240Rc も同じ static init regression test を持つ。
+              plugin_tests=":compiler-plugin:compat-k240rc:test"
+              ;;
             *)
+              # 想定外の version (= 新 minor 等) は最寄りの compat-k210 で sanity。
               plugin_tests=":compiler-plugin:compat-k210:test"
               ;;
           esac
