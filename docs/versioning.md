@@ -118,3 +118,52 @@ in [docs/publishing.md](publishing.md).
 > trigger** に限定 (`release.yml`) しているため、 ローカル credentials を持たない
 > 通常開発者には影響しないが、 publishing credentials を設定する場合は
 > `publishToMavenLocal` 以外を慎重に扱うこと。
+
+## Release history
+
+This section captures per-release deltas that warrant a heads-up beyond the
+auto-generated GitHub Release notes. Strict policy is in
+[Version bump rules](#version-bump-rules); this is the human-readable log.
+
+### 0.2.0
+
+**Theme**: internal restructure following the Compatibility Layer pattern
+(tasks 116 – 125). No public API change.
+
+Breaking changes (user-visible, pre-1.0 so packaged as a `MINOR` bump per
+the [Pre-1.0 policy](#pre-10-policy-0xy)):
+
+- **Diagnostics are now English-only.** The `CAPTURECODE_LOCALE` env var
+  is silently ignored. The Japanese variants of compiler diagnostics from
+  the 0.1.x line are no longer produced. The English texts are the
+  single source of truth, defined per logic in
+  `compiler-plugin/src/main/.../feature/<feature>/.../<Logic>Errors.kt`
+  and `<Logic>Warnings.kt`. (task-122)
+- **Diagnostic message ids and wording were re-aligned.** Diagnostic
+  stability is a `1.0.0` commitment (see [Pre-1.0 policy](#pre-10-policy-0xy));
+  callers that pattern-match on diagnostic text are still considered
+  out-of-policy, but the post-restructure wording is now stable across
+  every supported Kotlin baseline.
+- **Internal package layout was refactored.** Domain logic that lived
+  under `:compiler-plugin:compat` in 0.1.x now lives in the main
+  `:compiler-plugin` module under `src/main/kotlin/.../feature/`. The
+  public API surface (`@CaptureCode`, the filler types, the Gradle DSL)
+  is unchanged.
+
+Compatibility notes:
+
+- **Adding a new Kotlin version still requires a new `compat-kXXX`
+  module.** The IR walker / rewriter / filler / userargs remain inside
+  each `compat-kXXX/` to absorb IR drift D5–D8 (task-120-B case C).
+  Adding a baseline therefore creates a new module with ~12–13 Kotlin
+  files (plus 0–5 Java shims on 2.2.x+ for FIR Checker `check(...)`
+  argument-order drift). See
+  [compiler-plugin/compat/README.md](../compiler-plugin/compat/README.md)
+  for the full checklist.
+- **Supported Kotlin baselines**: 2.0.0, 2.0.10–2.0.21, 2.1.x, 2.2.x,
+  2.3.x, 2.4.0-RC{,N}.
+
+### 0.1.x
+
+See the GitHub Release notes for individual `0.1.0` / `0.1.1` / `0.1.2`
+entries. No `MAJOR` changes since the project started shipping.
