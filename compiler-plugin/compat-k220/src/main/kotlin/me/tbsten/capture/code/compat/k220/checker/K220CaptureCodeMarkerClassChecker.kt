@@ -3,10 +3,10 @@
 
 package me.tbsten.capture.code.compat.k220.checker
 
-import me.tbsten.capture.code.compat.CaptureCodeMarkerOptions
-import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
-import me.tbsten.capture.code.fir.marker.CaptureCodeMarkerOptionsExtractor
-import me.tbsten.capture.code.fir.marker.CaptureCodeMetaAnnotation
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerOptions
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
+import me.tbsten.capture.code.feature.markerDefinition.fir.discoverMarkerClass.extractMarkerOptions.ExtractMarkerOptions
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMetaAnnotation
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
@@ -39,7 +39,7 @@ public object K220CaptureCodeMarkerClassCheckerLogic {
 
         val classId = declaration.symbol.classId
         val fqn = classId.asSingleFqName().asString()
-        val options = CaptureCodeMarkerOptionsExtractor.extract(captureCodeAnnotation)
+        val options = ExtractMarkerOptions()(captureCodeAnnotation)
         if (options == CaptureCodeMarkerOptions.DEFAULT) {
             CaptureCodeMarkerRegistry.registerMarker(fqn)
         } else {

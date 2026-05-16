@@ -64,8 +64,8 @@ public interface CompatContext {
      * Runs the version-specific IR rewriting pass over [moduleFragment].
      *
      * Each compat module owns the IR walker / rewriter pair that consumes
-     * [CaptureCodeMarkerRegistry] (FIR-side) and
-     * [CaptureCodeExpressionSiteRegistry] (FIR-side) and produces the
+     * [me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry] (FIR-side) and
+     * [me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry] (FIR-side) and produces the
      * `listOf(T(...))` replacement for every `capturedSources<T>()` call.
      *
      * **Before**: `moduleFragment` with unmodified `capturedSources<T>()` calls

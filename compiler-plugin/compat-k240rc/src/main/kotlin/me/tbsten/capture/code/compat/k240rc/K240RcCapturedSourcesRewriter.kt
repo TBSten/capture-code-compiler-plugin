@@ -17,7 +17,7 @@ import me.tbsten.capture.code.compat.k240rc.filler.SourceFillerBuilder
 import me.tbsten.capture.code.compat.k240rc.filler.SourceLocationFillerBuilder
 import me.tbsten.capture.code.compat.k240rc.userargs.UserArgIrBuilder
 import me.tbsten.capture.code.compat.k240rc.userargs.UserArgPrimitiveIrBuilder
-import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.expressions.IrCall
@@ -44,7 +44,7 @@ import org.jetbrains.kotlin.name.Name
  * Logic H (`capturedSources<T>()` 書き換え) の Kotlin 2.4.0-RC 向け実装。
  *
  * 入力された [IrCall] (= `me.tbsten.capture.code.capturedSources<Marker>()`、`Marker` は
- * [me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry] に登録された marker のいずれか) を、
+ * [me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry] に登録された marker のいずれか) を、
  * [K240RcCapturedSourcesCollector] が収集した [K240RcCapturedSiteData] のリストから組み立てた
  * `listOf(Marker(...))` 相当の [IrCall] (`kotlin.collections.listOf`) に書き換える。
  *

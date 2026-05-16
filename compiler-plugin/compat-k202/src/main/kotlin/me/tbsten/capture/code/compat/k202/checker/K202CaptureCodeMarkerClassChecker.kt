@@ -1,9 +1,9 @@
 package me.tbsten.capture.code.compat.k202.checker
 
-import me.tbsten.capture.code.compat.CaptureCodeMarkerOptions
-import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
-import me.tbsten.capture.code.fir.marker.CaptureCodeMarkerOptionsExtractor
-import me.tbsten.capture.code.fir.marker.CaptureCodeMetaAnnotation
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerOptions
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
+import me.tbsten.capture.code.feature.markerDefinition.fir.discoverMarkerClass.extractMarkerOptions.ExtractMarkerOptions
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMetaAnnotation
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
@@ -20,7 +20,7 @@ import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
  * process-scoped holder) に直接登録する。
  *
  * `CaptureCodeFirMarkerService` (session component) は本 ticket で **廃止** され、 marker option
- * の extraction は [CaptureCodeMarkerOptionsExtractor] (compat 共有ヘルパ) に委譲する。
+ * の extraction は [ExtractMarkerOptions] (compat 共有ヘルパ) に委譲する。
  * これにより compat-k202 / compat-k210 で重複コードを最小化する。
  */
 internal object K202CaptureCodeMarkerClassChecker : FirRegularClassChecker(MppCheckerKind.Common) {
@@ -37,7 +37,7 @@ internal object K202CaptureCodeMarkerClassChecker : FirRegularClassChecker(MppCh
 
         val classId = declaration.symbol.classId
         val fqn = classId.asSingleFqName().asString()
-        val options = CaptureCodeMarkerOptionsExtractor.extract(captureCodeAnnotation)
+        val options = ExtractMarkerOptions()(captureCodeAnnotation)
         if (options == CaptureCodeMarkerOptions.DEFAULT) {
             CaptureCodeMarkerRegistry.registerMarker(fqn)
         } else {

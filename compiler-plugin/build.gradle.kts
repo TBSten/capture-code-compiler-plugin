@@ -31,6 +31,30 @@ kotlin {
 // shadowJar に同梱する compat 実装モジュール (transitive 依存は持ち込まない)
 val bundled: Configuration by configurations.creating { isTransitive = false }
 
+// task-118: compat-kXXX module が main module の domain SSOT (`feature/markerDefinition/` /
+// `feature/capturedSources/` 配下) を compile 時に参照するため、 shadowJar 経由ではなく
+// main module の compileKotlin output を直接 expose する outgoing configuration。
+//
+// 通常の `apiElements` は本 build.gradle.kts 下部で shadowJar に上書きされており、
+// compat-kXXX が `apiElements` を引くと shadowJar → compat-kXXX (bundled) → ... の
+// 循環依存になる。 そのため shadowJar を経由しない別 variant としてこの configuration を
+// 作り、 compat-kXXX 側は `mainClassesOnly` configuration を引くことで循環を避ける。
+//
+// runtime には shadowJar に main module の class が同梱されるので、 compileOnly のみで充分。
+val mainClassesOnly: Configuration by configurations.creating {
+    isCanBeConsumed = true
+    isCanBeResolved = false
+    attributes {
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class, Usage.JAVA_API))
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category::class, Category.LIBRARY))
+        attribute(
+            LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
+            objects.named(LibraryElements::class, LibraryElements.CLASSES),
+        )
+        attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling::class, Bundling.EXTERNAL))
+    }
+}
+
 dependencies {
     // task-071: main module は固定 2.0.0 (kotlin-k200) API に対して compile する。
     // これにより consumer kotlin が 2.2.x+ に bump されても drift (FirChecker
@@ -106,6 +130,16 @@ configurations {
 
 tasks.named("assemble") {
     dependsOn(tasks.shadowJar)
+}
+
+// task-118: mainClassesOnly outgoing artifact 設定 (上の configuration 宣言の補完)
+//
+// `compileKotlin` task の output directory を artifact として expose。 これを
+// compat-kXXX 側が consume することで、 shadowJar 経由の循環依存を回避する。
+artifacts {
+    add(mainClassesOnly.name, tasks.named("compileKotlin", org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class).map {
+        it.destinationDirectory
+    })
 }
 
 // ----------------------------------------------------------------------------

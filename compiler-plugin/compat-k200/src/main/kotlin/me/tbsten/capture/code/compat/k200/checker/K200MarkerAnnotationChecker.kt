@@ -1,7 +1,7 @@
 package me.tbsten.capture.code.compat.k200.checker
 
-import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
-import me.tbsten.capture.code.fir.marker.CaptureCodeMetaAnnotation
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMetaAnnotation
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.Visibilities
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter

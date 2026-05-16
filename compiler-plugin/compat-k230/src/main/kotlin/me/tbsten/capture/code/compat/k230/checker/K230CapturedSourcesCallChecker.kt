@@ -7,8 +7,8 @@
 
 package me.tbsten.capture.code.compat.k230.checker
 
-import me.tbsten.capture.code.feature.capturedsources.CaptureCodeCallableIds
-import me.tbsten.capture.code.fir.marker.CaptureCodeMetaAnnotation
+import me.tbsten.capture.code.feature.capturedSources.CaptureCodeCallableIds
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMetaAnnotation
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.FirSession

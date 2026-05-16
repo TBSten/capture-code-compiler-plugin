@@ -1,7 +1,7 @@
 package me.tbsten.capture.code.compat.k202.checker
 
-import me.tbsten.capture.code.compat.CaptureCodeExpressionSiteRegistry
-import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
+import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
 import org.jetbrains.kotlin.KtPsiSourceElement
 import org.jetbrains.kotlin.KtSourceElement
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter

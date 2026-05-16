@@ -6,8 +6,8 @@
 package me.tbsten.capture.code.compat.k240rc
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
-import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
-import me.tbsten.capture.code.compat.CapturedSite
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
+import me.tbsten.capture.code.feature.capturedSources.CapturedSite
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.expressions.IrCall

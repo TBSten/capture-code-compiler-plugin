@@ -32,6 +32,18 @@ dependencies {
 
     implementation(project(":compiler-plugin:compat"))
 
+    // task-118: main module の feature/markerDefinition / feature/capturedSources 配下に置かれた
+    // domain SSOT を参照する。 単純な `compileOnly(project(":compiler-plugin"))` は循環依存に
+    // なる (main の apiElements が shadowJar を返し、 shadowJar が compat-k* の jar を bundled
+    // で要求するため) ので、 shadowJar を bypass する `mainClassesOnly` outgoing configuration
+    // (compileKotlin output directory のみを expose) を引く。 compat-k200 の build.gradle.kts
+    // のコメントも参照。
+    compileOnly(
+        project(
+            mapOf("path" to ":compiler-plugin", "configuration" to "mainClassesOnly"),
+        ),
+    )
+
     // task-074: compat-k220 専用 unit test (ServiceLoader-based sanity)。
     // kctfork は意図的に使わず pure JVM test に留める。 こうすることで
     // kctfork transitive embeddable と consumer Kotlin (matrix bumped to 2.2.x+)

@@ -1,16 +1,16 @@
 package me.tbsten.capture.code.compat.k230
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
-import me.tbsten.capture.code.compat.CaptureCodeExpressionSiteRegistry
-import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
-import me.tbsten.capture.code.compat.CapturedSite
-import me.tbsten.capture.code.compat.effectiveFor
-import me.tbsten.capture.code.feature.captured_sources.normalize.NormalizeOptions
-import me.tbsten.capture.code.feature.captured_sources.normalize.findKDocExtendedStartOffset
-import me.tbsten.capture.code.feature.captured_sources.normalize.normalize
-import me.tbsten.capture.code.feature.captured_sources.normalize.toDeclarationNormalizeOptions
-import me.tbsten.capture.code.feature.captured_sources.normalize.toExpressionNormalizeOptions
-import me.tbsten.capture.code.feature.captured_sources.normalize.toFileNormalizeOptions
+import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
+import me.tbsten.capture.code.feature.capturedSources.CapturedSite
+import me.tbsten.capture.code.feature.markerDefinition.effectiveFor
+import me.tbsten.capture.code.feature.capturedSources.ir.normalize.NormalizeOptions
+import me.tbsten.capture.code.feature.capturedSources.ir.normalize.findKDocExtendedStartOffset
+import me.tbsten.capture.code.feature.capturedSources.ir.normalize.normalize
+import me.tbsten.capture.code.feature.capturedSources.ir.normalize.toDeclarationNormalizeOptions
+import me.tbsten.capture.code.feature.capturedSources.ir.normalize.toExpressionNormalizeOptions
+import me.tbsten.capture.code.feature.capturedSources.ir.normalize.toFileNormalizeOptions
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.IrClass
@@ -66,7 +66,7 @@ internal data class K230CapturedSiteData(
     val expressionUserArgs: Map<String, Any?> = emptyMap(),
     /**
      * 当該 site に対して計算済の effective config (= global Gradle DSL config に
-     * marker 単位の override [me.tbsten.capture.code.compat.CaptureCodeMarkerOptions]
+     * marker 単位の override [me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerOptions]
      * を適用した結果)。 marker に override が無い (引数なしの `@CaptureCode`) 場合は
      * global config と同一インスタンスになる ([CaptureCodePluginConfig.effectiveFor] の fast-path)。
      */

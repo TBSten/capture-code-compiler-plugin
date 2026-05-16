@@ -1,7 +1,7 @@
 package me.tbsten.capture.code.compat.k230.filler
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
-import me.tbsten.capture.code.compat.CapturedSite
+import me.tbsten.capture.code.feature.capturedSources.CapturedSite
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 
 /**

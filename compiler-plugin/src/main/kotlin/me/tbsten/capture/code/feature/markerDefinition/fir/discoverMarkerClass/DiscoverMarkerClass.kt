@@ -1,9 +1,9 @@
 package me.tbsten.capture.code.feature.markerDefinition.fir.discoverMarkerClass
 
-import me.tbsten.capture.code.compat.CaptureCodeMarkerOptions
-import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
-import me.tbsten.capture.code.fir.marker.CaptureCodeMarkerOptionsExtractor
-import me.tbsten.capture.code.fir.marker.CaptureCodeMetaAnnotation
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerOptions
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMetaAnnotation
+import me.tbsten.capture.code.feature.markerDefinition.fir.discoverMarkerClass.extractMarkerOptions.ExtractMarkerOptions
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
@@ -17,6 +17,8 @@ import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
  * [CaptureCodeMarkerRegistry] for use by IR phase checkers.
  */
 public class DiscoverMarkerClass {
+    private val extractMarkerOptions = ExtractMarkerOptions()
+
     public operator fun invoke(
         context: CheckerContext,
         declaration: FirRegularClass,
@@ -29,7 +31,7 @@ public class DiscoverMarkerClass {
 
         val classId = declaration.symbol.classId
         val fqn = classId.asSingleFqName().asString()
-        val options = CaptureCodeMarkerOptionsExtractor.extract(captureCodeAnnotation)
+        val options = extractMarkerOptions(captureCodeAnnotation)
         if (options == CaptureCodeMarkerOptions.DEFAULT) {
             CaptureCodeMarkerRegistry.registerMarker(fqn)
         } else {

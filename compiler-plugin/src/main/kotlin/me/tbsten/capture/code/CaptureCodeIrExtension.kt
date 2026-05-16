@@ -1,8 +1,8 @@
 package me.tbsten.capture.code
 
 import me.tbsten.capture.code.compat.CaptureCodeCompatHolder
-import me.tbsten.capture.code.compat.CaptureCodeExpressionSiteRegistry
-import me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry
+import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment

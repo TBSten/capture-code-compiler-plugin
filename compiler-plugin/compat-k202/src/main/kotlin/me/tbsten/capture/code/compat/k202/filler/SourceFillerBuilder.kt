@@ -1,8 +1,8 @@
 package me.tbsten.capture.code.compat.k202.filler
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
-import me.tbsten.capture.code.compat.CapturedSite
-import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
+import me.tbsten.capture.code.feature.capturedSources.CapturedSite
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.expressions.IrExpression
@@ -19,7 +19,7 @@ import org.jetbrains.kotlin.ir.util.constructors
  * declaration / file / expression 起源すべての CapturedSite に対して共通で再利用される。
  *
  * 値: `Source(value = site.source)` — [CapturedSite.source] は collector 段で
- * [me.tbsten.capture.code.feature.captured_sources.normalize.normalize] による正規化を
+ * [me.tbsten.capture.code.feature.capturedSources.ir.normalize.normalize] による正規化を
  * 終えた状態で来る。
  */
 internal class SourceFillerBuilder(

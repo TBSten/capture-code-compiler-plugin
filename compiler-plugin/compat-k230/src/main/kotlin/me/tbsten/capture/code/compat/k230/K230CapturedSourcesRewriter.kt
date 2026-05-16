@@ -13,7 +13,7 @@ import me.tbsten.capture.code.compat.k230.filler.SourceFillerBuilder
 import me.tbsten.capture.code.compat.k230.filler.SourceLocationFillerBuilder
 import me.tbsten.capture.code.compat.k230.userargs.UserArgIrBuilder
 import me.tbsten.capture.code.compat.k230.userargs.UserArgPrimitiveIrBuilder
-import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.expressions.IrCall
@@ -39,7 +39,7 @@ import org.jetbrains.kotlin.name.Name
  * Logic H (`capturedSources<T>()` 書き換え) の Kotlin 2.0.0 向け実装。
  *
  * 入力された [IrCall] (= `me.tbsten.capture.code.capturedSources<Marker>()`、`Marker` は
- * [me.tbsten.capture.code.compat.CaptureCodeMarkerRegistry] に登録された marker のいずれか) を、
+ * [me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry] に登録された marker のいずれか) を、
  * [K230CapturedSourcesCollector] が収集した [K230CapturedSiteData] のリストから組み立てた
  * `listOf(Marker(...))` 相当の [IrCall] (`kotlin.collections.listOf`) に書き換える。
  *
@@ -53,7 +53,7 @@ import org.jetbrains.kotlin.name.Name
  *   parameter の `type` が `me.tbsten.capture.code.{Source, SourceLocation, CaptureKind}` の
  *   いずれかと **等しい** 場合のみ filler、 それ以外はユーザ定義扱い。 design §3.2 / §3.3。
  * - **SourceNormalizer の wire up**: 生 source 取得は [K230CapturedSourcesCollector] 内で
- *   [me.tbsten.capture.code.feature.captured_sources.normalize.normalize] を経由する。
+ *   [me.tbsten.capture.code.feature.capturedSources.ir.normalize.normalize] を経由する。
  *   本 rewriter は normalize 済の `site.source` をそのまま使う。
  *
  * ## ユーザ定義パラメータの保持

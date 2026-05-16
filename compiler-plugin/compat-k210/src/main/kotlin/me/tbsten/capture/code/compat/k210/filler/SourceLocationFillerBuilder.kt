@@ -1,8 +1,8 @@
 package me.tbsten.capture.code.compat.k210.filler
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
-import me.tbsten.capture.code.compat.CapturedSite
-import me.tbsten.capture.code.error.CaptureCodeFillerClassIds
+import me.tbsten.capture.code.feature.capturedSources.CapturedSite
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.declarations.IrValueParameter
