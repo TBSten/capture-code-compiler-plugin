@@ -21,7 +21,7 @@ import org.jetbrains.kotlin.ir.expressions.IrExpression
  * 本 class は task-120-B で IR 構築 drift を CompatContext 経由で吸収できた時点で
  * `BuildFiller` を implement する concrete impl を担う予定。
  */
-public class FillSource : BuildFiller {
+internal class FillSource : BuildFiller {
 
     /**
      * Reserved entry point。 現状は **fail-fast placeholder**。 task-120-B で IR drift 吸収後に

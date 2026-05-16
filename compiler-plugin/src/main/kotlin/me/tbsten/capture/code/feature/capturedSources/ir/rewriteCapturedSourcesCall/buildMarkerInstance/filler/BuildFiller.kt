@@ -38,7 +38,7 @@ import org.jetbrains.kotlin.ir.expressions.IrExpression
  * `putValueArgument` 等の drift を受けるため、 各 compat-kXXX 側に **concrete impl** を残す。
  * main 側の interface は signature のみを公開し、 task-124+ で main 側に集約することを目標。
  */
-public interface BuildFiller {
+internal interface BuildFiller {
 
     /**
      * 与えられた [site] (= 1 件分のキャプチャ情報) から、 filler annotation instance を表す
@@ -46,7 +46,7 @@ public interface BuildFiller {
      *
      * 出力は通常 `IrConstructorCallImpl` (filler annotation の constructor call) になる。
      */
-    public operator fun invoke(
+    operator fun invoke(
         site: CapturedSite,
         config: CaptureCodePluginConfig,
     ): IrExpression

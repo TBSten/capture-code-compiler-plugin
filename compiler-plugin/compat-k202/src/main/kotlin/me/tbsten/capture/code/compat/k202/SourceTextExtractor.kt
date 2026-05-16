@@ -47,17 +47,4 @@ internal object SourceTextExtractor {
         if (!candidate.isFile) return null
         return runCatching { candidate.readText(Charsets.UTF_8) }.getOrNull()
     }
-
-    /**
-     * [fullText] の `[startOffset, endOffset)` 区間をそのまま substring する pure helper。
-     *
-     * 範囲が不正 (負値 / 反転 / fullText.length 超過) なら `null`。本関数は raw substring のみで、
-     * dedent や annotation 行除外などの正規化は行わない (それらは [SourceNormalizer.normalize] の
-     * 責務)。
-     */
-    fun substringOrNull(fullText: String, startOffset: Int, endOffset: Int): String? {
-        if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) return null
-        if (endOffset > fullText.length) return null
-        return fullText.substring(startOffset, endOffset)
-    }
 }

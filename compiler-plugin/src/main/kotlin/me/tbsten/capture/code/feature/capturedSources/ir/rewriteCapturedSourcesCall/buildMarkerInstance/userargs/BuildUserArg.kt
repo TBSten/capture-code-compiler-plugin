@@ -18,13 +18,13 @@ package me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSources
  * 本 class は task-124+ で IR access drift を CompatContext 経由で吸収できた時点で
  * concrete impl を担う予定。 現状は **directory structure と naming convention の集約** のみを行う。
  */
-public class BuildUserArg {
+internal class BuildUserArg {
 
     /**
      * Reserved entry point。 現状は **fail-fast placeholder**。 task-120-B で IR access drift
      * を CompatContext 経由で吸収して concrete impl を埋める予定。
      */
-    public operator fun invoke(): Nothing =
+    internal operator fun invoke(): Nothing =
         throw UnsupportedOperationException(
             "Not yet implemented; will be filled in task-120-B. See KDoc.",
         )

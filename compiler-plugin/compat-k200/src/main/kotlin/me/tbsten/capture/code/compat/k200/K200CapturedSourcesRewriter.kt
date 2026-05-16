@@ -59,9 +59,6 @@ import org.jetbrains.kotlin.name.Name
  */
 internal object K200CapturedSourcesRewriter {
 
-    /** 書き換え対象となる `capturedSources<T>()` の完全修飾名。 */
-    const val CAPTURED_SOURCES_FQN: String = "me.tbsten.capture.code.capturedSources"
-
     /**
      * 与えられた [original] を [siteData] から組み立てた `listOf<Marker>(...)` の [IrCall] に書き換える。
      *

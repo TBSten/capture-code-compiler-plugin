@@ -1,6 +1,7 @@
 package me.tbsten.capture.code.compat.k202
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
+import me.tbsten.capture.code.feature.capturedSources.CaptureCodeCallableIds
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.feature.capturedSources.CapturedSite
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
@@ -98,7 +99,16 @@ internal class K202CapturedSourcesTransformer(
     }
 
     private fun IrCall.isCapturedSourcesCall(): Boolean =
-        symbol.owner.fqNameWhenAvailable?.asString() == K202CapturedSourcesRewriter.CAPTURED_SOURCES_FQN
+        symbol.owner.fqNameWhenAvailable?.asString() == CAPTURED_SOURCES_FQN
+
+    private companion object {
+        /**
+         * 書き換え対象 `capturedSources<T>()` の完全修飾名。 main module の SSoT
+         * [CaptureCodeCallableIds.capturedSources] から派生して持つ (`task-091` 以降 SSoT 必須)。
+         */
+        private val CAPTURED_SOURCES_FQN: String =
+            CaptureCodeCallableIds.capturedSources.asSingleFqName().asString()
+    }
 
     /**
      * type argument が [CaptureCodeMarkerRegistry] に登録済の marker であれば、 その FqN を返す。

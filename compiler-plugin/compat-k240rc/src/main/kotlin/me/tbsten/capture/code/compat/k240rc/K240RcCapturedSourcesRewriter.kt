@@ -68,9 +68,6 @@ import org.jetbrains.kotlin.name.Name
  */
 internal object K240RcCapturedSourcesRewriter {
 
-    /** 書き換え対象となる `capturedSources<T>()` の完全修飾名。 */
-    const val CAPTURED_SOURCES_FQN: String = "me.tbsten.capture.code.capturedSources"
-
     fun rewriteCapturedSourcesCall(
         original: IrCall,
         markerFqn: String,

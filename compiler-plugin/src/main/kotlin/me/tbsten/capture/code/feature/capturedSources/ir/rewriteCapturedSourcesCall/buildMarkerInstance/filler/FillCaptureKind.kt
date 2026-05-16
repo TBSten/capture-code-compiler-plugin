@@ -22,7 +22,7 @@ import org.jetbrains.kotlin.ir.expressions.IrExpression
  * `BuildFiller` を implement する concrete impl を担う予定。 現状は signature だけ確定させて
  * fail-fast 実装で「未実装の placeholder」 であることを明示する。
  */
-public class FillCaptureKind : BuildFiller {
+internal class FillCaptureKind : BuildFiller {
 
     /**
      * Reserved entry point。 現状は **fail-fast placeholder**。 task-120-B で IR drift 吸収後に

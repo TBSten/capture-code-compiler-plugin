@@ -20,13 +20,13 @@ package me.tbsten.capture.code.feature.markerDefinition.ir.warnIfDuplicateMarker
  * 3. The source location to report on is the first marker declaration's
  *    `IrFile` location (deterministic ordering required).
  */
-public class WarnIfDuplicateMarkerFqn {
+internal class WarnIfDuplicateMarkerFqn {
 
     /**
      * Placeholder operator. Calling this currently throws because the IR
      * phase has no consumer yet — see the wire-up plan in the class KDoc.
      */
-    public operator fun invoke(): Nothing =
+    internal operator fun invoke(): Nothing =
         throw UnsupportedOperationException(
             "WarnIfDuplicateMarkerFqn is a task-123 skeleton. " +
                 "Wire-up arrives in task-120-B; see KDoc for the plan.",

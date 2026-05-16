@@ -31,14 +31,14 @@ import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
  * invoke が moduleFragment を受け取って IR を transform する形) は task-124+ の compat slim 化で
  * 実現を目指す。 現状は **directory structure と pure helper の集約** にとどめる。
  */
-public class RewriteCapturedSourcesCall {
+internal class RewriteCapturedSourcesCall {
 
     /**
      * Reserved entry point。 現状は **fail-fast placeholder**。 将来 IR 構築 drift を
      * CompatContext 経由で吸収できた段階で、 本 invoke が moduleFragment を transform する
      * orchestrator になる。 task-120-B で concrete impl を埋める。
      */
-    public operator fun invoke(): Nothing =
+    internal operator fun invoke(): Nothing =
         throw UnsupportedOperationException(
             "Not yet implemented; will be filled in task-120-B. See KDoc.",
         )
@@ -46,13 +46,8 @@ public class RewriteCapturedSourcesCall {
     /**
      * `capturedSources<T>()` 呼び出しの type argument T が registered marker かを判定する。
      */
-    public fun isRegisteredMarker(typeArgumentFqn: String?): Boolean {
+    internal fun isRegisteredMarker(typeArgumentFqn: String?): Boolean {
         if (typeArgumentFqn == null) return false
         return CaptureCodeMarkerRegistry.isMarker(typeArgumentFqn)
-    }
-
-    public companion object {
-        /** 書き換え対象となる `capturedSources<T>()` の完全修飾名。 */
-        public const val CAPTURED_SOURCES_FQN: String = "me.tbsten.capture.code.capturedSources"
     }
 }

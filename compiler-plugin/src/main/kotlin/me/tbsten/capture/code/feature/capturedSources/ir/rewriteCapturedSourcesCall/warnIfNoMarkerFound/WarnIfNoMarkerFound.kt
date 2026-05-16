@@ -30,13 +30,13 @@ package me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSources
  *    `CC_CAPTUREDSOURCES_NO_MARKER_FOUND` via the eventual `Diagnostics`
  *    interface (mirroring the FIR-side `WarnIfOverrideNoEffect` pattern).
  */
-public class WarnIfNoMarkerFound {
+internal class WarnIfNoMarkerFound {
 
     /**
      * Placeholder operator. Calling this currently throws because the IR
      * phase has no consumer yet — see the wire-up plan in the class KDoc.
      */
-    public operator fun invoke(): Nothing =
+    internal operator fun invoke(): Nothing =
         throw UnsupportedOperationException(
             "WarnIfNoMarkerFound is a task-123 skeleton. " +
                 "Wire-up arrives in task-120-B; see KDoc for the plan.",

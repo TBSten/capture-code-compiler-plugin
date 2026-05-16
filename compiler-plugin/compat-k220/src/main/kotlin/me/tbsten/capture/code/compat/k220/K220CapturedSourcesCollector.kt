@@ -4,6 +4,8 @@ import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.feature.capturedSources.CapturedSite
+import me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.CollectDeclarationSite
+import me.tbsten.capture.code.feature.capturedSources.ir.extractSourceText.ExtractSourceText
 import me.tbsten.capture.code.feature.markerDefinition.effectiveFor
 import me.tbsten.capture.code.feature.capturedSources.ir.normalize.NormalizeOptions
 import me.tbsten.capture.code.feature.capturedSources.ir.normalize.findKDocExtendedStartOffset
@@ -156,6 +158,14 @@ internal class K220CapturedSourcesCollector(
     private val cachedFileText: String? by lazy { SourceTextExtractor.loadFileText(currentFile) }
 
     /**
+     * main module 側の pure helper への bridge。 raw substring (offset 範囲チェック付き) や
+     * declaration site の file path 一致判定 (collectDeclarationSite/CollectDeclarationSite) は
+     * 各 compat-kXXX で重複させず、 main の SSoT 実装を呼び出す。
+     */
+    private val extractSourceText: ExtractSourceText = ExtractSourceText()
+    private val collectDeclarationSite: CollectDeclarationSite = CollectDeclarationSite()
+
+    /**
      * marker FqN ごとの effective config キャッシュ。
      *
      * 同一 marker が file 内に複数 site (例: 4 つの property に同じ marker) ある場合に毎回
@@ -294,7 +304,7 @@ internal class K220CapturedSourcesCollector(
         val matchingSites = CaptureCodeExpressionSiteRegistry.allSites
             .asSequence()
             .filter { CaptureCodeMarkerRegistry.isMarker(it.markerFqn) }
-            .filter { it.matchesFile(filePath) }
+            .filter { collectDeclarationSite.matchesFile(it, filePath) }
             .sortedBy { it.startOffset }
             .toList()
 
@@ -340,7 +350,7 @@ internal class K220CapturedSourcesCollector(
         endOffset: Int,
         effective: CaptureCodePluginConfig,
     ): String? {
-        val raw = SourceTextExtractor.substringOrNull(fullText, startOffset, endOffset) ?: return null
+        val raw = extractSourceText(fullText, startOffset, endOffset) ?: return null
         val stripped = stripSurroundingParens(raw)
         return NormalizeSource()(stripped, effective.toExpressionNormalizeOptions())
     }
@@ -377,28 +387,6 @@ internal class K220CapturedSourcesCollector(
             }
         }
         return if (depth == 0) text.substring(1, text.length - 1) else text
-    }
-
-    /**
-     * registry に登録された site の filePath が本 IrFile に一致するかを判定する。
-     *
-     * 一致条件 (いずれか):
-     * 1. site.filePath == currentFile.fileEntry.name (= 絶対パス完全一致)
-     * 2. site.filePath が currentFile.fileEntry.name の末尾要素と一致 (= ファイル名のみで一致)
-     * 3. currentFile.fileEntry.name が site.filePath の末尾要素と一致 (= 逆方向)
-     *
-     * Kotlin compile-testing (kctfork) では FIR 側で `psi.containingFile?.name` だけが取れ、
-     * IR 側の `fileEntry.name` は temp dir の絶対パスになりうるため、両方向の末尾一致を許容する。
-     */
-    private fun CaptureCodeExpressionSiteRegistry.Site.matchesFile(irFilePath: String): Boolean {
-        if (filePath == irFilePath) return true
-        val sitePath = filePath
-        val sliding = sitePath.substringAfterLast('/').substringAfterLast('\\')
-        val irLeaf = irFilePath.substringAfterLast('/').substringAfterLast('\\')
-        if (sliding == irLeaf && sliding.isNotEmpty()) return true
-        // 部分パス末尾一致 (例えば "src/main/.../FileA.kt" vs "/tmp/.../FileA.kt")
-        if (irFilePath.endsWith(sitePath) || sitePath.endsWith(irFilePath)) return true
-        return false
     }
 
     /**
@@ -572,7 +560,7 @@ internal class K220CapturedSourcesCollector(
         val kdocPrefix = if (effective.includeKdoc) extractKdocPrefix(fullText, startOffset) else ""
 
         val rawStart = skipLeadingAnnotationLines(fullText, startOffset, endOffset)
-        val rawBody = SourceTextExtractor.substringOrNull(fullText, rawStart, endOffset) ?: return null
+        val rawBody = extractSourceText(fullText, rawStart, endOffset) ?: return null
         val rawText = if (kdocPrefix.isNotEmpty()) kdocPrefix + "\n" + rawBody else rawBody
         return NormalizeSource()(rawText, effective.toDeclarationNormalizeOptions())
     }

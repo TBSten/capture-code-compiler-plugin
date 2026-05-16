@@ -24,13 +24,13 @@ package me.tbsten.capture.code.feature.markerDefinition.ir.warnIfParameterUnused
  * 4. The source location should be the parameter declaration on the marker
  *    class.
  */
-public class WarnIfParameterUnused {
+internal class WarnIfParameterUnused {
 
     /**
      * Placeholder operator. Calling this currently throws because the IR
      * phase has no consumer yet — see the wire-up plan in the class KDoc.
      */
-    public operator fun invoke(): Nothing =
+    internal operator fun invoke(): Nothing =
         throw UnsupportedOperationException(
             "WarnIfParameterUnused is a task-123 skeleton. " +
                 "Wire-up arrives in task-120-B; see KDoc for the plan.",
