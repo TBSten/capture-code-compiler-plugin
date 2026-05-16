@@ -7,14 +7,10 @@ import me.tbsten.capture.code.compat.CaptureCodePluginConfigHolder
 import me.tbsten.capture.code.compat.k230.k230Compat
 import me.tbsten.capture.code.feature.capturedSources.fir.collectExpressionSite.CollectExpressionSite
 import me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.ValidateCapturedSourcesCall
-import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerOptions
-import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
-import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMetaAnnotation
-import me.tbsten.capture.code.feature.markerDefinition.fir.discoverMarkerClass.extractMarkerOptions.ExtractMarkerOptions
+import me.tbsten.capture.code.feature.markerDefinition.fir.discoverMarkerClass.DiscoverMarkerClass
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.ValidateMarkerAnnotation
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.warnIfOverrideNoEffect.WarnIfOverrideNoEffect
 import me.tbsten.capture.code.compat.k230.CompatContextImpl
-import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory0
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory1
@@ -26,7 +22,6 @@ import org.jetbrains.kotlin.fir.analysis.checkers.expression.ExpressionCheckers
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirExpressionChecker
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
-import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
 import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
 import org.jetbrains.kotlin.fir.expressions.FirStatement
 
@@ -52,26 +47,16 @@ import org.jetbrains.kotlin.fir.expressions.FirStatement
 
 /** Logic A — marker class 発見 / registry 登録。 */
 public object K230CaptureCodeMarkerClassCheckerLogic {
+
+    private val discoverMarkerClass = DiscoverMarkerClass()
+
     @JvmStatic
     public fun run(
         context: CheckerContext,
         @Suppress("UNUSED_PARAMETER") reporter: DiagnosticReporter,
         declaration: FirRegularClass,
     ) {
-        if (declaration.classKind != ClassKind.ANNOTATION_CLASS) return
-
-        val captureCodeAnnotation = declaration.annotations.firstOrNull { annotation ->
-            annotation.toAnnotationClassId(context.session) == CaptureCodeMetaAnnotation.classId
-        } ?: return
-
-        val classId = declaration.symbol.classId
-        val fqn = classId.asSingleFqName().asString()
-        val options = ExtractMarkerOptions()(captureCodeAnnotation)
-        if (options == CaptureCodeMarkerOptions.DEFAULT) {
-            CaptureCodeMarkerRegistry.registerMarker(fqn)
-        } else {
-            CaptureCodeMarkerRegistry.registerMarkerOptions(fqn, options)
-        }
+        discoverMarkerClass(context, declaration)
     }
 }
 
