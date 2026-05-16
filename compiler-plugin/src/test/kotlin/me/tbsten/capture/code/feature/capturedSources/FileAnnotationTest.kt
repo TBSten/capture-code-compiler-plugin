@@ -13,8 +13,8 @@ import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
 /**
  * **File annotation** (`@file:Marker`) の挙動を kctfork で end-to-end 検証する。
  *
- * `IrFile.annotations` 経由で marker を発見し、ファイル全体テキスト (`SourceTextExtractor.loadFileText`)
- * を `SourceNormalizer.normalize(NormalizeOptions.FILE_DEFAULT)` で正規化した結果が `Source(value)`
+ * `IrFile.annotations` 経由で marker を発見し、ファイル全体テキスト (`CompatContext.loadFileText`)
+ * を `NormalizeSource()(rawText, NormalizeOptions.FILE_DEFAULT)` で正規化した結果が `Source(value)`
  * filler に詰まること、`CaptureKind` が `FILE` であること、`SourceLocation` の `packageName` /
  * `startLine` / `endLine` が file 全体を指すことを確認する smoke test 群。
  *

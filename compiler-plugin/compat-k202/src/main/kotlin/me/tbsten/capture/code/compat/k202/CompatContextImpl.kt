@@ -21,6 +21,7 @@ import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.types.toRegularClassSymbol
+import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.name.ClassId
 
@@ -87,6 +88,8 @@ public class CompatContextImpl : CompatContext {
         // task-080: 2.0.20+ では 2-arg `fullyExpandedType` overload が削除されたため、
         // reflection shim 経由で 3-arg overload を dispatch する。
         FullyExpandedTypeShim.expand(type, session)
+
+    override fun loadFileText(file: IrFile): String? = SourceTextExtractor.loadFileText(file)
 
     override fun firAdditionalCheckersExtensions():
         List<(FirSession) -> FirAdditionalCheckersExtension> = listOf(

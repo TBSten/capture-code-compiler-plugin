@@ -21,6 +21,7 @@ import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.name.ClassId
 
@@ -73,6 +74,8 @@ public class CompatContextImpl : CompatContext {
 
     override fun fullyExpandedTypeOf(type: ConeKotlinType, session: FirSession): ConeKotlinType =
         type.fullyExpandedType(session)
+
+    override fun loadFileText(file: IrFile): String? = SourceTextExtractor.loadFileText(file)
 
     override fun firAdditionalCheckersExtensions():
         List<(FirSession) -> FirAdditionalCheckersExtension> = listOf(

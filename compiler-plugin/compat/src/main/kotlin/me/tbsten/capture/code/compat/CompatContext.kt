@@ -13,6 +13,8 @@ import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.ir.IrElement
+import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
@@ -174,6 +176,21 @@ public interface CompatContext {
      * inside compat-k200 / compat-k202, direct call inside compat-k210+).
      */
     public fun fullyExpandedTypeOf(type: ConeKotlinType, session: FirSession): ConeKotlinType
+
+    /**
+     * Loads the raw text of the given [IrFile], using PSI when available and
+     * file-system fallback otherwise. Returns `null` if neither path resolves to
+     * usable text.
+     *
+     * Absorbs drift around `IrFileEntry` / `PsiIrFileEntry` PSI accessors which
+     * shift between Kotlin minor versions. Main-module logic that needs the file
+     * source text (Logic C `ExtractSourceText`, Logic B-ir `CollectDeclarationSite`,
+     * Logic D `NormalizeSource` wiring) goes through this method so that PSI access
+     * stays inside each `compat-kXXX` module compiled against its own baseline.
+     *
+     * Added in task-120 (IR logic migration to main).
+     */
+    public fun loadFileText(file: IrFile): String?
 
     /**
      * Returns the list of FIR `FirAdditionalCheckersExtension` factories that

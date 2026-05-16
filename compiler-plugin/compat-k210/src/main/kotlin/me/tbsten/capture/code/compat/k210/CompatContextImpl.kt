@@ -21,6 +21,7 @@ import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.name.ClassId
 
@@ -94,6 +95,8 @@ public class CompatContextImpl : CompatContext {
         // 2.1.x baseline: top-level `fullyExpandedType(session)` extension は default lambda 付きの
         // 3-arg overload として残存している (drift D11 absorbed at compat-k202 level)。
         type.fullyExpandedType(session)
+
+    override fun loadFileText(file: IrFile): String? = SourceTextExtractor.loadFileText(file)
 
     override fun firAdditionalCheckersExtensions():
         List<(FirSession) -> FirAdditionalCheckersExtension> = listOf(

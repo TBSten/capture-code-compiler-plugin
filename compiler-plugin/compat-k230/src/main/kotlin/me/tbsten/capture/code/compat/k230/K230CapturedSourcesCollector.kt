@@ -7,7 +7,7 @@ import me.tbsten.capture.code.feature.capturedSources.CapturedSite
 import me.tbsten.capture.code.feature.markerDefinition.effectiveFor
 import me.tbsten.capture.code.feature.capturedSources.ir.normalize.NormalizeOptions
 import me.tbsten.capture.code.feature.capturedSources.ir.normalize.findKDocExtendedStartOffset
-import me.tbsten.capture.code.feature.capturedSources.ir.normalize.normalize
+import me.tbsten.capture.code.feature.capturedSources.ir.normalize.NormalizeSource
 import me.tbsten.capture.code.feature.capturedSources.ir.normalize.toDeclarationNormalizeOptions
 import me.tbsten.capture.code.feature.capturedSources.ir.normalize.toExpressionNormalizeOptions
 import me.tbsten.capture.code.feature.capturedSources.ir.normalize.toFileNormalizeOptions
@@ -342,7 +342,7 @@ internal class K230CapturedSourcesCollector(
     ): String? {
         val raw = SourceTextExtractor.substringOrNull(fullText, startOffset, endOffset) ?: return null
         val stripped = stripSurroundingParens(raw)
-        return normalize(stripped, effective.toExpressionNormalizeOptions())
+        return NormalizeSource()(stripped, effective.toExpressionNormalizeOptions())
     }
 
     /**
@@ -424,7 +424,7 @@ internal class K230CapturedSourcesCollector(
     private fun extractFileSource(effective: CaptureCodePluginConfig): String? {
         val fullText = cachedFileText ?: return null
         val withoutMarkers = stripMarkerClassDeclarations(fullText)
-        return normalize(withoutMarkers, effective.toFileNormalizeOptions())
+        return NormalizeSource()(withoutMarkers, effective.toFileNormalizeOptions())
     }
 
     /**
@@ -574,7 +574,7 @@ internal class K230CapturedSourcesCollector(
         val rawStart = skipLeadingAnnotationLines(fullText, startOffset, endOffset)
         val rawBody = SourceTextExtractor.substringOrNull(fullText, rawStart, endOffset) ?: return null
         val rawText = if (kdocPrefix.isNotEmpty()) kdocPrefix + "\n" + rawBody else rawBody
-        return normalize(rawText, effective.toDeclarationNormalizeOptions())
+        return NormalizeSource()(rawText, effective.toDeclarationNormalizeOptions())
     }
 
     /**
