@@ -7,6 +7,7 @@ import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.fir.FirSession
+import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
@@ -55,8 +56,11 @@ import org.jetbrains.kotlin.name.ClassId
  * (gitignored) for the 3-option comparison. This decision is revisitable additively
  * in a later task.
  *
- * So this file keeps its current method surface; downstream tasks (task-118+) only
- * touch implementations.
+ * So this file keeps its low-level method surface (Option 2). Downstream tasks
+ * (task-118+) only touch implementations, with the additive exception that new
+ * drift-absorbing methods may be appended here as new drift points emerge
+ * (e.g. `containingFilePathOf` / `fullyExpandedTypeOf` added in task-119 to
+ * absorb drift D11 / D12).
  */
 public interface CompatContext {
 
@@ -127,6 +131,49 @@ public interface CompatContext {
      * to guard against a future shape change of that accessor (drift D3).
      */
     public fun classIdOf(symbol: FirRegularClassSymbol): ClassId?
+
+    /**
+     * Returns the containing file path of the FIR [context], or `null` if the
+     * checker is not currently positioned inside a file with a known path.
+     *
+     * Absorbs drift D12 (`CheckerContext.containingFile` removal):
+     * - 2.0.x .. 2.2.x: `context.containingFile?.sourceFile?.path`
+     * - 2.3.x+: the `containingFile: FirFile?` accessor was removed and
+     *   replaced with a flat `containingFilePath: String?` property.
+     *
+     * Each compat module dispatches to the accessor that exists on its own
+     * baseline. Main-module logic (compiled against the 2.0.0 baseline)
+     * cannot reference either accessor directly without breaking at runtime
+     * on the other side of the drift, so it routes through this method.
+     *
+     * **Sample call**: `compat.containingFilePathOf(checkerContext)`
+     *
+     * **Result**: e.g. `"/Users/foo/Sample.kt"`, or `null` if the checker
+     * is firing in a context without an associated source file.
+     */
+    public fun containingFilePathOf(context: CheckerContext): String?
+
+    /**
+     * Returns [type] with all type aliases fully expanded, or [type] unchanged
+     * if expansion is not safely available.
+     *
+     * Absorbs drift D11 (`TypeExpansionUtilsKt.fullyExpandedType` overload change):
+     * - 2.0.0 .. 2.0.10: the 2-arg overload `(ConeKotlinType, FirSession) -> ConeKotlinType`
+     *   is the only available form.
+     * - 2.0.20+: the 2-arg overload was removed; only a 3-arg overload with an
+     *   optional `Function1` parameter is exposed
+     *   (`fullyExpandedType(ConeKotlinType, FirSession, Function1)`).
+     * - 2.1.x+: the surviving 3-arg overload accepts a default lambda so the
+     *   Kotlin call site `coneType.fullyExpandedType(session)` re-binds cleanly.
+     *
+     * Main-module logic (compiled against the 2.0.0 baseline) calling
+     * `coneType.fullyExpandedType(session)` would emit an `INVOKESTATIC` to
+     * the now-removed 2-arg overload, yielding `NoSuchMethodError` on 2.0.20+
+     * (task-080). Going through this compat method lets each `compat-kXXX`
+     * module use the overload available on its own baseline (reflection shim
+     * inside compat-k200 / compat-k202, direct call inside compat-k210+).
+     */
+    public fun fullyExpandedTypeOf(type: ConeKotlinType, session: FirSession): ConeKotlinType
 
     /**
      * Returns the list of FIR `FirAdditionalCheckersExtension` factories that

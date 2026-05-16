@@ -12,10 +12,12 @@ import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.fir.FirSession
+import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
 import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
+import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
@@ -84,6 +86,14 @@ public class CompatContextImpl : CompatContext {
     ): FirRegularClassSymbol? = type.toRegularClassSymbol(session)
 
     override fun classIdOf(symbol: FirRegularClassSymbol): ClassId? = symbol.classId
+
+    override fun containingFilePathOf(context: CheckerContext): String? =
+        context.containingFile?.sourceFile?.path
+
+    override fun fullyExpandedTypeOf(type: ConeKotlinType, session: FirSession): ConeKotlinType =
+        // 2.1.x baseline: top-level `fullyExpandedType(session)` extension は default lambda 付きの
+        // 3-arg overload として残存している (drift D11 absorbed at compat-k202 level)。
+        type.fullyExpandedType(session)
 
     override fun firAdditionalCheckersExtensions():
         List<(FirSession) -> FirAdditionalCheckersExtension> = listOf(

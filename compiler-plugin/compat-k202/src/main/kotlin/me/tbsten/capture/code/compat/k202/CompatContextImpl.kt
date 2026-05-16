@@ -3,6 +3,7 @@ package me.tbsten.capture.code.compat.k202
 import com.google.auto.service.AutoService
 import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.compat.CompatContext
+import me.tbsten.capture.code.compat.k202.checker.FullyExpandedTypeShim
 import me.tbsten.capture.code.compat.k202.checker.K202CapturedSourcesCallCheckersExtension
 import me.tbsten.capture.code.compat.k202.checker.K202ExpressionAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k202.checker.K202MarkerAnnotationCheckersExtension
@@ -12,6 +13,7 @@ import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.fir.FirSession
+import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
@@ -77,6 +79,14 @@ public class CompatContextImpl : CompatContext {
     ): FirRegularClassSymbol? = type.toRegularClassSymbol(session)
 
     override fun classIdOf(symbol: FirRegularClassSymbol): ClassId? = symbol.classId
+
+    override fun containingFilePathOf(context: CheckerContext): String? =
+        context.containingFile?.sourceFile?.path
+
+    override fun fullyExpandedTypeOf(type: ConeKotlinType, session: FirSession): ConeKotlinType =
+        // task-080: 2.0.20+ では 2-arg `fullyExpandedType` overload が削除されたため、
+        // reflection shim 経由で 3-arg overload を dispatch する。
+        FullyExpandedTypeShim.expand(type, session)
 
     override fun firAdditionalCheckersExtensions():
         List<(FirSession) -> FirAdditionalCheckersExtension> = listOf(

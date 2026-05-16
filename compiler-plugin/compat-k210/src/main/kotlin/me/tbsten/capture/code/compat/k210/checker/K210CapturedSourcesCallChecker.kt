@@ -1,63 +1,33 @@
 package me.tbsten.capture.code.compat.k210.checker
 
-import me.tbsten.capture.code.feature.capturedSources.CaptureCodeCallableIds
-import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMetaAnnotation
+import me.tbsten.capture.code.compat.k210.CompatContextImpl
+import me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.ValidateCapturedSourcesCall
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
-import org.jetbrains.kotlin.diagnostics.reportOn
-import org.jetbrains.kotlin.fir.FirSession
+import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory1
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirExpressionChecker
-import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
 import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
-import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
-import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
-import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
-import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
-import org.jetbrains.kotlin.fir.types.ConeKotlinType
-import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
-import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 
 /**
- * Kotlin 2.1.x baseline 向けの **Logic G** checker (`capturedSources<T>()` 型引数検査)。
+ * Kotlin 2.1.x baseline 向けの **Logic G** checker (entry point)。
  *
- * task-072 で `:compiler-plugin` main module から compat-k210 layer に移動した版。 K200 版との
- * 差異は **`toRegularClassSymbol` の import 元 package** (`fir.types` → `fir.resolve`、 drift D2) のみ。
+ * task-119: ロジック本体は main module の [ValidateCapturedSourcesCall] に統一された。
  */
 internal object K210CapturedSourcesCallChecker : FirExpressionChecker<FirFunctionCall>(MppCheckerKind.Common) {
+
+    private val logic = ValidateCapturedSourcesCall()
+    private val compat = CompatContextImpl()
+    private val diagnostics = object : ValidateCapturedSourcesCall.Diagnostics {
+        override val capturedSourcesTNotCaptureCode: KtDiagnosticFactory1<String> =
+            K210CaptureCodeDiagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE
+    }
 
     override fun check(
         expression: FirFunctionCall,
         context: CheckerContext,
         reporter: DiagnosticReporter,
     ) {
-        if (!expression.isCapturedSourcesCall()) return
-
-        val typeArgument = expression.firstTypeArgumentOrNull() ?: return
-        val classSymbol = typeArgument.toRegularClassSymbol(context.session) ?: return
-
-        if (classSymbol.hasCaptureCodeMeta(context.session)) return
-
-        val classId = classSymbol.classId
-        reporter.reportOn(
-            source = expression.source,
-            factory = K210CaptureCodeDiagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
-            a = classId.asSingleFqName().asString(),
-            context = context,
-        )
+        logic(context, reporter, expression, compat, diagnostics)
     }
-
-    private fun FirFunctionCall.isCapturedSourcesCall(): Boolean {
-        val reference = calleeReference as? FirResolvedNamedReference ?: return false
-        val symbol = reference.resolvedSymbol as? FirCallableSymbol<*> ?: return false
-        return symbol.callableId == CaptureCodeCallableIds.capturedSources
-    }
-
-    private fun FirFunctionCall.firstTypeArgumentOrNull(): ConeKotlinType? {
-        val projection = typeArguments.firstOrNull() as? FirTypeProjectionWithVariance ?: return null
-        return projection.typeRef.coneTypeOrNull
-    }
-
-    private fun FirRegularClassSymbol.hasCaptureCodeMeta(session: FirSession): Boolean =
-        annotations.any { it.toAnnotationClassId(session) == CaptureCodeMetaAnnotation.classId }
 }
