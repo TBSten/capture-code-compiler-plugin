@@ -3,8 +3,10 @@
 
 package me.tbsten.capture.code.compat.k220.checker
 
+import me.tbsten.capture.code.compat.CaptureCodePluginConfigHolder
 import me.tbsten.capture.code.compat.k220.CompatContextImpl
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.ValidateMarkerAnnotation
+import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.warnIfOverrideNoEffect.WarnIfOverrideNoEffect
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory0
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory1
@@ -23,9 +25,12 @@ import org.jetbrains.kotlin.fir.declarations.FirRegularClass
  * task-119: 検査ロジック本体は main module の [ValidateMarkerAnnotation] に統一された。
  * 本 object は K220 固有の [CompatContextImpl.K220Diagnostics] を渡して main logic を呼ぶだけの
  * dispatcher として機能する。
+ *
+ * task-123: warning side ([WarnIfOverrideNoEffect]) を chain で実行する。
  */
 public object K220MarkerAnnotationCheckerLogic {
     private val logic = ValidateMarkerAnnotation()
+    private val warnIfOverrideNoEffect = WarnIfOverrideNoEffect()
     private val compat = CompatContextImpl()
     private val diagnostics = object : ValidateMarkerAnnotation.Diagnostics {
         override val markerIsExpect: KtDiagnosticFactory0 =
@@ -35,6 +40,10 @@ public object K220MarkerAnnotationCheckerLogic {
         override val markerFillerRequiresDefault: KtDiagnosticFactory1<String> =
             CompatContextImpl.K220Diagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT
     }
+    private val warningDiagnostics = object : WarnIfOverrideNoEffect.Diagnostics {
+        override val markerOverrideNoEffect: KtDiagnosticFactory1<String> =
+            CompatContextImpl.K220Diagnostics.CC_MARKER_OVERRIDE_NO_EFFECT
+    }
 
     @JvmStatic
     public fun run(
@@ -43,5 +52,12 @@ public object K220MarkerAnnotationCheckerLogic {
         declaration: FirRegularClass,
     ) {
         logic(context, reporter, declaration, compat, diagnostics)
+        warnIfOverrideNoEffect(
+            context,
+            reporter,
+            declaration,
+            CaptureCodePluginConfigHolder.get(),
+            warningDiagnostics,
+        )
     }
 }

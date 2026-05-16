@@ -91,3 +91,35 @@ private fun resolve(
     CaptureCodeMarkerOptions.Override.No -> false
     CaptureCodeMarkerOptions.Override.Default -> configured
 }
+
+/**
+ * Returns the names of options that the marker explicitly overrides to the
+ * **same value** the global config already carries. Such overrides have no
+ * effect at runtime and are good candidates for the
+ * `CC_MARKER_OVERRIDE_NO_EFFECT` warning (Logic F, task-123).
+ *
+ * - `Override.Default` → never reported (not an override).
+ * - `Override.Yes` / `Override.No` → reported iff the resulting effective
+ *   value equals the global config field on [globalConfig].
+ *
+ * Order of the returned list matches the option declaration order on
+ * [CaptureCodeMarkerOptions].
+ */
+public fun CaptureCodeMarkerOptions.diffFromDefault(
+    globalConfig: CaptureCodePluginConfig,
+): List<String> = buildList {
+    fun check(
+        name: String,
+        override: CaptureCodeMarkerOptions.Override,
+        configured: Boolean,
+    ) {
+        if (override == CaptureCodeMarkerOptions.Override.Default) return
+        val overrideValue = override == CaptureCodeMarkerOptions.Override.Yes
+        if (overrideValue == configured) add(name)
+    }
+    check("includeKdoc", includeKdoc, globalConfig.includeKdoc)
+    check("includeImports", includeImports, globalConfig.includeImports)
+    check("includeAnnotationLines", includeAnnotationLines, globalConfig.includeAnnotationLines)
+    check("dedent", dedent, globalConfig.dedent)
+    check("includeLineInfo", includeLineInfo, globalConfig.includeLineInfo)
+}

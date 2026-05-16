@@ -1,7 +1,9 @@
 package me.tbsten.capture.code.compat.k200.checker
 
+import me.tbsten.capture.code.compat.CaptureCodePluginConfigHolder
 import me.tbsten.capture.code.compat.k200.CompatContextImpl
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.ValidateMarkerAnnotation
+import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.warnIfOverrideNoEffect.WarnIfOverrideNoEffect
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory0
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory1
@@ -17,10 +19,15 @@ import org.jetbrains.kotlin.fir.declarations.FirRegularClass
  * 本 checker は K2.0 baseline の `check(declaration, context, reporter)` signature を
  * override し、 [CompatContextImpl.K200Diagnostics] の factory を [ValidateMarkerAnnotation.Diagnostics]
  * adapter として渡して main logic に dispatch する。
+ *
+ * task-123: warning side として [WarnIfOverrideNoEffect] (= `CC_MARKER_OVERRIDE_NO_EFFECT`)
+ * を chain で実行する。 plugin config は process-scoped [CaptureCodePluginConfigHolder]
+ * から取得する。
  */
 internal object K200MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.Common) {
 
     private val logic = ValidateMarkerAnnotation()
+    private val warnIfOverrideNoEffect = WarnIfOverrideNoEffect()
     private val compat = CompatContextImpl()
     private val diagnostics = object : ValidateMarkerAnnotation.Diagnostics {
         override val markerIsExpect: KtDiagnosticFactory0 =
@@ -30,6 +37,10 @@ internal object K200MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerK
         override val markerFillerRequiresDefault: KtDiagnosticFactory1<String> =
             CompatContextImpl.K200Diagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT
     }
+    private val warningDiagnostics = object : WarnIfOverrideNoEffect.Diagnostics {
+        override val markerOverrideNoEffect: KtDiagnosticFactory1<String> =
+            CompatContextImpl.K200Diagnostics.CC_MARKER_OVERRIDE_NO_EFFECT
+    }
 
     override fun check(
         declaration: FirRegularClass,
@@ -37,5 +48,12 @@ internal object K200MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerK
         reporter: DiagnosticReporter,
     ) {
         logic(context, reporter, declaration, compat, diagnostics)
+        warnIfOverrideNoEffect(
+            context,
+            reporter,
+            declaration,
+            CaptureCodePluginConfigHolder.get(),
+            warningDiagnostics,
+        )
     }
 }

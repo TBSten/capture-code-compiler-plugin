@@ -9,7 +9,10 @@ import me.tbsten.capture.code.compat.k200.checker.K200ExpressionAnnotationChecke
 import me.tbsten.capture.code.compat.k200.checker.K200MarkerAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k200.checker.K200MarkerCheckersExtension
 import me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.CapturedSourcesCallErrors
+import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.CapturedSourcesWarnings
+import me.tbsten.capture.code.feature.markerDefinition.MarkerDefinitionWarnings
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.MarkerAnnotationErrors
+import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.MarkerAnnotationWarnings
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
@@ -173,6 +176,46 @@ public class CompatContextImpl : CompatContext {
                 psiType = KtElement::class,
             )
 
+        // task-123: warning factories. severity = Severity.WARNING で直接構築する形に統一する
+        // (`warning0` / `warning1` delegate も使えるが、 k230+ で API drift があるため
+        // direct construction の方が compat 層を跨いで pattern を揃えやすい)。
+
+        /** `CC_CAPTUREDSOURCES_NO_MARKER_FOUND` — capturedSources<T>() の site が 0 件 (silent fail)。 */
+        public val CC_CAPTUREDSOURCES_NO_MARKER_FOUND: KtDiagnosticFactory1<String> =
+            KtDiagnosticFactory1(
+                name = "CC_CAPTUREDSOURCES_NO_MARKER_FOUND",
+                severity = Severity.WARNING,
+                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
+                psiType = KtElement::class,
+            )
+
+        /** `CC_MARKER_OVERRIDE_NO_EFFECT` — `@CaptureCode(...)` override が global config と同値。 */
+        public val CC_MARKER_OVERRIDE_NO_EFFECT: KtDiagnosticFactory1<String> =
+            KtDiagnosticFactory1(
+                name = "CC_MARKER_OVERRIDE_NO_EFFECT",
+                severity = Severity.WARNING,
+                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
+                psiType = KtElement::class,
+            )
+
+        /** `CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN` — 同 FQN marker が複数 module 由来で出現。 */
+        public val CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN: KtDiagnosticFactory1<String> =
+            KtDiagnosticFactory1(
+                name = "CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN",
+                severity = Severity.WARNING,
+                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
+                psiType = KtElement::class,
+            )
+
+        /** `CC_MARKER_PARAMETER_UNUSED` — default 値あり parameter が 1 度も override されない。 */
+        public val CC_MARKER_PARAMETER_UNUSED: KtDiagnosticFactory1<String> =
+            KtDiagnosticFactory1(
+                name = "CC_MARKER_PARAMETER_UNUSED",
+                severity = Severity.WARNING,
+                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
+                psiType = KtElement::class,
+            )
+
         /**
          * task-121: lazy MAP で id → factory を解決する。 task-088 の教訓
          * (静的初期化循環依存) を予防するため、 K2.3+ と同様に `by lazy` を採用。
@@ -183,6 +226,11 @@ public class CompatContextImpl : CompatContext {
                 "CC_MARKER_FILLER_REQUIRES_DEFAULT" to CC_MARKER_FILLER_REQUIRES_DEFAULT,
                 "CC_MARKER_IS_EXPECT" to CC_MARKER_IS_EXPECT,
                 "CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE" to CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
+                // task-123: warning factories
+                "CC_CAPTUREDSOURCES_NO_MARKER_FOUND" to CC_CAPTUREDSOURCES_NO_MARKER_FOUND,
+                "CC_MARKER_OVERRIDE_NO_EFFECT" to CC_MARKER_OVERRIDE_NO_EFFECT,
+                "CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN" to CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN,
+                "CC_MARKER_PARAMETER_UNUSED" to CC_MARKER_PARAMETER_UNUSED,
             )
         }
 
@@ -214,6 +262,27 @@ public class CompatContextImpl : CompatContext {
                     put(
                         CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
                         CapturedSourcesCallErrors.T_NOT_CAPTURE_CODE.message,
+                        org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
+                    )
+                    // task-123: warning factory renderers. 文面 SSoT は main 側 `*Warnings.kt`。
+                    put(
+                        CC_CAPTUREDSOURCES_NO_MARKER_FOUND,
+                        CapturedSourcesWarnings.NO_MARKER_FOUND.message,
+                        org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
+                    )
+                    put(
+                        CC_MARKER_OVERRIDE_NO_EFFECT,
+                        MarkerAnnotationWarnings.OVERRIDE_NO_EFFECT.message,
+                        org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
+                    )
+                    put(
+                        CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN,
+                        MarkerDefinitionWarnings.DUPLICATE_MARKER_FQN.message,
+                        org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
+                    )
+                    put(
+                        CC_MARKER_PARAMETER_UNUSED,
+                        MarkerDefinitionWarnings.PARAMETER_UNUSED.message,
                         org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
                     )
                 }

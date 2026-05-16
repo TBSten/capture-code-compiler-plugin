@@ -19,6 +19,7 @@ paths:
 
 - `CompatContext.kt` — SPI interface。 バージョン差のあるメソッドを宣言 (`transformIr(...)`, `firAdditionalCheckersExtensions()`, `literalValueOrNull(...)`, `toRegularClassSymbolOrNull(...)`, `classIdOf(...)` 等)
 - `CaptureCodeCompatHolder.kt` — process-scoped lazy。 `ServiceLoader` を 1 回だけ走らせて `CompatContext` を解決し、 全 compile session で共有
+- `CaptureCodePluginConfigHolder.kt` — process-scoped @Volatile holder, updated per plugin registration (task-123)
 - `KotlinToolingVersion.kt` — Kotlin バージョンの parser / comparator。 dev track / Beta-RC track を区別する resolver も含む
 - `CapturedSite.kt` — IR phase で marker site 情報を運ぶ data class
 - `CaptureCodeMarkerRegistry.kt` / `CaptureCodeExpressionSiteRegistry.kt` — FIR → IR の compilation-scoped holder。 `IrExtension.generate()` 終了時に `reset()` を呼ぶ前提

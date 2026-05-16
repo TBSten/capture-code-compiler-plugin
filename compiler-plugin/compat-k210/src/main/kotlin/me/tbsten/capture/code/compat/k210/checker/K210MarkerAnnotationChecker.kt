@@ -1,7 +1,9 @@
 package me.tbsten.capture.code.compat.k210.checker
 
+import me.tbsten.capture.code.compat.CaptureCodePluginConfigHolder
 import me.tbsten.capture.code.compat.k210.CompatContextImpl
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.ValidateMarkerAnnotation
+import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.warnIfOverrideNoEffect.WarnIfOverrideNoEffect
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory0
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory1
@@ -14,10 +16,12 @@ import org.jetbrains.kotlin.fir.declarations.FirRegularClass
  * Kotlin 2.1.x baseline 向けの **Logic F** marker annotation 制約違反診断 checker (entry point)。
  *
  * task-119: ロジック本体は main module の [ValidateMarkerAnnotation] に統一された。
+ * task-123: warning side ([WarnIfOverrideNoEffect]) を chain で実行する。
  */
 internal object K210MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.Common) {
 
     private val logic = ValidateMarkerAnnotation()
+    private val warnIfOverrideNoEffect = WarnIfOverrideNoEffect()
     private val compat = CompatContextImpl()
     private val diagnostics = object : ValidateMarkerAnnotation.Diagnostics {
         override val markerIsExpect: KtDiagnosticFactory0 =
@@ -27,6 +31,10 @@ internal object K210MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerK
         override val markerFillerRequiresDefault: KtDiagnosticFactory1<String> =
             CompatContextImpl.K210Diagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT
     }
+    private val warningDiagnostics = object : WarnIfOverrideNoEffect.Diagnostics {
+        override val markerOverrideNoEffect: KtDiagnosticFactory1<String> =
+            CompatContextImpl.K210Diagnostics.CC_MARKER_OVERRIDE_NO_EFFECT
+    }
 
     override fun check(
         declaration: FirRegularClass,
@@ -34,5 +42,12 @@ internal object K210MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerK
         reporter: DiagnosticReporter,
     ) {
         logic(context, reporter, declaration, compat, diagnostics)
+        warnIfOverrideNoEffect(
+            context,
+            reporter,
+            declaration,
+            CaptureCodePluginConfigHolder.get(),
+            warningDiagnostics,
+        )
     }
 }

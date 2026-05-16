@@ -2,6 +2,7 @@ package me.tbsten.capture.code
 
 import com.google.auto.service.AutoService
 import me.tbsten.capture.code.compat.CaptureCodeCompatHolder
+import me.tbsten.capture.code.compat.CaptureCodePluginConfigHolder
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
 
@@ -49,6 +50,12 @@ public class CaptureCodeCompilerPluginRegistrar : CompilerPluginRegistrar() {
     // 各 Kotlin runtime で正しい signature が解決される。
     override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
         val config = configuration.captureCodePluginConfig
+        // task-123: FIR checkers (specifically the WarnIfOverrideNoEffect logic
+        // in Logic F) need read access to the plugin config but there is no FIR-
+        // session-bound channel for it on the 2.0 baseline. Publish the freshly
+        // resolved config to a process-scoped holder so the FIR side can pick it
+        // up from `CaptureCodePluginConfigHolder.get()`.
+        CaptureCodePluginConfigHolder.set(config)
         CaptureCodeCompatHolder.context.registerExtensions(
             extensionStorage = this,
             configuration = configuration,
