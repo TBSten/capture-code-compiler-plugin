@@ -43,6 +43,20 @@ import org.jetbrains.kotlin.name.ClassId
  *
  * When a new Kotlin version introduces additional drift, add an abstract
  * method here and implement it in each `compat-kXXX` module.
+ *
+ * ## API surface decision (task-117, 2026-05-16)
+ *
+ * Option 2 (keep the existing low-level surface) was chosen over goals.md §2.3's
+ * high-level `installExtensions(firCheckers, irTransformer)` proposal. Rationale:
+ * locking the interface in before task-119+ produces concrete FIR/IR logic classes
+ * would freeze design choices (e.g. `DiagnosticContext` shape) prematurely, and the
+ * current surface can already aggregate logic via per-`compat-kXXX` checker wiring.
+ * See the developer-internal note `.local/tmp/api-surface-investigation.md`
+ * (gitignored) for the 3-option comparison. This decision is revisitable additively
+ * in a later task.
+ *
+ * So this file keeps its current method surface; downstream tasks (task-118+) only
+ * touch implementations.
  */
 public interface CompatContext {
 
