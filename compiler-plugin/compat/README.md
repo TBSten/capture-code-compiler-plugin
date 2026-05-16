@@ -42,21 +42,53 @@ interface defines the contract for version-specific operations:
 
 ### Version-Specific Implementations
 
-Each supported Kotlin version has its own module with a corresponding
-implementation:
+Each supported Kotlin version has its own module:
 
-- [`compat-k200/`](../compat-k200) — Kotlin 2.0.x compatibility.
-- [`compat-k210/`](../compat-k210) — Kotlin 2.1.x compatibility (FIR drift is
-  fully absorbed; IR drift D5–D8 absorption is tracked as ongoing work).
+- [`compat-k200/`](../compat-k200) — Kotlin 2.0.0 (baseline).
+- [`compat-k202/`](../compat-k202) — Kotlin 2.0.10 .. 2.0.21 (absorbs drift
+  D8 around `IrVarargImpl` constructor changes etc.).
+- [`compat-k210/`](../compat-k210) — Kotlin 2.1.x.
+- [`compat-k220/`](../compat-k220) — Kotlin 2.2.x (introduces Java shims in
+  `src/main/java/.../checker/K220*Shim.java` to absorb FIR Checker
+  `check(...)` argument-order drift D9).
+- [`compat-k230/`](../compat-k230) — Kotlin 2.3.x (adds
+  `K230RendererMapShim.java`; the nested `K230Diagnostics.MAP` is `by lazy`
+  to avoid static-init NPE).
+- [`compat-k240rc/`](../compat-k240rc) — Kotlin 2.4.0-RC{,N}.
+
+### Slim-down outcome (task-120-B case C, task-124)
+
+After the domain SSoT migration (task-118 onwards), each `compat-kXXX/`
+module retains roughly:
+
+- **12–13 Kotlin files** covering `CompatContextImpl` (with nested
+  `K{XXX}Diagnostics`), `K{XXX}IrTransform`, `K{XXX}CapturedSourcesCollector`,
+  `K{XXX}CapturedSourcesRewriter`, `SourceTextExtractor`,
+  `checker/K{XXX}CheckerExtensions`, `filler/*`, `userargs/*`.
+- **0–5 Java shim files** under `src/main/java/.../checker/` from
+  Kotlin 2.2.x onwards, for FIR Checker `check(...)` argument-order
+  drift D9 and for `RendererMap` static-init drift in 2.3+.
+
+The IR walker / rewriter / filler / userargs were **not** migrated to the
+main module: drift D5–D8 (IR builder / `IrConstructorCall` /
+`IrConst` / `IrFactory` shape changes) is still live and pulling the IR
+phase out would have required reintroducing the same per-version shimming
+under a different name. Keeping the IR logic inside each `compat-kXXX`
+module — the "case C" outcome of task-120-B — leaves the slim form above.
 
 Each module contains:
 
-- `CompatContextImpl` — version-specific implementation.
-- An inner `Factory : CompatContext.Factory` that declares the
-  module's `minVersion`.
+- `CompatContextImpl` — version-specific implementation, with a nested
+  `K{XXX}Diagnostics` object holding the per-id `KtDiagnosticFactory*` map
+  consumed via `CompatContext.diagnosticFactory(id)`.
+- An inner `Factory : CompatContext.Factory` that declares the module's
+  `minVersion`.
 - AutoService-generated service loader configuration
   (`META-INF/services/me.tbsten.capture.code.compat.CompatContext$Factory`)
   via `@AutoService(CompatContext.Factory::class)` + KSP.
+- From Kotlin 2.2.x: Java shim classes under `src/main/java/.../checker/`
+  that extend the matching Kotlin checker class and forward `check(...)`
+  with the argument order required by that Kotlin baseline.
 
 ### Service Discovery
 
@@ -97,6 +129,18 @@ After generation, you still need to:
    `testImplementation` blocks.
 5. Replace the `TODO()`s in `CompatContextImpl.kt` with actual
    implementations.
+6. If the new baseline drifts a method signature on a FIR Checker base
+   class (e.g. `check(...)` argument order in 2.2.x), add a Java shim
+   under `src/main/java/.../compat/k<XXX>/checker/K<XXX>*Shim.java` that
+   extends the corresponding Kotlin checker class and forwards `check(...)`
+   with the argument order required by the new baseline. The K220 / K230 /
+   K240Rc shims in the existing `compat-k220` / `compat-k230` /
+   `compat-k240rc` modules serve as templates.
+7. If the new baseline changes a renderer / static-init shape (e.g.
+   `KtDiagnosticFactoryToRendererMap` super-class swap in 2.3+), make the
+   nested `K<XXX>Diagnostics.MAP` `by lazy` so the renderer chain does not
+   NPE during class init. See `K230RendererMapShim.java` for the K230 / K240Rc
+   template.
 
 ### Version Naming Convention
 
