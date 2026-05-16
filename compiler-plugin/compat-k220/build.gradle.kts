@@ -44,6 +44,17 @@ dependencies {
         ),
     )
 
+    // task-122: 本 module の `K220Diagnostics` 内 renderer は main module の English-only
+    // SSoT (`MarkerAnnotationErrors` / `CapturedSourcesCallErrors`) を `<clinit>` で参照する。
+    // test runtime で diagnostic factory を trigger する scenario では main module の class が
+    // runtime classpath に必要。 main の compileKotlin output を file dependency として
+    // testRuntimeOnly に投入する (詳細は compat-k200 の build.gradle.kts コメント参照)。
+    testRuntimeOnly(
+        project(
+            mapOf("path" to ":compiler-plugin", "configuration" to "mainRuntimeClassesOnly"),
+        ),
+    )
+
     // task-074: compat-k220 専用 unit test (ServiceLoader-based sanity)。
     // kctfork は意図的に使わず pure JVM test に留める。 こうすることで
     // kctfork transitive embeddable と consumer Kotlin (matrix bumped to 2.2.x+)

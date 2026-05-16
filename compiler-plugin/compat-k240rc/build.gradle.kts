@@ -61,6 +61,18 @@ dependencies {
         ),
     )
 
+    // task-122: 本 module の `K240RcDiagnostics` 内 renderer は main module の English-only
+    // SSoT (`MarkerAnnotationErrors` / `CapturedSourcesCallErrors`) を `<clinit>` で参照する。
+    // `K240RcCaptureCodeDiagnosticsStaticInitTest` が直接 diagnostic property + renderer factory MAP
+    // を read するため、 main module の class が test runtime classpath に必要。 main の
+    // compileKotlin output を file dependency として testRuntimeOnly に投入する (詳細は
+    // compat-k200 の build.gradle.kts コメント参照)。
+    testRuntimeOnly(
+        project(
+            mapOf("path" to ":compiler-plugin", "configuration" to "mainRuntimeClassesOnly"),
+        ),
+    )
+
     // task-076: compat-k240rc 専用 unit test (ServiceLoader-based sanity)。
     // kctfork は意図的に使わず pure JVM test に留める。 こうすることで
     // kctfork transitive embeddable と consumer Kotlin (matrix bumped to 2.4.0-RC+)

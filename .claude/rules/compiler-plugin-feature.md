@@ -1,9 +1,9 @@
 ---
 paths:
-    - "compiler-plugin/compat/src/main/kotlin/me/tbsten/capture/code/feature/*/*.kt"
+    - "compiler-plugin/src/main/kotlin/me/tbsten/capture/code/feature/*/*.kt"
 ---
 
-このディレクトリ (`compiler-plugin/compat/.../feature/<feature>/` 直下) には **その feature 内の複数 logic (FIR checker / IR transformer / 各 compat-kXXX 実装) が共有する SSoT 定数・型** を flat に配置する。 `:compiler-plugin:compat` モジュールに置くことで、 main module からも全 `compat-kXXX/` impl からも参照できる。
+このディレクトリ (`compiler-plugin/src/main/.../feature/<feature>/` 直下) には **その feature 内の複数 logic (FIR checker / IR transformer / 各 compat-kXXX 実装) が共有する SSoT 定数・型・薄い bridge** を flat に配置する。 task-118 で feature/ 配下の domain SSoT は `:compiler-plugin:compat` から **main module** に引き上げられ (`mainClassesOnly` outgoing configuration 経由で各 `compat-kXXX/` から compileOnly 参照可能になった)、 plugin 横断 SSoT としての立場を明示化した。
 
 **適切でないものを置こうとしていた場合は `compiler-plugin/README.md` を参照して配置場所を再検討** すること。
 
@@ -11,11 +11,10 @@ paths:
 
 | feature | 内容 |
 | --- | --- |
-| `captured_sources/` | `capturedSources<T>()` 経由の source capture (Logic B / D / G / H)。 配下に source normalize の helper を抱える |
-| `capturedsources/` (underscore なし) | `capturedSources<T>()` callable の identity SSoT 専用 (`CaptureCodeCallableIds.kt`)。 historical naming だが test / IR / FIR から `CallableId` 経由で参照 |
-| `captured_expression/` | `@Marker(expr)` 式 annotation の collection (Logic B-fir / Logic E)。 主に test 配下に現れる |
+| `markerDefinition/` | `@CaptureCode` メタ annotation の domain (Logic A / F)。 配下に `fir/` / `ir/` の logic sub-tree を抱える |
+| `capturedSources/` | `capturedSources<T>()` 経由の source capture (Logic B / D / G / H)。 配下に `fir/` / `ir/` の logic sub-tree を抱える。 旧 historical naming の `capturedsources/` (CallableId SSoT) は task-118 で `capturedSources/` 配下に統合済 |
 
-> 注: `captured_sources` / `capturedsources` という 2 つの命名が混在しているのは historical artifact (Logic G の SSoT を後発で追加した名残)。 新規 feature を追加する場合は **lowerCamelCase 単一語 or snake_case** どちらかに揃えて、 既存ファイルへの破壊的 rename は別 ticket で扱う。
+> 注: feature 命名は **lowerCamelCase** に統一済 (task-118)。 旧 `captured_sources` / `captured_expression` の snake_case naming は廃止。
 
 # 置いてよいもの
 
@@ -25,26 +24,27 @@ paths:
 - **検証用 regex SSoT** (FIR Checker と IR const-fold 双方が参照する場合)
 - **plugin 固有 option の参照点** (per-marker options 等、 `CaptureCodeMarkerOptions` のような data class)
 - **データクラス** (`CapturedSite`, marker option 等)
-- **bridge / extractor** — 共通入出力を担う薄い層 (例: `feature/captured_sources/normalize/CaptureCodePluginConfigBridge.kt`)
+- **bridge / extractor** — 共通入出力を担う薄い層 (例: `feature/capturedSources/ir/normalize/...` 直下の薄い orchestrator)
 
 # feature 命名
 
-- ユーザ目線で機能内容が予想できる名前 (例: `captured_sources`, `captured_expression`)
-- パッケージ命名は既存に揃える (`feature/<featureName>/` の lowerCamelCase or snake_case)
+- ユーザ目線で機能内容が予想できる名前 (例: `markerDefinition`, `capturedSources`)
+- パッケージ命名は **lowerCamelCase** に統一 (task-118 で確定)
 - 動詞句は避ける (logic と区別するため)
 
 # 置いてはいけないもの
 
-- **logic の処理本体 (FIR checker class / IR transformer class)** — `compat-kXXX/.../checker/` や `compat-kXXX/.../K{XXX}IrTransform.kt` 等の **バージョン依存層** に置く
+- **logic の処理本体 (FIR checker class / IR transformer class)** — 一段下の `feature/<feature>/<phase>/<logic>/` 配下 + `compat-kXXX/.../{checker,filler,userargs}/` のバージョン依存層に分散させる
 - **1 つの logic にしか使われない定数** — その logic ディレクトリ配下に置く (後で複数 logic が参照するようになった時点で feature 直下に引き上げる)
 - **plugin 横断 (= 複数 feature が参照する) 定数** — feature 横断 SSoT は基本的に存在しないが、 もし発生したら `compat/.../compat/` (`CaptureCodeMarkerOptions` 等) に上げる
 - **compiler API ラッパー** (domain 非依存) — 将来 `compat/.../utils/` に置く
-- **plugin 横断 Error / Warning** — `compat/.../error/` / `compat/.../warning/`
+- **plugin 横断 Error / Warning 基盤** — `compiler-plugin/src/main/.../error/` または `compat/.../error/` 配下
+- **diagnostic 文面 SSoT (`*Errors.kt`)** — feature 直下ではなく **その logic 直下** (例: `feature/markerDefinition/fir/validateMarkerAnnotation/MarkerAnnotationErrors.kt`) に置く。 文面は logic に紐づくため
 
 # Good 例
 
 ```kotlin
-// compiler-plugin/compat/.../feature/capturedsources/CaptureCodeCallableIds.kt
+// compiler-plugin/src/main/.../feature/capturedSources/CaptureCodeCallableIds.kt
 public object CaptureCodeCallableIds {
     public val packageFqName: FqName = FqName("me.tbsten.capture.code")
     public val capturedSourcesName: Name = Name.identifier("capturedSources")
@@ -52,10 +52,10 @@ public object CaptureCodeCallableIds {
 }
 ```
 
-FIR checker (`K200CapturedSourcesCallChecker`) と IR transformer (`K200CapturedSourcesRewriter`) の双方から参照される。 一方だけが知っている状態にすると「checker は走るが書き換えは走らない / 逆」というバグの温床になる。
+FIR checker (`K{XXX}CapturedSourcesCallChecker`) と IR transformer (`K{XXX}CapturedSourcesRewriter`) の双方から参照される。 一方だけが知っている状態にすると「checker は走るが書き換えは走らない / 逆」 というバグの温床になる。
 
 ```kotlin
-// compiler-plugin/compat/.../feature/captured_sources/normalize/NormalizeOptions.kt
+// compiler-plugin/src/main/.../feature/capturedSources/ir/normalize/NormalizeOptions.kt
 public data class NormalizeOptions(
     val includeKdoc: Boolean,
     val includeImports: Boolean,
@@ -76,10 +76,10 @@ internal val CapturedSourcesCallableId = CallableId(
 )
 ```
 
-→ `feature/capturedsources/CaptureCodeCallableIds.kt` を参照する。 各 compat-kXXX で重複定義しない。
+→ `feature/capturedSources/CaptureCodeCallableIds.kt` を参照する。 各 compat-kXXX で重複定義しない。
 
 ```kotlin
-// compiler-plugin/compat/.../feature/captured_sources/CapturedSourcesRewriterImpl.kt ← NG
+// compiler-plugin/src/main/.../feature/capturedSources/CapturedSourcesRewriterImpl.kt ← NG
 class CapturedSourcesRewriterImpl { /* IR 置換処理 */ }
 ```
 

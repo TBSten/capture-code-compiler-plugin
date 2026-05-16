@@ -55,6 +55,32 @@ val mainClassesOnly: Configuration by configurations.creating {
     }
 }
 
+// task-122: `mainClassesOnly` (Usage.JAVA_API) は compile time variant 用なので
+// compat-kXXX 側の `testRuntimeOnly` から resolve できない (variant mismatch)。
+// 各 `compat-kXXX/.../CompatContextImpl.kt` の nested `K{XXX}Diagnostics` 内 renderer は
+// main module の English-only SSoT (`MarkerAnnotationErrors` / `CapturedSourcesCallErrors`)
+// を `<clinit>` で参照するため、 test 時に diagnostic factory を trigger する scenario では
+// main module の class が test runtime classpath に必要。 runtime usage の別 variant を
+// 用意し、 compat-kXXX 側はこちらを `testRuntimeOnly` で引く。
+val mainRuntimeClassesOnly: Configuration by configurations.creating {
+    isCanBeConsumed = true
+    isCanBeResolved = false
+    attributes {
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class, Usage.JAVA_RUNTIME))
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category::class, Category.LIBRARY))
+        // task-122: consumer (compat-kXXX の testRuntimeClasspath) は LibraryElements.JAR
+        // を期待するため、 CLASSES ではなく JAR を expose する。 compileKotlin の
+        // destinationDirectory (classes/) を直接 artifact として add すると runtime classpath
+        // 上は classes ディレクトリとして展開されるため、 attribute は JAR にしておけば
+        // variant matching が成立する。
+        attribute(
+            LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
+            objects.named(LibraryElements::class, LibraryElements.JAR),
+        )
+        attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling::class, Bundling.EXTERNAL))
+    }
+}
+
 dependencies {
     // task-071: main module は固定 2.0.0 (kotlin-k200) API に対して compile する。
     // これにより consumer kotlin が 2.2.x+ に bump されても drift (FirChecker
@@ -138,6 +164,10 @@ tasks.named("assemble") {
 // compat-kXXX 側が consume することで、 shadowJar 経由の循環依存を回避する。
 artifacts {
     add(mainClassesOnly.name, tasks.named("compileKotlin", org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class).map {
+        it.destinationDirectory
+    })
+    // task-122: runtime usage の別 variant でも同じ classes ディレクトリを expose する。
+    add(mainRuntimeClassesOnly.name, tasks.named("compileKotlin", org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class).map {
         it.destinationDirectory
     })
 }

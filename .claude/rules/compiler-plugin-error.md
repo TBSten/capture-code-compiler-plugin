@@ -1,9 +1,12 @@
 ---
 paths:
+    - "compiler-plugin/src/main/kotlin/me/tbsten/capture/code/error/**/*.kt"
     - "compiler-plugin/compat/src/main/kotlin/me/tbsten/capture/code/error/**/*.kt"
 ---
 
-このディレクトリ (`compiler-plugin/compat/.../error/`) には **plugin 全体で使う構造化 Error / Diagnostic 基盤** を配置する。 `:compiler-plugin:compat` モジュールに置くことで、 main module からも全 `compat-kXXX/` impl からも参照できる SSoT になっている (各 `compat-kXXX/` の diagnostic factory が共通文面を参照する構造)。
+このディレクトリ (`compiler-plugin/src/main/.../error/` および `compiler-plugin/compat/.../error/`) には **plugin 全体で使う構造化 Error / Diagnostic 基盤** を配置する。
+
+task-121 以降は **main module 側 (`compiler-plugin/src/main/kotlin/.../error/`)** が SPI 本体 (`CaptureCodeCompilerPluginError` interface, DSL, `ReportError`, ...) の SSoT。 compat layer 側 (`compiler-plugin/compat/.../error/`) は **compat 層から共有したい補助 SSoT (filler 型の ClassId など)** だけを置く位置づけ。 task-122 で `BilingualMessage` / `CaptureCodeDiagnosticLocale` (i18n 機構) は撤去済で、 diagnostic 文面 SSoT は feature ローカル (`feature/<feature>/.../<Logic>Errors.kt`) に **English-only** で集約されている。
 
 **適切でないものを置こうとしていた場合は `compiler-plugin/README.md` を参照して配置場所を再検討** すること。
 
@@ -11,63 +14,81 @@ paths:
 
 現状置かれているファイル:
 
-- `CaptureCodeDiagnosticMessages.kt` — plugin が発する全診断メッセージの **bilingual (英語 + 日本語) SSoT**。 各 compat-kXXX layer の diagnostic factory (`K200CaptureCodeDiagnostics` 等) の renderer がここを参照する
-- `CaptureCodeDiagnosticLocale.kt` — `CaptureCodeMessageLocale` (`EN` / `JA`) と現在の locale resolver
-- `CaptureCodeFillerClassIds.kt` — diagnostic 経由でユーザに見せる runtime filler 型の ClassId / FQN SSoT
+## main module (`compiler-plugin/src/main/kotlin/.../error/`)
 
-将来追加する場合の想定 (template 由来、 必要になったら導入):
+- `CaptureCodeCompilerPluginError.kt` — `interface` (全 Error 実装の親)。 `id` / `message` (English-only) / `reply` の 3 フィールド SSoT
+- `ErrorContextDsl.kt` — ad-hoc な Error を組み立てる `errorContext("CC_XXX") { ... }` DSL
+- `Errors.kt` — 複数 feature から throw されうる cross-cutting Error 用 SSoT (現状空)
+- `Replies.kt` — ユーザへの提案文 (`Suggested fix:` テンプレ) 共有 SSoT (現状空)
+- `ReportError.kt` — `DiagnosticReporter.reportError(error, source, context, compat, [arg])` 拡張 (`KtDiagnosticFactory0` / `KtDiagnosticFactory1` 両対応)
 
-- `CaptureCodeCompilerPluginError.kt` — `interface` marker (全 Error 実装の親)
-- `ErrorContextDsl.kt` — Error メッセージ組み立て DSL
-- `Errors.kt` — 複数 feature から throw されうる Error 実装
-- `Replies.kt` — ユーザへの提案文 (「こうすれば直る」テンプレ) の SSoT (現状は `CaptureCodeDiagnosticMessages` 内の `Suggested fix:` / `修正方法:` ブロックが担う)
-- `ReportError.kt` / `ReportErrors.kt` — `MessageCollector.report(error, location)` 拡張
+## compat module (`compiler-plugin/compat/.../error/`)
+
+- `CaptureCodeFillerClassIds.kt` — diagnostic 経由でユーザに見せる runtime filler 型の ClassId / FQN SSoT。 各 `compat-kXXX` から共有参照される
+
+## feature 配下 (`compiler-plugin/src/main/.../feature/<feature>/.../<Logic>Errors.kt`)
+
+- `MarkerAnnotationErrors.kt` (Logic F) / `CapturedSourcesCallErrors.kt` (Logic G) など — diagnostic 文面の SSoT。 各 `compat-kXXX` の `CompatContextImpl.kt` nested diagnostics object の renderer がこの `.message` を参照する
+
+将来追加する場合の想定:
+
 - `ThrowAsException.kt` — `SomeError(args).throwAsException()` 拡張 (defensive guard 用)
+- `ReportErrors.kt` — 同時に複数 Error を report するヘルパ
 
 # 必須の使い方
 
-- **メッセージ文面は `CaptureCodeDiagnosticMessages` の `BilingualMessage` を経由する** — `K{XXX}CaptureCodeDiagnostics` の renderer が直接英文を書かないように
-- 既存 test は **文面の部分一致** (`shouldContain`) で検証しているため、 英語側の既存 phrase (`must be 'internal' or 'private'` 等) は **後方互換のため温存**
+- **メッセージ文面は feature ローカルの `*Errors.kt` (`CaptureCodeCompilerPluginError.message`) を経由する** — `K{XXX}Diagnostics` (各 `compat-kXXX/CompatContextImpl.kt` nested object) の renderer は文字列直書きせず `.message` を参照する
+- 既存 checker test は **文面の部分一致** (`shouldContain`) で検証しているため、 既存 phrase (`has an unsupported type` / `cannot be declared as 'expect'` 等) は **後方互換のため温存**
 - 新規 diagnostic を追加するときは
-    1. `CaptureCodeDiagnosticMessages` に `BilingualMessage` を追加
-    2. `K{XXX}CaptureCodeDiagnostics` (各 compat-kXXX) に factory + renderer を追加
-    3. checker (`K{XXX}*Checker`) から `reporter.reportOn(...)` を呼ぶ
-- メッセージ ID 命名規則: `CC_<feature>_<rule>` (例: `CC_MARKER_VISIBILITY`, `CC_CAPTUREDSOURCES_T_NOT_INTERFACE`)
+    1. 対応 feature の `*Errors.kt` (例: `feature/markerDefinition/fir/validateMarkerAnnotation/MarkerAnnotationErrors.kt`) に `CaptureCodeCompilerPluginError` 実装を追加 (`id` + English `message` + optional `reply`)
+    2. 全 `compat-kXXX/.../CompatContextImpl.kt` の nested `K{XXX}Diagnostics` に `KtDiagnosticFactory*` を追加し、 `MAP` (id → factory) と `K{XXX}CaptureCodeDefaultMessages` (factory → message) の両方に entry を追加
+    3. checker (`K{XXX}*Checker` / 共通 `Validate*.kt`) から `reporter.reportError(SomeErrors.SOME, source, context, compat[, arg])` を呼ぶ
+- メッセージ ID 命名規則: `CC_<feature>_<rule>` (例: `CC_MARKER_IS_EXPECT`, `CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE`)
 
 # 置いてはいけないもの
 
-- **`KtDiagnosticFactory*` の宣言** — `compat-kXXX/.../checker/K{XXX}CaptureCodeDiagnostics.kt` 配下。 factory は `KtDiagnosticsContainer` と renderer chain が密結合のため共有不可
-- **特定 feature / logic にしか出ない Diagnostic の renderer** — 共有 message ID なら `CaptureCodeDiagnosticMessages` に追加、 そうでなければ `compat-kXXX/.../checker/` 配下に閉じる
+- **`KtDiagnosticFactory*` の宣言** — `compat-kXXX/.../CompatContextImpl.kt` の nested `K{XXX}Diagnostics` 配下。 factory は `KtDiagnosticsContainer` と renderer chain が密結合のため共有不可
+- **特定 feature / logic にしか出ない Diagnostic の文面を `error/` 配下に追加** — 文面 SSoT は feature ローカル (`feature/<feature>/.../<Logic>Errors.kt`) に閉じる
+- **`BilingualMessage` / `CaptureCodeMessageLocale` の復活** — task-122 で撤去済。 i18n が必要になった場合は別 task で API design からやり直す
 - **Warning 実装** — `compat/.../warning/` (現状未整備) に置く想定
 
 # Good 例
 
 ```kotlin
-// compiler-plugin/compat/.../error/CaptureCodeDiagnosticMessages.kt
-public object CaptureCodeDiagnosticMessages {
-    public val CC_MARKER_VISIBILITY: BilingualMessage = BilingualMessage(
-        en = "Marker annotation ''{0}'' must be 'internal' or 'private'.\n" +
-            "Suggested fix: change the visibility of {0}.",
-        ja = "marker annotation ''{0}'' は 'internal' か 'private' である必要があります。\n" +
-            "修正方法: {0} の可視性を変更してください。",
-    )
+// compiler-plugin/src/main/.../feature/markerDefinition/fir/validateMarkerAnnotation/MarkerAnnotationErrors.kt
+public object MarkerAnnotationErrors {
+    public val IS_EXPECT: CaptureCodeCompilerPluginError = object : CaptureCodeCompilerPluginError {
+        override val id: String = "CC_MARKER_IS_EXPECT"
+        override val message: String =
+            "@CaptureCode marker annotation cannot be declared as 'expect'. " +
+                "Markers must be concrete annotation declarations (see design §7.6).\n" +
+                "Suggested fix: remove the 'expect' modifier; declare the marker concretely in commonMain."
+        override val reply: String? =
+            "Remove the 'expect' modifier; declare the marker concretely in commonMain."
+    }
 }
 
-// compiler-plugin/compat-k200/.../checker/K200CaptureCodeDiagnostics.kt
-internal object K200CaptureCodeDiagnostics : KtDiagnosticsContainer() {
-    val CC_MARKER_VISIBILITY by error1<KtElement, FqName>()
-    // renderer は CaptureCodeDiagnosticMessages.CC_MARKER_VISIBILITY を locale 解決して描画
+// compiler-plugin/compat-k200/.../CompatContextImpl.kt の nested K200Diagnostics
+public object K200Diagnostics {
+    public val CC_MARKER_IS_EXPECT: KtDiagnosticFactory0 by error0<PsiElement>()
+
+    private object K200CaptureCodeDefaultMessages : BaseDiagnosticRendererFactory() {
+        override val MAP: KtDiagnosticFactoryToRendererMap =
+            KtDiagnosticFactoryToRendererMap("CaptureCode").apply {
+                put(CC_MARKER_IS_EXPECT, MarkerAnnotationErrors.IS_EXPECT.message)
+            }
+    }
 }
 ```
 
 # Bad 例
 
 ```kotlin
-// compat-k200/.../checker/K200CaptureCodeDiagnostics.kt の中で英文を直書き ← NG
-val CC_MARKER_VISIBILITY = "Marker annotation '${'$'}fqn' must be 'internal' or 'private'."
+// compat-k200/.../CompatContextImpl.kt の K200CaptureCodeDefaultMessages 内で英文を直書き ← NG
+put(CC_MARKER_IS_EXPECT, "Marker annotation cannot be declared as 'expect'.")
 ```
 
-→ 文面は `compiler-plugin/compat/.../error/CaptureCodeDiagnosticMessages.kt` の `BilingualMessage` に集約する。 各 `K{XXX}` の renderer は ID 参照のみ。
+→ 文面は `feature/<feature>/.../<Logic>Errors.kt` の `CaptureCodeCompilerPluginError.message` に集約する。 各 `K{XXX}` の renderer は `.message` 参照のみ。
 
 ```kotlin
 // compiler-plugin/compat/.../error/CaptureCodeMarkerVisibilityError.kt ← NG
@@ -75,7 +96,16 @@ val CC_MARKER_VISIBILITY = "Marker annotation '${'$'}fqn' must be 'internal' or 
 class MarkerVisibilityError(val fqn: FqName) : RuntimeException()
 ```
 
-→ FIR Checker 経由で出す診断は `KtDiagnosticFactory*` の責務で、 plugin 横断 Error interface には乗らない。 `compat-kXXX/.../checker/` 配下の `K{XXX}CaptureCodeDiagnostics` に追加する。
+→ FIR Checker 経由で出す診断は `KtDiagnosticFactory*` の責務で、 plugin 横断 Error interface には乗らない。 文面は feature ローカル `*Errors.kt`, factory は `compat-kXXX/.../CompatContextImpl.kt` の nested object に追加する。
+
+```kotlin
+// compiler-plugin/compat/.../error/CaptureCodeDiagnosticMessages.kt ← NG (task-122 で撤去済)
+public object CaptureCodeDiagnosticMessages {
+    public val MARKER_IS_EXPECT: BilingualMessage = BilingualMessage(en = ..., ja = ...)
+}
+```
+
+→ task-122 で i18n 機構は撤去済。 文面は feature ローカル `*Errors.kt` の `.message` フィールドに **English-only** で書く。
 
 ---
 

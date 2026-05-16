@@ -9,7 +9,9 @@ paths:
 | サブパス | 内容 |
 | --- | --- |
 | `compiler-plugin/compat/.../compat/*.kt` | 共有 SPI 本体。 `CompatContext` / `CaptureCodeCompatHolder` / `CapturedSite` / `CaptureCodeMarkerRegistry` / `CaptureCodeExpressionSiteRegistry` / `KotlinToolingVersion` 等。 domain 知識禁止 |
-| `compiler-plugin/compat-k200/...`, `compat-k210/...` | バージョン別 impl。 `CompatContextImpl` + `Factory` + 業務ロジック (checker / filler / userargs / IrTransform / SourceTextExtractor) を含む |
+| `compiler-plugin/compat-k200/...`, `compat-k210/...` | バージョン別 impl。 `CompatContextImpl` (nested `K{XXX}Diagnostics` 含む) + `Factory` + 業務ロジック (checker / filler / userargs / IrTransform / SourceTextExtractor) を含む |
+
+**task-118 注記**: 旧来 `:compiler-plugin:compat` に置いていた **feature 配下の domain SSoT** (CallableId / NormalizeOptions / `*Errors.kt` 等) は task-118 で **main module** (`compiler-plugin/src/main/.../feature/`) に引き上げ済。 各 `compat-kXXX/` からは main の `mainClassesOnly` outgoing 経由で compileOnly 参照する (shadowJar bypass)。 task-122 で diagnostic 文面 SSoT も main 側 `feature/.../<Logic>Errors.kt` (English-only) に集約され、 旧 `CaptureCodeDiagnosticMessages` (BilingualMessage) は撤去済。
 
 **適切でないものを置こうとしていた場合は `compiler-plugin/compat/README.md` を参照** すること。
 
@@ -26,13 +28,15 @@ paths:
 
 各 module はそのバージョン専用の **完全な業務ロジック** を抱える (runtime drift 排除方針)。 全 module で対称な構造:
 
-- `CompatContextImpl.kt` — `CompatContext` 実装 + 内側に `Factory : CompatContext.Factory`。 AutoService 経由で `META-INF/services/...CompatContext$Factory` に登録
+- `CompatContextImpl.kt` — `CompatContext` 実装 + 内側に `Factory : CompatContext.Factory` + nested `K{XXX}Diagnostics` (`KtDiagnosticFactory*` SSoT, task-121)。 AutoService 経由で `META-INF/services/...CompatContext$Factory` に登録
 - `K{XXX}IrTransform.kt` — IR phase 全体の orchestrator
 - `K{XXX}CapturedSourcesCollector.kt` / `K{XXX}CapturedSourcesRewriter.kt` — Logic B / D の IR-side 処理
 - `SourceTextExtractor.kt` — KtFile / PsiElement から source text を切り出す helper (FIR drift D5–D8 の吸収点)
-- `checker/` — FIR Checker (`K{XXX}CaptureCodeMarkerClassChecker`, `K{XXX}CapturedSourcesCallChecker`, `K{XXX}MarkerAnnotationChecker`, `K{XXX}ExpressionSiteCollector`, `K{XXX}CheckerExtensions`, `K{XXX}CaptureCodeDiagnostics`)
+- `checker/` — FIR Checker (`K{XXX}CaptureCodeMarkerClassChecker`, `K{XXX}CapturedSourcesCallChecker`, `K{XXX}MarkerAnnotationChecker`, `K{XXX}ExpressionSiteCollector`, `K{XXX}CheckerExtensions`)。 task-121 で旧 `K{XXX}CaptureCodeDiagnostics.kt` は `CompatContextImpl.kt` の nested object に集約
 - `filler/` — IR の filler builder (`FillerBuilder`, `CaptureKindFillerBuilder`, `SourceFillerBuilder`, `SourceLocationFillerBuilder`)
 - `userargs/` — `@Marker(...)` 引数の IR 表現組み立て (`UserArgIrBuilder`, `UserArgPrimitiveIrBuilder`)
+
+各 `compat-kXXX/` は main module の `feature/.../<Logic>Errors.kt` (English-only message SSoT, task-122) を `mainClassesOnly` outgoing 経由で compileOnly 参照する (shadowJar bypass)。 diagnostic factory の renderer は `MarkerAnnotationErrors.IS_EXPECT.message` 形式で直接 main の `.message` を読む。
 
 # 命名規約
 

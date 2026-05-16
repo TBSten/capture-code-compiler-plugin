@@ -50,6 +50,20 @@ dependencies {
         ),
     )
 
+    // task-122: 本 module の `K200Diagnostics` 内 renderer は main module の
+    // `MarkerAnnotationErrors.*.message` / `CapturedSourcesCallErrors.*.message`
+    // (English-only SSoT) を `<clinit>` で参照する。 test runtime で diagnostic factory
+    // を trigger する scenario (`diagnosticFactory(id)` 等) では main module の class が
+    // runtime classpath に必要。 main 側で定義済の `mainRuntimeClassesOnly` outgoing
+    // (Usage.JAVA_RUNTIME, compileKotlin 出力 classes ディレクトリ) を `testRuntimeOnly`
+    // 経由で引くことで shadowJar bypass のまま runtime classpath に main class を載せる。
+    // 通常の published shadowJar runtime では main class が同梱されるため、 test 専用の対処。
+    testRuntimeOnly(
+        project(
+            mapOf("path" to ":compiler-plugin", "configuration" to "mainRuntimeClassesOnly"),
+        ),
+    )
+
     // task-065: compat-k200 専用 unit test (ServiceLoader-based sanity)。
     // kctfork を使わず pure JVM test に留めるため、 kctfork transitive
     // (kotlin-compiler-embeddable 2.0.0) と consumer Kotlin の drift 問題を

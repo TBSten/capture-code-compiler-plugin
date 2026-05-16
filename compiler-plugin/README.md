@@ -32,11 +32,10 @@ compiler-plugin/
 │   ├── fir/
 │   │   ├── MarkerAnnotationCheckerTest.kt
 │   │   └── CapturedSourcesCallCheckerTest.kt
-│   ├── error/DiagnosticMessagesTest.kt
 │   ├── feature/
-│   │   ├── captured_sources/                   # filler / file annotation / per-marker option
-│   │   │   └── normalize/SourceNormalizerTest.kt
-│   │   └── captured_expression/                # @Marker(expr) 式 annotation の収集 test
+│   │   ├── capturedSources/                    # filler / file annotation / per-marker option
+│   │   │   └── ir/normalize/SourceNormalizerTest.kt
+│   │   └── capturedExpression/                 # @Marker(expr) 式 annotation の収集 test
 │   └── spike/                                  # design 検証用 spike (本番 plugin と別)
 │
 ├── compat/                                     # :compiler-plugin:compat — 共有 SPI + domain SSoT
@@ -51,12 +50,11 @@ compiler-plugin/
 │       │   ├── CaptureCodeMarkerRegistry.kt    #     FIR → IR の compilation-scoped holder
 │       │   ├── CaptureCodeExpressionSiteRegistry.kt
 │       │   └── CaptureCodeMarkerOptions.kt     #     per-marker option (includeKdoc/dedent/...)
-│       ├── error/                              #   plugin 横断 Diagnostic 文面 SSoT
-│       │   ├── CaptureCodeDiagnosticMessages.kt    #     bilingual (EN/JA) BilingualMessage 集約
-│       │   ├── CaptureCodeDiagnosticLocale.kt      #     locale resolver
+│       ├── error/                              #   plugin 横断 Diagnostic 用 ClassId 等の補助 SSoT
 │       │   └── CaptureCodeFillerClassIds.kt        #     Source / SourceLocation / CaptureKind の ClassId
+│       │                                       #     ※ 文面 SSoT は main の `feature/.../*Errors.kt` (English-only, task-122)
 │       ├── feature/
-│       │   ├── captured_sources/normalize/     #   pure 関数の normalize chain
+│       │   ├── capturedSources/normalize/      #   pure 関数の normalize chain
 │       │   │   ├── SourceNormalizer.kt              #     orchestrator
 │       │   │   ├── Dedent.kt / KdocStrip.kt / BlankTrim.kt
 │       │   │   ├── AnnotationLineStrip.kt / PackageImportStrip.kt
@@ -100,9 +98,9 @@ compiler-plugin/
 
 | 用語 | 内容 |
 | --- | --- |
-| **feature** | ユーザ目線の機能単位。 ディレクトリ名は機能名そのまま (例: `captured_sources`, `captured_expression`, `capturedsources` の callable identity) |
+| **feature** | ユーザ目線の機能単位。 ディレクトリ名は lowerCamelCase の機能名 (例: `capturedSources`, `capturedExpression`, `capturedsources` の callable identity) |
 | **logic** | feature を構成する plugin 動作単位。 本プロジェクトでは FIR Checker 1 つ / IR Transformer 1 つ単位が "logic" の粒度 (コード KDoc 内では Logic A–I の符号で参照される) |
-| **sub-logic** | logic 内の更に細かい操作単位 (例: `feature/captured_sources/normalize/` 配下の Dedent / KdocStrip) |
+| **sub-logic** | logic 内の更に細かい操作単位 (例: `feature/capturedSources/ir/normalize/` 配下の Dedent / KdocStrip) |
 
 ディレクトリ vs domain 知識の境界 (新規ファイル配置の判定基準):
 
@@ -110,7 +108,7 @@ compiler-plugin/
 | --- | --- | --- |
 | `compiler-plugin/src/main/.../code/` (root 直下) | **OK だが組み立てのみ** | `CompilerPluginRegistrar` / `CommandLineProcessor` / `FirExtensionRegistrar` / `IrGenerationExtension` だけ |
 | `compat/.../compat/` | **NG** | Kotlin バージョン差吸収 SPI のみ。 `@CaptureCode` FQN や normalize ロジックは禁止 |
-| `compat/.../error/` | **OK (plugin 全体)** | 全 `compat-kXXX` から参照される BilingualMessage / locale / filler ClassId |
+| `compat/.../error/` | **OK (plugin 全体)** | filler 型の ClassId など compat 共有 SSoT。 task-122 以降、 diagnostic 文面 SSoT は main の `feature/.../*Errors.kt` (English-only) に統一済 |
 | `compat/.../feature/<feature>/` 直下 | **その feature の domain のみ** | `CallableId` / FQN SSoT, 共有 data class |
 | `compat/.../feature/<feature>/<sub>/` | **その sub-logic に閉じた domain** | pure 関数の normalize 等。 compat-kXXX 間で共有可能なロジック |
 | `compat/.../fir/marker/` | **`@CaptureCode` の domain** | meta annotation の ClassId / FqName / option extractor (FIR API drift から独立した部分) |

@@ -7,7 +7,8 @@ import me.tbsten.capture.code.compat.k220.checker.K220CapturedSourcesCallChecker
 import me.tbsten.capture.code.compat.k220.checker.K220ExpressionAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k220.checker.K220MarkerAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k220.checker.K220MarkerCheckersExtension
-import me.tbsten.capture.code.error.CaptureCodeDiagnosticMessages
+import me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.CapturedSourcesCallErrors
+import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.MarkerAnnotationErrors
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
@@ -171,29 +172,21 @@ public class CompatContextImpl : CompatContext {
                 KtDiagnosticFactoryToRendererMap("CaptureCode").apply {
                     put(
                         CC_MARKER_PARAMETER_TYPE_INVALID,
-                        CaptureCodeDiagnosticMessages.render(
-                            CaptureCodeDiagnosticMessages.MARKER_PARAMETER_TYPE_INVALID,
-                        ),
+                        MarkerAnnotationErrors.PARAMETER_TYPE_INVALID.message,
                         KtDiagnosticRenderers.TO_STRING,
                     )
                     put(
                         CC_MARKER_FILLER_REQUIRES_DEFAULT,
-                        CaptureCodeDiagnosticMessages.render(
-                            CaptureCodeDiagnosticMessages.MARKER_FILLER_REQUIRES_DEFAULT,
-                        ),
+                        MarkerAnnotationErrors.FILLER_REQUIRES_DEFAULT.message,
                         KtDiagnosticRenderers.TO_STRING,
                     )
                     put(
                         CC_MARKER_IS_EXPECT,
-                        CaptureCodeDiagnosticMessages.render(
-                            CaptureCodeDiagnosticMessages.MARKER_IS_EXPECT,
-                        ),
+                        MarkerAnnotationErrors.IS_EXPECT.message,
                     )
                     put(
                         CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
-                        CaptureCodeDiagnosticMessages.render(
-                            CaptureCodeDiagnosticMessages.CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
-                        ),
+                        CapturedSourcesCallErrors.T_NOT_CAPTURE_CODE.message,
                         org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
                     )
                 }

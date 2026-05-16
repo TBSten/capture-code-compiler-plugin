@@ -8,7 +8,8 @@ import me.tbsten.capture.code.compat.k200.checker.K200CapturedSourcesCallChecker
 import me.tbsten.capture.code.compat.k200.checker.K200ExpressionAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k200.checker.K200MarkerAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k200.checker.K200MarkerCheckersExtension
-import me.tbsten.capture.code.error.CaptureCodeDiagnosticMessages
+import me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.CapturedSourcesCallErrors
+import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.MarkerAnnotationErrors
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
@@ -149,8 +150,8 @@ public class CompatContextImpl : CompatContext {
      * 各 compat-kXXX module が **自身の baseline で diagnostic factory を再宣言する** ことで
      * runtime drift を吸収する。
      *
-     * 文面は [CaptureCodeDiagnosticMessages] (compat 共有 SSoT) を引き続き参照する
-     * (task-122 で英語 only 化予定)。
+     * 文面は main module の `MarkerAnnotationErrors` / `CapturedSourcesCallErrors` (English-only
+     * SSoT, task-122 で `CaptureCodeDiagnosticMessages` から完全移管) を参照する。
      */
     public object K200Diagnostics {
 
@@ -190,37 +191,29 @@ public class CompatContextImpl : CompatContext {
         }
 
         /**
-         * Renderer factory: ID → メッセージ。 文面は [CaptureCodeDiagnosticMessages] (compat 共有 SSoT)
-         * を参照する。
+         * Renderer factory: ID → メッセージ。 文面は main module の English-only SSoT
+         * (`MarkerAnnotationErrors` / `CapturedSourcesCallErrors`, task-122) を参照する。
          */
         private object K200CaptureCodeDefaultMessages : BaseDiagnosticRendererFactory() {
             override val MAP: KtDiagnosticFactoryToRendererMap =
                 KtDiagnosticFactoryToRendererMap("CaptureCode").apply {
                     put(
                         CC_MARKER_PARAMETER_TYPE_INVALID,
-                        CaptureCodeDiagnosticMessages.render(
-                            CaptureCodeDiagnosticMessages.MARKER_PARAMETER_TYPE_INVALID,
-                        ),
+                        MarkerAnnotationErrors.PARAMETER_TYPE_INVALID.message,
                         KtDiagnosticRenderers.TO_STRING,
                     )
                     put(
                         CC_MARKER_FILLER_REQUIRES_DEFAULT,
-                        CaptureCodeDiagnosticMessages.render(
-                            CaptureCodeDiagnosticMessages.MARKER_FILLER_REQUIRES_DEFAULT,
-                        ),
+                        MarkerAnnotationErrors.FILLER_REQUIRES_DEFAULT.message,
                         KtDiagnosticRenderers.TO_STRING,
                     )
                     put(
                         CC_MARKER_IS_EXPECT,
-                        CaptureCodeDiagnosticMessages.render(
-                            CaptureCodeDiagnosticMessages.MARKER_IS_EXPECT,
-                        ),
+                        MarkerAnnotationErrors.IS_EXPECT.message,
                     )
                     put(
                         CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
-                        CaptureCodeDiagnosticMessages.render(
-                            CaptureCodeDiagnosticMessages.CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
-                        ),
+                        CapturedSourcesCallErrors.T_NOT_CAPTURE_CODE.message,
                         org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
                     )
                 }

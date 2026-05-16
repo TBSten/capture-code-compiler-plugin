@@ -61,6 +61,17 @@ dependencies {
         ),
     )
 
+    // task-122: 本 module の `K202Diagnostics` 内 renderer は main module の English-only
+    // SSoT (`MarkerAnnotationErrors` / `CapturedSourcesCallErrors`) を `<clinit>` で参照する。
+    // test runtime で diagnostic factory を trigger する scenario では main module の class が
+    // runtime classpath に必要。 main の compileKotlin output を file dependency として
+    // testRuntimeOnly に投入する (詳細は compat-k200 の build.gradle.kts コメント参照)。
+    testRuntimeOnly(
+        project(
+            mapOf("path" to ":compiler-plugin", "configuration" to "mainRuntimeClassesOnly"),
+        ),
+    )
+
     // 専用 unit test (ServiceLoader-based sanity)。 kctfork を使わず pure JVM test に
     // 留めるため、 kctfork transitive と consumer Kotlin の drift 問題を回避する。
     // CompatContextImpl 自体は K2.0.21 native API で書かれているので testRuntime に

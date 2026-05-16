@@ -11,15 +11,23 @@ import me.tbsten.capture.code.error.CaptureCodeCompilerPluginError
  * those factories are looked up by [CaptureCodeCompilerPluginError.id] via
  * `CompatContext.diagnosticFactory(id)`.
  *
- * **English-only**. Bilingual rendering via the legacy
- * `CaptureCodeDiagnosticMessages` / `CAPTURECODE_LOCALE` is being retired in
- * task-122. Once that retirement completes the renderer chain inside each
- * `compat-kXXX` should reference [message] / [reply] from this catalogue
- * directly.
+ * **English-only** (task-122). Bilingual rendering and locale env var support
+ * were retired together with the legacy diagnostic message catalogue.
+ * Each `compat-kXXX` renderer reads [message] from this catalogue directly.
  *
- * task-121: skeleton introduced. The active `compat-kXXX` diagnostic message
- * strings still come from the legacy `CaptureCodeDiagnosticMessages` until
- * task-122 redirects them here.
+ * ## Wording policy
+ *
+ * Messages keep the back-compat phrases that existing checker tests already
+ * assert against (`shouldContain "has an unsupported type"` etc.), so that the
+ * task-121 SSoT lift does not regress test coverage. The `Suggested fix:`
+ * suffix and the parameter-name placeholder are baked into [message] because
+ * Kotlin's `KtDiagnosticFactoryToRendererMap.put(...)` takes a single message
+ * string. The standalone [reply] template is kept for parity with the
+ * interface contract and for tooling that wants to surface the hint
+ * separately.
+ *
+ * `MessageFormat` placeholders use the doubled-quote form (`''{0}''`) so the
+ * single quotes render literally after `MessageFormat` parsing.
  */
 public object MarkerAnnotationErrors {
 
@@ -31,9 +39,10 @@ public object MarkerAnnotationErrors {
         override val id: String = "CC_MARKER_IS_EXPECT"
         override val message: String =
             "@CaptureCode marker annotation cannot be declared as 'expect'. " +
-                "CaptureCode markers must be defined in the same compilation as their use sites."
+                "Markers must be concrete annotation declarations (see design §7.6).\n" +
+                "Suggested fix: remove the 'expect' modifier; declare the marker concretely in commonMain."
         override val reply: String? =
-            "Remove the 'expect' modifier or move the marker class to commonMain as a concrete annotation."
+            "Remove the 'expect' modifier; declare the marker concretely in commonMain."
     }
 
     /**
@@ -44,12 +53,14 @@ public object MarkerAnnotationErrors {
     public val PARAMETER_TYPE_INVALID: CaptureCodeCompilerPluginError = object : CaptureCodeCompilerPluginError {
         override val id: String = "CC_MARKER_PARAMETER_TYPE_INVALID"
         override val message: String =
-            "@CaptureCode marker parameter ''{0}'' has an invalid type. " +
-                "Allowed types: Source, SourceLocation, CaptureKind, primitives, String, " +
-                "KClass, enum, nested annotation, or arrays of these."
+            "@CaptureCode marker annotation parameter ''{0}'' has an unsupported type. " +
+                "Kotlin annotation parameter types are limited to primitives, String, KClass, " +
+                "enum, annotation, or arrays of these.\n" +
+                "Suggested fix: change parameter ''{0}'' to one of the allowed annotation types " +
+                "(e.g., String, Int, an enum class, or another annotation)."
         override val reply: String? =
-            "Change parameter ''{0}'' to one of the allowed annotation parameter types " +
-                "(e.g. String, an enum class, another annotation, or a CaptureCode filler type)."
+            "Change parameter ''{0}'' to one of the allowed annotation types " +
+                "(e.g., String, Int, an enum class, or another annotation)."
     }
 
     /**
@@ -60,9 +71,11 @@ public object MarkerAnnotationErrors {
     public val FILLER_REQUIRES_DEFAULT: CaptureCodeCompilerPluginError = object : CaptureCodeCompilerPluginError {
         override val id: String = "CC_MARKER_FILLER_REQUIRES_DEFAULT"
         override val message: String =
-            "@CaptureCode marker filler parameter ''{0}'' must declare a default value " +
-                "(e.g. 'val ${'$'}{0}: Source = Source()'). Filler values are filled in by the compiler."
+            "@CaptureCode marker filler parameter ''{0}'' must have a default value " +
+                "(e.g., 'val source: Source = Source()'). The plugin auto-fills filler values " +
+                "at compile time, so use sites do not specify them explicitly.\n" +
+                "Suggested fix: assign a default constructor call (e.g., '= Source()') to ''{0}''."
         override val reply: String? =
-            "Assign a default constructor call (e.g. '= Source()') to parameter ''{0}''."
+            "Assign a default constructor call (e.g., '= Source()') to parameter ''{0}''."
     }
 }
