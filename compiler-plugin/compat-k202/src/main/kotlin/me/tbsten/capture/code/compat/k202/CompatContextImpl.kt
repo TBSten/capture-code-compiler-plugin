@@ -43,6 +43,12 @@ import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.psi.KtElement
 
 /**
+ * task-124 / task-119 follow-up: module-scoped singleton。 checker は本 singleton を共有する。
+ * [CompatContextImpl.Factory.create] は ServiceLoader 契約上、 新規 instance を返す。
+ */
+internal val k202Compat: CompatContext = CompatContextImpl()
+
+/**
  * Kotlin 2.0.10 〜 2.0.21 (= 2.0.x patch level) 向けの [CompatContext] 実装。
  *
  * task-081: 2.0.20+ runtime と 2.0.0 baseline binary (compat-k200) との間で識別された

@@ -43,6 +43,12 @@ import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.psi.KtElement
 
 /**
+ * task-124 / task-119 follow-up: module-scoped singleton。 checker は本 singleton を共有する。
+ * [CompatContextImpl.Factory.create] は ServiceLoader 契約上、 新規 instance を返す。
+ */
+internal val k200Compat: CompatContext = CompatContextImpl()
+
+/**
  * Kotlin 2.0.x 向けの [CompatContext] 実装。
  *
  * 単一の Metro pattern interface (`CompatContext`) に統合された結果、 IR 変換と FIR

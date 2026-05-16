@@ -43,6 +43,12 @@ import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.psi.KtElement
 
 /**
+ * task-124 / task-119 follow-up: module-scoped singleton。 checker dispatcher は
+ * 本 singleton を共有する。 [CompatContextImpl.Factory.create] は新規 instance を返す。
+ */
+internal val k220Compat: CompatContext = CompatContextImpl()
+
+/**
  * Kotlin 2.2.x 向けの [CompatContext] 実装。
  *
  * 2.1.x からは下記 drift を **追加で** 吸収する (FIR D1–D4 / IR D5–D7 は 2.1.x で吸収済の

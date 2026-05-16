@@ -44,6 +44,14 @@ import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.psi.KtElement
 
 /**
+ * task-124 / task-119 follow-up: module-scoped singleton。 旧来は checker dispatcher 各々が
+ * `CompatContextImpl()` を new していたが、 process 内で常に同一 SPI 実装を共有する形に統一。
+ * [CompatContextImpl.Factory.create] は新規 instance を返す (ServiceLoader 契約のため) が、
+ * checker 側 dispatcher / IR 側 helper はこの singleton を参照する。
+ */
+internal val k230Compat: CompatContext = CompatContextImpl()
+
+/**
  * Kotlin 2.3.x 向けの [CompatContext] 実装。
  *
  * task-075: compat-k220 (Kotlin 2.2.x baseline) を template に mechanical copy + rename

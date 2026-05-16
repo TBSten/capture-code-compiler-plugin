@@ -44,6 +44,12 @@ import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.psi.KtElement
 
 /**
+ * task-124 / task-119 follow-up: module-scoped singleton。 checker dispatcher は
+ * 本 singleton を共有する。 [CompatContextImpl.Factory.create] は新規 instance を返す。
+ */
+internal val k240RcCompat: CompatContext = CompatContextImpl()
+
+/**
  * Kotlin 2.4.0-RC 向けの [CompatContext] 実装。
  *
  * task-076: compat-k230 (Kotlin 2.3.x baseline) を template に mechanical copy + rename
