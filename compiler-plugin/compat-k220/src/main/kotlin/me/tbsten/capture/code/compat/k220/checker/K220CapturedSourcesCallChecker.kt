@@ -17,7 +17,7 @@ import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
  * Kotlin 2.2.x baseline 向けの **Logic G** entry point (Java shim dispatcher)。
  *
  * task-119: ロジック本体は main module の [ValidateCapturedSourcesCall] に統一された。
- * 本 object は K220 固有の [K220CaptureCodeDiagnostics] を渡して main logic を呼ぶだけの
+ * 本 object は K220 固有の [CompatContextImpl.K220Diagnostics] を渡して main logic を呼ぶだけの
  * dispatcher として機能する。
  */
 public object K220CapturedSourcesCallCheckerLogic {
@@ -25,7 +25,7 @@ public object K220CapturedSourcesCallCheckerLogic {
     private val compat = CompatContextImpl()
     private val diagnostics = object : ValidateCapturedSourcesCall.Diagnostics {
         override val capturedSourcesTNotCaptureCode: KtDiagnosticFactory1<String> =
-            K220CaptureCodeDiagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE
+            CompatContextImpl.K220Diagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE
     }
 
     @JvmStatic

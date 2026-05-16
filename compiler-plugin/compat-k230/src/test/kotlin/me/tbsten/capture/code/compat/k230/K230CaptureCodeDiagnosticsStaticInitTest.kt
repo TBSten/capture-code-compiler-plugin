@@ -2,7 +2,6 @@ package me.tbsten.capture.code.compat.k230
 
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldNotBe
-import me.tbsten.capture.code.compat.k230.checker.K230CaptureCodeDiagnostics
 
 /**
  * task-088 / task-089 regression test.
@@ -18,8 +17,8 @@ import me.tbsten.capture.code.compat.k230.checker.K230CaptureCodeDiagnostics
  *
  * ```
  * Caused by: java.lang.NullPointerException: Cannot invoke "ReadOnlyProperty.getValue(...)"
- *   because "K230CaptureCodeDiagnostics.CC_MARKER_VISIBILITY_VIOLATION$delegate" is null
- *   at K230CaptureCodeDiagnostics$K230CaptureCodeDefaultMessages.<clinit>(K230CaptureCodeDiagnostics.kt:72)
+ *   because "CompatContextImpl.K230Diagnostics.CC_MARKER_VISIBILITY_VIOLATION$delegate" is null
+ *   at K230CaptureCodeDiagnostics$K230CaptureCodeDefaultMessages.<clinit>(CompatContextImpl.K230Diagnostics.kt:72)
  * ```
  *
  * 修正前は K230 marker class checker が **visibility violation を report する瞬間**
@@ -37,7 +36,7 @@ import me.tbsten.capture.code.compat.k230.checker.K230CaptureCodeDiagnostics
  *
  * ## なぜ本 test で防げるか
  *
- * `K230CaptureCodeDiagnostics.CC_MARKER_VISIBILITY_VIOLATION` を **直接 read** して
+ * `CompatContextImpl.K230Diagnostics.CC_MARKER_VISIBILITY_VIOLATION` を **直接 read** して
  * outer object の `<clinit>` を強制的に走らせる。 もし循環依存が再発したら、
  * このシンプルな read だけで NPE が出るため即 fail する (kctfork や Kotlin
  * compile session 不要)。
@@ -48,24 +47,24 @@ class K230CaptureCodeDiagnosticsStaticInitTest : StringSpec({
         // 単に property を read するだけで <clinit> が走る。 NPE が出なければ pass。
         // task-091: VISIBILITY_VIOLATION 撤廃に伴い、 最初の property を
         // CC_MARKER_PARAMETER_TYPE_INVALID に変更 (declaration 順で同等の test)。
-        val factory = K230CaptureCodeDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID
+        val factory = CompatContextImpl.K230Diagnostics.CC_MARKER_PARAMETER_TYPE_INVALID
         factory shouldNotBe null
     }
 
     "全 diagnostic factory が <clinit> 完了後に read できる" {
         // task-091: CC_MARKER_VISIBILITY_VIOLATION / CC_MARKER_RETENTION_VIOLATION /
         // CC_MARKER_TARGET_EMPTY は撤廃済。
-        K230CaptureCodeDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID shouldNotBe null
-        K230CaptureCodeDiagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT shouldNotBe null
-        K230CaptureCodeDiagnostics.CC_MARKER_IS_EXPECT shouldNotBe null
-        K230CaptureCodeDiagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE shouldNotBe null
+        CompatContextImpl.K230Diagnostics.CC_MARKER_PARAMETER_TYPE_INVALID shouldNotBe null
+        CompatContextImpl.K230Diagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT shouldNotBe null
+        CompatContextImpl.K230Diagnostics.CC_MARKER_IS_EXPECT shouldNotBe null
+        CompatContextImpl.K230Diagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE shouldNotBe null
     }
 
     "renderer factory の MAP が outer init 完了後に lazy 展開できる" {
         // getRendererFactory() は inner object を返す。 その MAP property に access
         // すると `by lazy` 展開で全 put(CC_*, ...) が走る。 修正前の eager init では
         // 直前の outer init で null delegate 参照になっていた箇所。
-        val rendererFactory = K230CaptureCodeDiagnostics.getRendererFactory()
+        val rendererFactory = CompatContextImpl.K230Diagnostics.getRendererFactory()
         rendererFactory.MAP shouldNotBe null
     }
 })

@@ -23,7 +23,7 @@ public object K230CapturedSourcesCallCheckerLogic {
     private val compat = CompatContextImpl()
     private val diagnostics = object : ValidateCapturedSourcesCall.Diagnostics {
         override val capturedSourcesTNotCaptureCode: KtDiagnosticFactory1<String> =
-            K230CaptureCodeDiagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE
+            CompatContextImpl.K230Diagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE
     }
 
     @JvmStatic

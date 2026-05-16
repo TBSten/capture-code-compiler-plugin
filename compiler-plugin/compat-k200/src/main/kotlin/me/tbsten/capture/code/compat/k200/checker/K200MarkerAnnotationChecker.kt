@@ -15,7 +15,7 @@ import org.jetbrains.kotlin.fir.declarations.FirRegularClass
  *
  * task-119: ロジック本体は main module の [ValidateMarkerAnnotation] に統一された。
  * 本 checker は K2.0 baseline の `check(declaration, context, reporter)` signature を
- * override し、 [K200CaptureCodeDiagnostics] の factory を [ValidateMarkerAnnotation.Diagnostics]
+ * override し、 [CompatContextImpl.K200Diagnostics] の factory を [ValidateMarkerAnnotation.Diagnostics]
  * adapter として渡して main logic に dispatch する。
  */
 internal object K200MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerKind.Common) {
@@ -24,11 +24,11 @@ internal object K200MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerK
     private val compat = CompatContextImpl()
     private val diagnostics = object : ValidateMarkerAnnotation.Diagnostics {
         override val markerIsExpect: KtDiagnosticFactory0 =
-            K200CaptureCodeDiagnostics.CC_MARKER_IS_EXPECT
+            CompatContextImpl.K200Diagnostics.CC_MARKER_IS_EXPECT
         override val markerParameterTypeInvalid: KtDiagnosticFactory1<String> =
-            K200CaptureCodeDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID
+            CompatContextImpl.K200Diagnostics.CC_MARKER_PARAMETER_TYPE_INVALID
         override val markerFillerRequiresDefault: KtDiagnosticFactory1<String> =
-            K200CaptureCodeDiagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT
+            CompatContextImpl.K200Diagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT
     }
 
     override fun check(

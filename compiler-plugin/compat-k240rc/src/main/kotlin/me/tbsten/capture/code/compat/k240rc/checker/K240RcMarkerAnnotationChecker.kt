@@ -21,11 +21,11 @@ public object K240RcMarkerAnnotationCheckerLogic {
     private val compat = CompatContextImpl()
     private val diagnostics = object : ValidateMarkerAnnotation.Diagnostics {
         override val markerIsExpect: KtDiagnosticFactory0 =
-            K240RcCaptureCodeDiagnostics.CC_MARKER_IS_EXPECT
+            CompatContextImpl.K240RcDiagnostics.CC_MARKER_IS_EXPECT
         override val markerParameterTypeInvalid: KtDiagnosticFactory1<String> =
-            K240RcCaptureCodeDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID
+            CompatContextImpl.K240RcDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID
         override val markerFillerRequiresDefault: KtDiagnosticFactory1<String> =
-            K240RcCaptureCodeDiagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT
+            CompatContextImpl.K240RcDiagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT
     }
 
     @JvmStatic

@@ -278,6 +278,28 @@ public interface CompatContext {
     )
 
     /**
+     * Returns the `KtDiagnosticFactory0` / `KtDiagnosticFactory1<*>` instance
+     * registered for the given diagnostic [id], or `null` if this compat
+     * implementation does not have one.
+     *
+     * The returned value is intentionally typed as `Any?` because
+     * `KtDiagnosticFactory0` vs `KtDiagnosticFactory1<*>` cannot be expressed
+     * by a single covariant return type, and the main module's
+     * `error/ReportError.kt` / `warning/ReportWarning.kt` helpers already
+     * narrow the result via `as? KtDiagnosticFactory0` / `as? KtDiagnosticFactory1<...>`
+     * before calling `reporter.reportOn(...)`.
+     *
+     * Each `compat-kXXX/CompatContextImpl.kt` looks the id up in a
+     * `private object K{XXX}Diagnostics` nested inside the impl, so the
+     * factory map is co-located with the implementation that owns it. The id
+     * convention is `CC_<feature>_<rule>` (see each feature's
+     * `*Errors.kt` SSoT, e.g. `MarkerAnnotationErrors.kt`).
+     *
+     * Added in task-121.
+     */
+    public fun diagnosticFactory(id: String): Any?
+
+    /**
      * Factory for compat implementations. Each `compat-kXXX` module registers
      * its implementation (with its own [minVersion]) in
      * `META-INF/services/me.tbsten.capture.code.compat.CompatContext${'$'}Factory`.

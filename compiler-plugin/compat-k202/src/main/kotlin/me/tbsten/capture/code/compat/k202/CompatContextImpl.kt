@@ -8,10 +8,22 @@ import me.tbsten.capture.code.compat.k202.checker.K202CapturedSourcesCallChecker
 import me.tbsten.capture.code.compat.k202.checker.K202ExpressionAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k202.checker.K202MarkerAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k202.checker.K202MarkerCheckersExtension
+import me.tbsten.capture.code.error.CaptureCodeDiagnosticMessages
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory0
+import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory1
+import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactoryToRendererMap
+import org.jetbrains.kotlin.diagnostics.KtDiagnosticRenderers
+import org.jetbrains.kotlin.diagnostics.Severity
+import org.jetbrains.kotlin.diagnostics.SourceElementPositioningStrategies
+import org.jetbrains.kotlin.diagnostics.error0
+import org.jetbrains.kotlin.diagnostics.error1
+import org.jetbrains.kotlin.diagnostics.rendering.BaseDiagnosticRendererFactory
+import org.jetbrains.kotlin.diagnostics.rendering.RootDiagnosticRendererFactory
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
@@ -24,6 +36,7 @@ import org.jetbrains.kotlin.fir.types.toRegularClassSymbol
 import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.name.ClassId
+import org.jetbrains.kotlin.psi.KtElement
 
 /**
  * Kotlin 2.0.10 〜 2.0.21 (= 2.0.x patch level) 向けの [CompatContext] 実装。
@@ -118,6 +131,8 @@ public class CompatContextImpl : CompatContext {
         }
     }
 
+    override fun diagnosticFactory(id: String): Any? = K202Diagnostics.MAP[id]
+
     @AutoService(CompatContext.Factory::class)
     public class Factory : CompatContext.Factory {
         // task-081: 2.0.20 / 2.0.21 patch を本 module が dispatch する。
@@ -139,5 +154,81 @@ public class CompatContextImpl : CompatContext {
         override val minVersion: String = "2.0.20"
 
         override fun create(): CompatContext = CompatContextImpl()
+    }
+
+    /**
+     * Kotlin 2.0.20 〜 2.0.21 baseline 向けの **診断 factory** SSoT (task-121 で
+     * 旧 `checker/K202CaptureCodeDiagnostics.kt` から本 nested object に集約)。
+     *
+     * 構造は [K200Diagnostics][me.tbsten.capture.code.compat.k200.CompatContextImpl.K200Diagnostics]
+     * と同形。 2.0.x patch 内では `KtDiagnosticFactory*` constructor / `error0`/`error1` delegate
+     * の signature は drift 無し。 詳細な背景は K200 側 KDoc 参照。
+     */
+    public object K202Diagnostics {
+
+        /** `CC_MARKER_PARAMETER_TYPE_INVALID` — Kotlin annotation 制約外の parameter 型。 */
+        public val CC_MARKER_PARAMETER_TYPE_INVALID: KtDiagnosticFactory1<String> by error1<PsiElement, String>()
+
+        /** `CC_MARKER_FILLER_REQUIRES_DEFAULT` — filler 型 parameter にデフォルト値がない。 */
+        public val CC_MARKER_FILLER_REQUIRES_DEFAULT: KtDiagnosticFactory1<String> by error1<PsiElement, String>()
+
+        /** `CC_MARKER_IS_EXPECT` — marker 自身が `expect` 宣言。 */
+        public val CC_MARKER_IS_EXPECT: KtDiagnosticFactory0 by error0<PsiElement>()
+
+        /** `CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE` — T が `@CaptureCode` 付き marker ではない。 */
+        public val CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE: KtDiagnosticFactory1<String> =
+            KtDiagnosticFactory1(
+                name = "CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE",
+                severity = Severity.ERROR,
+                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
+                psiType = KtElement::class,
+            )
+
+        /** task-121: lazy MAP (task-088 教訓に従い静的初期化循環依存を予防)。 */
+        internal val MAP: Map<String, Any> by lazy {
+            mapOf(
+                "CC_MARKER_PARAMETER_TYPE_INVALID" to CC_MARKER_PARAMETER_TYPE_INVALID,
+                "CC_MARKER_FILLER_REQUIRES_DEFAULT" to CC_MARKER_FILLER_REQUIRES_DEFAULT,
+                "CC_MARKER_IS_EXPECT" to CC_MARKER_IS_EXPECT,
+                "CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE" to CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
+            )
+        }
+
+        init {
+            RootDiagnosticRendererFactory.registerFactory(K202CaptureCodeDefaultMessages)
+        }
+
+        private object K202CaptureCodeDefaultMessages : BaseDiagnosticRendererFactory() {
+            override val MAP: KtDiagnosticFactoryToRendererMap =
+                KtDiagnosticFactoryToRendererMap("CaptureCode").apply {
+                    put(
+                        CC_MARKER_PARAMETER_TYPE_INVALID,
+                        CaptureCodeDiagnosticMessages.render(
+                            CaptureCodeDiagnosticMessages.MARKER_PARAMETER_TYPE_INVALID,
+                        ),
+                        KtDiagnosticRenderers.TO_STRING,
+                    )
+                    put(
+                        CC_MARKER_FILLER_REQUIRES_DEFAULT,
+                        CaptureCodeDiagnosticMessages.render(
+                            CaptureCodeDiagnosticMessages.MARKER_FILLER_REQUIRES_DEFAULT,
+                        ),
+                        KtDiagnosticRenderers.TO_STRING,
+                    )
+                    put(
+                        CC_MARKER_IS_EXPECT,
+                        CaptureCodeDiagnosticMessages.render(
+                            CaptureCodeDiagnosticMessages.MARKER_IS_EXPECT,
+                        ),
+                    )
+                    put(
+                        CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
+                        CaptureCodeDiagnosticMessages.render(
+                            CaptureCodeDiagnosticMessages.CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
+                        ),
+                        org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
+                    )
+                }
+        }
     }
 }

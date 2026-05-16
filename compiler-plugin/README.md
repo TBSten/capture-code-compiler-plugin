@@ -71,6 +71,7 @@ compiler-plugin/
 ├── compat-k200/                                # Kotlin 2.0.x 専用 impl (baseline)
 │   └── src/main/kotlin/me/tbsten/capture/code/compat/k200/
 │       ├── CompatContextImpl.kt                #   AutoService + Factory(minVersion=2.0.0)
+│       │                                       #   nested K200Diagnostics に KtDiagnosticFactory* + renderer を集約 (task-121)
 │       ├── K200IrTransform.kt                  #   IR phase orchestrator
 │       ├── K200CapturedSourcesCollector.kt     #   Logic B (IR side)
 │       ├── K200CapturedSourcesRewriter.kt      #   Logic H (`capturedSources<T>()` 置換)
@@ -80,8 +81,7 @@ compiler-plugin/
 │       │   ├── K200CapturedSourcesCallChecker.kt
 │       │   ├── K200MarkerAnnotationChecker.kt
 │       │   ├── K200ExpressionSiteCollector.kt
-│       │   ├── K200CheckerExtensions.kt        #     FirAdditionalCheckersExtension 束ね
-│       │   └── K200CaptureCodeDiagnostics.kt   #     KtDiagnosticFactory* + renderer
+│       │   └── K200CheckerExtensions.kt        #     FirAdditionalCheckersExtension 束ね
 │       ├── filler/                             #   IR filler builder (Logic D)
 │       │   ├── FillerBuilder.kt
 │       │   ├── CaptureKindFillerBuilder.kt

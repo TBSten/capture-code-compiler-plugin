@@ -21,11 +21,11 @@ internal object K210MarkerAnnotationChecker : FirRegularClassChecker(MppCheckerK
     private val compat = CompatContextImpl()
     private val diagnostics = object : ValidateMarkerAnnotation.Diagnostics {
         override val markerIsExpect: KtDiagnosticFactory0 =
-            K210CaptureCodeDiagnostics.CC_MARKER_IS_EXPECT
+            CompatContextImpl.K210Diagnostics.CC_MARKER_IS_EXPECT
         override val markerParameterTypeInvalid: KtDiagnosticFactory1<String> =
-            K210CaptureCodeDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID
+            CompatContextImpl.K210Diagnostics.CC_MARKER_PARAMETER_TYPE_INVALID
         override val markerFillerRequiresDefault: KtDiagnosticFactory1<String> =
-            K210CaptureCodeDiagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT
+            CompatContextImpl.K210Diagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT
     }
 
     override fun check(

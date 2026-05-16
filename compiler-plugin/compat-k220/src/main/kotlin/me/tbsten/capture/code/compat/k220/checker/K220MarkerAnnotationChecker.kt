@@ -21,7 +21,7 @@ import org.jetbrains.kotlin.fir.declarations.FirRegularClass
  * 本オブジェクトに dispatch する。
  *
  * task-119: 検査ロジック本体は main module の [ValidateMarkerAnnotation] に統一された。
- * 本 object は K220 固有の [K220CaptureCodeDiagnostics] を渡して main logic を呼ぶだけの
+ * 本 object は K220 固有の [CompatContextImpl.K220Diagnostics] を渡して main logic を呼ぶだけの
  * dispatcher として機能する。
  */
 public object K220MarkerAnnotationCheckerLogic {
@@ -29,11 +29,11 @@ public object K220MarkerAnnotationCheckerLogic {
     private val compat = CompatContextImpl()
     private val diagnostics = object : ValidateMarkerAnnotation.Diagnostics {
         override val markerIsExpect: KtDiagnosticFactory0 =
-            K220CaptureCodeDiagnostics.CC_MARKER_IS_EXPECT
+            CompatContextImpl.K220Diagnostics.CC_MARKER_IS_EXPECT
         override val markerParameterTypeInvalid: KtDiagnosticFactory1<String> =
-            K220CaptureCodeDiagnostics.CC_MARKER_PARAMETER_TYPE_INVALID
+            CompatContextImpl.K220Diagnostics.CC_MARKER_PARAMETER_TYPE_INVALID
         override val markerFillerRequiresDefault: KtDiagnosticFactory1<String> =
-            K220CaptureCodeDiagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT
+            CompatContextImpl.K220Diagnostics.CC_MARKER_FILLER_REQUIRES_DEFAULT
     }
 
     @JvmStatic

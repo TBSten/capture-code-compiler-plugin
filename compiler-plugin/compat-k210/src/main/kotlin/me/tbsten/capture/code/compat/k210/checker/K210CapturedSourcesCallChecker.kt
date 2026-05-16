@@ -20,7 +20,7 @@ internal object K210CapturedSourcesCallChecker : FirExpressionChecker<FirFunctio
     private val compat = CompatContextImpl()
     private val diagnostics = object : ValidateCapturedSourcesCall.Diagnostics {
         override val capturedSourcesTNotCaptureCode: KtDiagnosticFactory1<String> =
-            K210CaptureCodeDiagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE
+            CompatContextImpl.K210Diagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE
     }
 
     override fun check(

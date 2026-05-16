@@ -14,7 +14,7 @@ import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
  *
  * task-119: ロジック本体は main module の [ValidateCapturedSourcesCall] に統一された。
  * 本 checker は K2.0 baseline の `check(expression, context, reporter)` signature を
- * override し、 [K200CaptureCodeDiagnostics] の factory を渡して main logic に dispatch する。
+ * override し、 [CompatContextImpl.K200Diagnostics] の factory を渡して main logic に dispatch する。
  */
 internal object K200CapturedSourcesCallChecker : FirExpressionChecker<FirFunctionCall>(MppCheckerKind.Common) {
 
@@ -22,7 +22,7 @@ internal object K200CapturedSourcesCallChecker : FirExpressionChecker<FirFunctio
     private val compat = CompatContextImpl()
     private val diagnostics = object : ValidateCapturedSourcesCall.Diagnostics {
         override val capturedSourcesTNotCaptureCode: KtDiagnosticFactory1<String> =
-            K200CaptureCodeDiagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE
+            CompatContextImpl.K200Diagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE
     }
 
     override fun check(
