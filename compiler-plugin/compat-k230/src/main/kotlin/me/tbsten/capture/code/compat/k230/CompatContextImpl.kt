@@ -71,9 +71,10 @@ public class CompatContextImpl : CompatContext {
     override fun transformIr(
         moduleFragment: IrModuleFragment,
         pluginContext: IrPluginContext,
-        config: CaptureCodePluginConfig,
+        config: Any,
     ) {
-        runK230IrTransform(moduleFragment, pluginContext, config)
+        // task-120-B Phase 1: SPI Any-erased; cast back to the main module type.
+        runK230IrTransform(moduleFragment, pluginContext, config as CaptureCodePluginConfig)
     }
 
     override fun literalValueOrNull(expression: FirExpression): Any? {
@@ -113,10 +114,13 @@ public class CompatContextImpl : CompatContext {
     override fun registerExtensions(
         extensionStorage: CompilerPluginRegistrar.ExtensionStorage,
         configuration: CompilerConfiguration,
-        config: CaptureCodePluginConfig,
+        config: Any,
         firRegistrar: FirExtensionRegistrarAdapter,
         irExtension: IrGenerationExtension,
     ) {
+        // task-120-B Phase 1: SPI Any-erased; the cast keeps the field typed.
+        @Suppress("UNUSED_VARIABLE")
+        val typedConfig = config as CaptureCodePluginConfig
         with(extensionStorage) {
             FirExtensionRegistrarAdapter.registerExtension(firRegistrar)
             IrGenerationExtension.registerExtension(irExtension)

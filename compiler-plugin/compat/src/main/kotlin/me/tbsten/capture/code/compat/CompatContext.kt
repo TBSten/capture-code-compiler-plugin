@@ -1,7 +1,6 @@
 package me.tbsten.capture.code.compat
 
 import java.util.ServiceLoader
-import me.tbsten.capture.code.CaptureCodePluginConfig
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
@@ -81,11 +80,19 @@ public interface CompatContext {
      * `listOf(T(Source(...), SourceLocation(...), ...), ...)` for every
      * declaration / file / expression annotated with a `@CaptureCode`-meta
      * marker, with filler values resolved from the captured site's IR.
+     *
+     * task-120-B Phase 1: the `config` parameter is **temporarily `Any`-erased**
+     * to keep the compat module free of plugin-domain types
+     * (`me.tbsten.capture.code.CaptureCodePluginConfig` was hoisted to the
+     * main module). Each compat-kXXX impl casts back to
+     * `CaptureCodePluginConfig` internally. Phase 4 removes `transformIr`
+     * entirely once the main `CaptureCodeIrExtension` drives the IR phase
+     * chain directly, at which point this Any-erasure goes away.
      */
     public fun transformIr(
         moduleFragment: IrModuleFragment,
         pluginContext: IrPluginContext,
-        config: CaptureCodePluginConfig,
+        config: Any,
     )
 
     /**
@@ -260,11 +267,18 @@ public interface CompatContext {
      * Implementations cast it to
      * `CompilerPluginRegistrar.ExtensionStorage` internally.
      *
+     * task-120-B Phase 1: the `config` parameter is **temporarily `Any`-erased**
+     * to keep the compat module free of plugin-domain types
+     * (`me.tbsten.capture.code.CaptureCodePluginConfig` was hoisted to the
+     * main module). Each compat-kXXX impl casts back to
+     * `CaptureCodePluginConfig` internally. Phase 4 narrows this surface again
+     * once the plugin-domain config is no longer threaded through the SPI.
+     *
      * @param extensionStorage actually a
      *   `CompilerPluginRegistrar.ExtensionStorage` instance (the receiver of
      *   `registerExtensions`)
      * @param configuration the `CompilerConfiguration` of the current compile
-     * @param config the resolved [CaptureCodePluginConfig]
+     * @param config the resolved plugin config (`CaptureCodePluginConfig` in main)
      * @param firRegistrar the plugin's [FirExtensionRegistrarAdapter] subclass
      *   instance to register
      * @param irExtension the plugin's [IrGenerationExtension] instance to register
@@ -272,7 +286,7 @@ public interface CompatContext {
     public fun registerExtensions(
         extensionStorage: CompilerPluginRegistrar.ExtensionStorage,
         configuration: CompilerConfiguration,
-        config: CaptureCodePluginConfig,
+        config: Any,
         firRegistrar: FirExtensionRegistrarAdapter,
         irExtension: IrGenerationExtension,
     )

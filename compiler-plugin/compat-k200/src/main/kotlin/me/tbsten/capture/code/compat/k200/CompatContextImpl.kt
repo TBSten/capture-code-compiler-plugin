@@ -75,9 +75,13 @@ public class CompatContextImpl : CompatContext {
     override fun transformIr(
         moduleFragment: IrModuleFragment,
         pluginContext: IrPluginContext,
-        config: CaptureCodePluginConfig,
+        config: Any,
     ) {
-        runK200IrTransform(moduleFragment, pluginContext, config)
+        // task-120-B Phase 1: CompatContext SPI no longer carries the plugin-domain
+        // CaptureCodePluginConfig type (it was hoisted into the main module). The
+        // SPI signature is Any-erased; cast back here so the K200 IR transform can
+        // continue to consume the strongly-typed config.
+        runK200IrTransform(moduleFragment, pluginContext, config as CaptureCodePluginConfig)
     }
 
     override fun literalValueOrNull(expression: FirExpression): Any? {
@@ -124,10 +128,14 @@ public class CompatContextImpl : CompatContext {
     override fun registerExtensions(
         extensionStorage: CompilerPluginRegistrar.ExtensionStorage,
         configuration: CompilerConfiguration,
-        config: CaptureCodePluginConfig,
+        config: Any,
         firRegistrar: FirExtensionRegistrarAdapter,
         irExtension: IrGenerationExtension,
     ) {
+        // task-120-B Phase 1: SPI `config` is Any-erased; the cast keeps the field
+        // typed for any later wiring that wants to inspect it.
+        @Suppress("UNUSED_VARIABLE")
+        val typedConfig = config as CaptureCodePluginConfig
         with(extensionStorage) {
             FirExtensionRegistrarAdapter.registerExtension(firRegistrar)
             IrGenerationExtension.registerExtension(irExtension)
