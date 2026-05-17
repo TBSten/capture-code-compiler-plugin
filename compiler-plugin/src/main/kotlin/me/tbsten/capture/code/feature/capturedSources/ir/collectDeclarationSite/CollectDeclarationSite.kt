@@ -1,54 +1,153 @@
 package me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite
 
+import me.tbsten.capture.code.CaptureCodePluginConfig
+import me.tbsten.capture.code.compat.CompatContext
 import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
+import me.tbsten.capture.code.feature.capturedSources.CapturedSite
 import me.tbsten.capture.code.feature.capturedSources.ir.normalize.findKDocExtendedStartOffset
+import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.descriptors.ClassKind
+import org.jetbrains.kotlin.ir.declarations.IrClass
+import org.jetbrains.kotlin.ir.declarations.IrFile
+import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.declarations.IrProperty
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.declarations.IrTypeAlias
 
 /**
  * Logic B-ir: declaration / file annotation / expression site の収集本体。
  *
- * task-120 (IR logic 移行) で、 各 `compat-kXXX/K{XXX}CapturedSourcesCollector.kt` の **pure 部分**
- * (string offset 操作、 marker simpleName 抽出、 file path matching 等) を main module に集約した版。
+ * task-120-B Phase 3a で concrete 化。 これまで各 `compat-kXXX/K{XXX}CapturedSourcesCollector.kt`
+ * に重複していた declaration walk / file annotation 抽出 / expression site 抽出 / marker class
+ * 除外 / KDoc 抽出 / per-marker config キャッシュを **K2.0 baseline の main module 1 箇所** に
+ * 集約した版。
  *
- * ## 責務分担
+ * ## 責務
  *
- * 本 class は **drift しない pure helpers** を提供する:
- * - [expandStartToCoverModifierAndAnnotationLines] — Kotlin 2.2+ で declaration の startOffset が
- *   modifier / annotation 行を含まなくなった drift を吸収するための offset 補正
- * - [skipLeadingAnnotationLines] — 行頭の marker annotation token を skip
- * - [extractKdocPrefix] — declaration 直前 KDoc を抽出
- * - [stripSurroundingParens] — `(expr)` 形式の両端 paren を strip
- * - [matchesFile] — file path 末尾一致判定
+ * - [invoke] が moduleFragment 全体を走査して `List<CollectedSite>` を返す orchestrator
+ * - IR 走査本体 (= visitor base class drift) は [CompatContext.walkIrFileDeclarations] に委譲
+ * - file text loading (PSI / fileEntry drift) は [CompatContext.loadFileText] に委譲
+ * - 各 site 種別の収集経路 (declaration / file annotation / expression) は 同 package 内の
+ *   internal top-level helper に切り出し (1 ファイル 500 行制限のため)
  *
- * **IR 走査本体 (= visitor base class drift)** は引き続き compat-kXXX 側に残る:
- * - K200-K210: `IrElementVisitorVoid` (interface)
- * - K220+: `IrVisitorVoid` (class)
- * - 上記の drift は K2.0 baseline では吸収できないため、 compat 各 module が override を持つ
+ * ## 旧構造との関係 (Phase 3a 時点)
+ *
+ * 既存の `K{XXX}CapturedSourcesCollector` は **並行存在** する。 Phase 5 で `transformIr` 経由の
+ * wiring を main 経由に切り替えるまでは、 既存 collectors が runtime path として残り続ける。
+ * Phase 6 で各 compat-kXXX の旧 collector を削除する。
+ *
+ * ## ファイル分割
+ *
+ * Phase 3a の collector ロジックは元 [K200CapturedSourcesCollector](https://...) で 685 行あった
+ * ため、 1 ファイル 500 行制限に従って下記 3 ファイルに分割:
+ *
+ * - 本ファイル (`CollectDeclarationSite.kt`) — class 本体 (invoke + per-file dispatcher) +
+ *   元から main にあった pure helpers
+ * - [collectIfMarked] / [collectFileAnnotations] / [collectExpressionSites] —
+ *   各 site 経路 (internal top-level fun)
+ * - [extractDeclarationSource] / [extractFileSource] / [extractExpressionSource] /
+ *   [stripMarkerClassDeclarations] — source 抽出 helpers
  *
  * ## なぜ class with invoke パターンか
  *
  * task-120 で main 側 logic を `public class XxxLogic { public operator fun invoke(...) }`
- * パターンに統一するため。 ただし本 class は invoke を「helpers のエントリ集約」として宣言する
- * のではなく、 純粋に **utility 関数の集合** として使う。 invoke を呼ぶよりも各 helper を直接
- * 呼ぶことが多いため、 invoke は no-op の placeholder で defined。
- *
- * (将来 task で IR walker drift 自体を CompatContext で吸収して main 側に集約する場合、
- * 本 class の invoke が moduleFragment 全体を受け取って `List<CollectedSiteData>` を返す
- * orchestrator になる予定。)
+ * パターンに統一するため。 pure helper はそのまま public method として残し、 単独利用も可能。
  */
 public class CollectDeclarationSite {
 
     /**
-     * Reserved entrypoint。 現状は **fail-fast placeholder**。 task-120-B で `moduleFragment`
-     * を受け取って `List<CollectedSiteData>` を返す orchestrator になる予定。
+     * moduleFragment 全体を走査し、 marker annotation がついた declaration / file annotation /
+     * expression annotation site をまとめて [CollectedSite] のリストとして返す。
      *
-     * Helper methods ([expandStartToCoverModifierAndAnnotationLines], [skipLeadingAnnotationLines],
-     * [extractKdocPrefix], [stripSurroundingParens], [matchesFile]) は本 invoke を経由せず
-     * 個別に呼び出して利用する。
+     * 各 IrFile ごとに以下 3 経路を順に実行する:
+     * 1. declaration 走査 ([CompatContext.walkIrFileDeclarations] 経由) — class / function /
+     *    property / typealias の 4 種の declaration をすべて訪問し、 marker annotation がついて
+     *    いれば [CollectedSite] を 1 つ生成 (複数 marker 同時付与なら marker 数分)
+     * 2. file annotation 走査 (`IrFile.annotations` の marker filter) — `@file:Marker` で
+     *    file 全体に付与された marker から [CollectedSite] (kind = FILE) を生成
+     * 3. expression site 走査 ([CaptureCodeExpressionSiteRegistry] 経由) — FIR phase で
+     *    push された site のうち本 file にマッチするものから [CollectedSite] (kind = EXPRESSION)
+     *    を生成
+     *
+     * marker registry が空 (= `@CaptureCode` メタ annotation class が module 内に 1 つも存在
+     * しない) の場合でも、 expression site registry に push されていれば EXPRESSION 起源は
+     * 処理対象になり得るが、 marker filter (`CaptureCodeMarkerRegistry.isMarker`) で弾かれる
+     * ため最終的には空リストが返る。
+     *
+     * @param moduleFragment IR transform 対象の moduleFragment (= 各 IrFile の集合)
+     * @param pluginContext 現状未使用 (Phase 4a 以降で IR 構築時の symbol table 解決に使う想定)。
+     *   Phase 3a の signature 統一のため受け取るだけ
+     * @param compat IR primitive (`walkIrFileDeclarations`, `loadFileText`) を委譲する SPI
+     * @param config global Gradle DSL config (per-marker override 適用前の値)
+     * @return moduleFragment 全体から収集した [CollectedSite] のリスト (発見順)
      */
-    public operator fun invoke(): Nothing =
-        throw UnsupportedOperationException(
-            "Not yet implemented; will be filled in task-120-B. See KDoc.",
+    public operator fun invoke(
+        moduleFragment: IrModuleFragment,
+        @Suppress("UNUSED_PARAMETER") pluginContext: IrPluginContext,
+        compat: CompatContext,
+        config: CaptureCodePluginConfig,
+    ): List<CollectedSite> {
+        val results = mutableListOf<CollectedSite>()
+        val effectiveConfigCache = mutableMapOf<String, CaptureCodePluginConfig>()
+        for (file in moduleFragment.files) {
+            collectInFile(file, compat, config, effectiveConfigCache, results)
+        }
+        return results
+    }
+
+    /**
+     * 1 IrFile 分の収集を行う。 file text は遅延ロード (cache) して、 declaration / file
+     * annotation / expression site の 3 経路に渡す。
+     */
+    private fun collectInFile(
+        file: IrFile,
+        compat: CompatContext,
+        config: CaptureCodePluginConfig,
+        effectiveConfigCache: MutableMap<String, CaptureCodePluginConfig>,
+        sink: MutableList<CollectedSite>,
+    ) {
+        val cachedFileText: String? by lazy { compat.loadFileText(file) }
+        val packageFqn = file.packageFqName.asString()
+        val filePath = file.fileEntry.name
+        val context = CollectFileContext(
+            file = file,
+            packageFqn = packageFqn,
+            filePath = filePath,
+            config = config,
+            effectiveConfigCache = effectiveConfigCache,
+            cachedFileText = { cachedFileText },
+            site = this,
         )
+
+        // 経路 1: file annotation (`@file:Marker`)
+        collectFileAnnotations(context, sink)
+
+        // 経路 2: declaration 走査 (class / function / property / typealias)
+        compat.walkIrFileDeclarations(
+            file = file,
+            onClass = { collectIfMarked(it, classKindFor(it), context, sink) },
+            onSimpleFunction = {
+                // property accessor (getter / setter) は IrProperty 経由でキャプチャするので skip。
+                if (it.correspondingPropertySymbol == null) {
+                    collectIfMarked(it, CapturedSite.CaptureKind.FUNCTION, context, sink)
+                }
+            },
+            onProperty = { collectIfMarked(it, CapturedSite.CaptureKind.PROPERTY, context, sink) },
+            onTypeAlias = { collectIfMarked(it, CapturedSite.CaptureKind.TYPEALIAS, context, sink) },
+        )
+
+        // 経路 3: expression site (FIR session storage 由来)
+        collectExpressionSites(context, sink)
+    }
+
+    /** [IrClass.kind] に基づく [CapturedSite.CaptureKind] mapping。 */
+    private fun classKindFor(irClass: IrClass): CapturedSite.CaptureKind = when (irClass.kind) {
+        ClassKind.OBJECT -> CapturedSite.CaptureKind.OBJECT
+        // CLASS / INTERFACE / ANNOTATION_CLASS / ENUM_CLASS / ENUM_ENTRY は CLASS に集約
+        else -> CapturedSite.CaptureKind.CLASS
+    }
+
+    // ---- pure helpers (元から main にあったもの。 単独利用も可能なため public 維持) ----
 
     /**
      * `startOffset` を行頭まで遡らせ、 さらに直前の行が **declaration modifier のみで構成された行**
@@ -62,11 +161,9 @@ public class CollectDeclarationSite {
      */
     public fun expandStartToCoverModifierAndAnnotationLines(fullText: String, startOffset: Int): Int {
         if (startOffset <= 0 || startOffset > fullText.length) return startOffset
-
         val lineStart = lineStartOffsetOf(fullText, startOffset)
         val prefix = fullText.substring(lineStart, startOffset)
         var current = if (prefix.isBlank() || prefixIsAllModifierTokens(prefix)) lineStart else startOffset
-
         if (current != lineStart) return current
         while (current > 0) {
             val prevLineEnd = current - 1
@@ -252,3 +349,26 @@ public class CollectDeclarationSite {
         )
     }
 }
+
+/**
+ * 1 IrFile 分の収集中に [CollectDeclarationSite] の各 internal helper に共有される immutable
+ * context。 引数列を肥大化させず、 helper 間で共通の参照を渡すために使う。
+ *
+ * - [file] 走査対象の IrFile
+ * - [packageFqn] 当該 file の package FqN (file 毎に 1 回だけ取得)
+ * - [filePath] 当該 file の path (`IrFile.fileEntry.name`)
+ * - [config] global Gradle DSL config
+ * - [effectiveConfigCache] marker FqN → effective config の per-module キャッシュ
+ * - [cachedFileText] 当該 file の text を遅延ロードして返す lambda (失敗時 `null`)
+ * - [site] pure helper を呼び出すための [CollectDeclarationSite] back-reference
+ *   (`stripSurroundingParens` などを再利用するため)
+ */
+internal class CollectFileContext(
+    val file: IrFile,
+    val packageFqn: String,
+    val filePath: String,
+    val config: CaptureCodePluginConfig,
+    val effectiveConfigCache: MutableMap<String, CaptureCodePluginConfig>,
+    val cachedFileText: () -> String?,
+    val site: CollectDeclarationSite,
+)
