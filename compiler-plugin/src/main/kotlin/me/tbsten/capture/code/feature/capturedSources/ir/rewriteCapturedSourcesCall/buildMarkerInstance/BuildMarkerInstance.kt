@@ -48,13 +48,13 @@ import org.jetbrains.kotlin.name.Name
  *   [BuildFiller] (Phase 4b で concrete 化) に dispatch、 それ以外は [BuildUserArg] /
  *   [BuildUserArgPrimitive] (Phase 4b) に dispatch
  *
- * ## Phase 4a 段階の制約
+ * ## Phase 4b 完了後の状態
  *
- * filler / userarg の concrete impl は **Phase 4b 持ち越し** ([BuildFiller] / [BuildUserArg] /
- * [BuildUserArgPrimitive] は依然 `UnsupportedOperationException` placeholder)。 本 class は
- * filler / userarg dispatch chain を組むのみで、 invoke を実行すると **placeholder 内側で例外** が
- * 飛ぶ。 ただし [RewriteCapturedSourcesCall] (= 本 class の唯一の caller) も Phase 4a 段階では
- * caller 0 件のため、 実行時には絶対に到達しない (= compile 時の chain 確認だけ取れる状態)。
+ * filler / userarg の concrete impl は Phase 4b で main 側に移植済 ([FillSource] / [FillSourceLocation]
+ * / [FillCaptureKind] / [BuildUserArg] / [BuildUserArgPrimitive])。 本 class + chain は full
+ * functional だが、 [RewriteCapturedSourcesCall] の caller (= main 側
+ * `CaptureCodeIrExtension`) はまだ wire されていない (= Phase 5 で実施) ため、 既存 test は引き続き
+ * `compat-kXXX/K{XXX}CapturedSourcesRewriter` 経路で PASS する。
  *
  * ## 旧構造との関係
  *
@@ -98,9 +98,11 @@ internal class BuildMarkerInstance {
         // null 戻り = 必要な filler class が runtime に無い → 本 marker は書き換え不能 → null。
         val fillerPlan = buildFillerPlan(parameters, pluginContext) ?: return null
 
-        val fillSource = FillSource()
-        val fillSourceLocation = FillSourceLocation()
-        val fillCaptureKind = FillCaptureKind()
+        // 各 filler は symbol resolve を eager に行い、 marker FqN ごと 1 度だけ生成する。
+        // resolve fail (runtime annotation 依存不足) は marker 全体 skip の trigger になる。
+        val fillSource = FillSource.resolveOrNull(pluginContext, compat) ?: return null
+        val fillSourceLocation = FillSourceLocation.resolveOrNull(pluginContext, compat) ?: return null
+        val fillCaptureKind = FillCaptureKind.resolveOrNull(pluginContext, compat) ?: return null
         val buildUserArg = BuildUserArg()
         val buildUserArgPrimitive = BuildUserArgPrimitive()
 
