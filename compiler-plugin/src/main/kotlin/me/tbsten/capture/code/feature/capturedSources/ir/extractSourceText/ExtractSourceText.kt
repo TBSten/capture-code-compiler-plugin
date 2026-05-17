@@ -1,18 +1,18 @@
 package me.tbsten.capture.code.feature.capturedSources.ir.extractSourceText
 
 /**
- * Logic C: declaration / expression site の source text 抽出。
+ * Logic C: declaration / expression site の source text 抽出 (pure 部分)。
  *
  * task-120 (IR logic 移行) で各 `compat-kXXX/SourceTextExtractor.kt` の **pure 部分**
  * (`substringOrNull`) を main module に集約した版。 PSI access が必要な部分
- * (`loadFileText(IrFile): String?`) は compat layer の責務として残しているため、
- * 本 class はその両者を組み合わせる呼び出し側 (compat-kXXX の collector) から `substringOrNull`
- * を直接使ってもらう想定。
+ * (`loadFileText(IrFile): String?`) は compat layer の責務 (`CompatContext.loadFileText`)。
+ * task-120-B Phase 6 で各 `compat-kXXX/SourceTextExtractor.kt` は削除され、
+ * `CompatContextImpl.loadFileText` に inline された。
  *
  * ## 実装
  *
- * - [substringOrNull] (pure) - file 全体テキストと `[startOffset, endOffset)` から該当範囲を切り出す
- * - PSI 経由の file text loading (drift 大) - compat-kXXX 側に残す (`SourceTextExtractor.loadFileText`)
+ * - [invoke] (pure) - file 全体テキストと `[startOffset, endOffset)` から該当範囲を切り出す
+ * - PSI 経由の file text loading (drift 大) - compat-kXXX 側 `CompatContextImpl.loadFileText` で実装
  *
  * ## なぜ class with invoke パターンか
  *

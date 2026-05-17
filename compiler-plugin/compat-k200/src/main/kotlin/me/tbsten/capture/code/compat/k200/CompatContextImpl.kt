@@ -37,6 +37,7 @@ import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.types.toRegularClassSymbol
 import org.jetbrains.kotlin.ir.declarations.IrClass
+import org.jetbrains.kotlin.ir.PsiIrFileEntry
 import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.IrFunction
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
@@ -59,6 +60,7 @@ import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.psi.KtElement
+import java.io.File
 
 /**
  * task-124 / task-119 follow-up: module-scoped singleton。 checker は本 singleton を共有する。
@@ -121,7 +123,18 @@ public class CompatContextImpl : CompatContext {
         // reflection shim 経由で 2.0.0 baseline / 2.0.20+ 両方を吸収する。
         FullyExpandedTypeShim.expand(type, session)
 
-    override fun loadFileText(file: IrFile): String? = SourceTextExtractor.loadFileText(file)
+    /**
+     * Logic C (design §5.C) のソーステキスト取得本体。 2 系統の fallback を持つ:
+     * 1. PSI 経由 ([PsiIrFileEntry.psiFile.text]): offset 整合が確実。
+     * 2. filesystem 経由: PSI が無い (LightTree / `NaiveSourceBasedFileEntryImpl` 等) 場合は
+     *    [IrFile.fileEntry] の `name` (絶対パス) から `File.readText()`。 design §7.3 / R3。
+     */
+    override fun loadFileText(file: IrFile): String? {
+        (file.fileEntry as? PsiIrFileEntry)?.psiFile?.text?.let { return it }
+        val candidate = File(file.fileEntry.name)
+        if (!candidate.isFile) return null
+        return runCatching { candidate.readText(Charsets.UTF_8) }.getOrNull()
+    }
 
     override fun firAdditionalCheckersExtensions():
         List<(FirSession) -> FirAdditionalCheckersExtension> = listOf(
