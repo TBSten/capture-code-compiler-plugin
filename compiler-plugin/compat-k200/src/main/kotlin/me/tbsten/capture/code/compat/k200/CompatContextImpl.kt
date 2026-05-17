@@ -37,8 +37,27 @@ import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.types.toRegularClassSymbol
+import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrFile
+import org.jetbrains.kotlin.ir.declarations.IrFunction
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.declarations.IrProperty
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.declarations.IrTypeAlias
+import org.jetbrains.kotlin.ir.declarations.IrValueParameter
+import org.jetbrains.kotlin.ir.expressions.IrCall
+import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
+import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.expressions.IrFunctionAccessExpression
+import org.jetbrains.kotlin.ir.expressions.IrMemberAccessExpression
+import org.jetbrains.kotlin.ir.expressions.impl.IrCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrConstructorCallImpl
+import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
+import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
+import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
+import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.psi.KtElement
 
@@ -143,6 +162,105 @@ public class CompatContextImpl : CompatContext {
     }
 
     override fun diagnosticFactory(id: String): Any? = K200Diagnostics.MAP[id]
+
+    // -- task-120-B Phase 2: IR primitive overrides (K2.0 baseline) --
+    //
+    // K2.0 baseline では旧来 IR API がそのまま使えるため、 各 override は薄い 1 行 wrapper。
+    // K2.0 → K2.1 で internal 化された `IrCallImpl(...)` 6 引数 ctor も本 module からは
+    // 直接呼べる (compat-k200 が kotlin-compiler-embeddable 2.0.0 baseline で compile される)。
+
+    override fun walkIrTree(
+        moduleFragment: IrModuleFragment,
+        onClass: (IrClass) -> Unit,
+        onSimpleFunction: (IrSimpleFunction) -> Unit,
+        onProperty: (IrProperty) -> Unit,
+        onTypeAlias: (IrTypeAlias) -> Unit,
+    ) {
+        moduleFragment.acceptChildrenVoid(
+            K200CallbackVisitor(onClass, onSimpleFunction, onProperty, onTypeAlias),
+        )
+    }
+
+    override fun walkIrFileDeclarations(
+        file: IrFile,
+        onClass: (IrClass) -> Unit,
+        onSimpleFunction: (IrSimpleFunction) -> Unit,
+        onProperty: (IrProperty) -> Unit,
+        onTypeAlias: (IrTypeAlias) -> Unit,
+    ) {
+        file.acceptChildrenVoid(
+            K200CallbackVisitor(onClass, onSimpleFunction, onProperty, onTypeAlias),
+        )
+    }
+
+    override fun transformCallsInModule(
+        moduleFragment: IrModuleFragment,
+        onCall: (IrCall) -> IrExpression?,
+    ) {
+        moduleFragment.transformChildrenVoid(K200CallTransformer(onCall))
+    }
+
+    override fun putCallValueArgument(
+        call: IrFunctionAccessExpression,
+        index: Int,
+        value: IrExpression?,
+    ) {
+        call.putValueArgument(index, value)
+    }
+
+    override fun getCallValueArgument(
+        call: IrFunctionAccessExpression,
+        index: Int,
+    ): IrExpression? = call.getValueArgument(index)
+
+    override fun setCallTypeArgument(
+        call: IrMemberAccessExpression<*>,
+        index: Int,
+        type: IrType?,
+    ) {
+        call.putTypeArgument(index, type)
+    }
+
+    override fun getCallTypeArgument(
+        call: IrMemberAccessExpression<*>,
+        index: Int,
+    ): IrType? = call.getTypeArgument(index)
+
+    override fun valueParametersOf(function: IrFunction): List<IrValueParameter> =
+        function.valueParameters
+
+    override fun newIrCall(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        symbol: IrSimpleFunctionSymbol,
+        typeArgumentsCount: Int,
+    ): IrCall = IrCallImpl(
+        startOffset = startOffset,
+        endOffset = endOffset,
+        type = type,
+        symbol = symbol,
+        typeArgumentsCount = typeArgumentsCount,
+        // K2.0 / K2.0.21 baseline: `valueArgumentsCount` is part of the ctor signature.
+        // Phase 2 callers (BuildMarkerInstance / RewriteCapturedSourcesCall) only build
+        // `listOf(vararg)` calls, which always have exactly one value slot.
+        valueArgumentsCount = 1,
+    )
+
+    override fun newIrConstructorCall(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        constructorSymbol: IrConstructorSymbol,
+    ): IrConstructorCall = IrConstructorCallImpl.fromSymbolOwner(
+        startOffset = startOffset,
+        endOffset = endOffset,
+        type = type,
+        constructorSymbol = constructorSymbol,
+    )
+
+    override fun deepCopyExpression(expression: IrExpression): IrExpression =
+        expression.deepCopyWithSymbols()
 
     @AutoService(CompatContext.Factory::class)
     public class Factory : CompatContext.Factory {

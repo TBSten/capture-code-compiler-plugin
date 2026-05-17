@@ -13,10 +13,22 @@ import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.ir.IrElement
+import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrFile
+import org.jetbrains.kotlin.ir.declarations.IrFunction
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.declarations.IrProperty
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.declarations.IrTypeAlias
+import org.jetbrains.kotlin.ir.declarations.IrValueParameter
+import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.expressions.IrFunctionAccessExpression
+import org.jetbrains.kotlin.ir.expressions.IrMemberAccessExpression
+import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
+import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
+import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.name.ClassId
 
 /**
@@ -312,6 +324,203 @@ public interface CompatContext {
      * Added in task-121.
      */
     public fun diagnosticFactory(id: String): Any?
+
+    // -- task-120-B Phase 2: IR primitive method group --
+    //
+    // The 11 methods below absorb IR phase drift so the main module's logic
+    // classes can stay on the Kotlin 2.0 baseline while each compat-kXXX
+    // dispatches to the IR API shape that exists on its own
+    // kotlin-compiler-embeddable. Drift identifiers (D-IR-X) cross-reference
+    // `.local/tmp/task-120-B-phase0-spi-design.md` §1 / §2.
+    //
+    // Each method is currently a placeholder: the main-side logic classes
+    // remain UnsupportedOperationException until Phase 3+ migrates them into
+    // main. Phase 2's responsibility is solely to land the SPI surface and
+    // verify all compat-kXXX modules compile against their own baseline.
+
+    /**
+     * Walks every declaration in [moduleFragment] and dispatches to the
+     * matching callback for class / simple-function / property / type-alias
+     * declarations. Nested declarations are visited recursively.
+     *
+     * Absorbs drift D-IR-1: the IR visitor base type changed from interface
+     * `IrElementVisitorVoid` (K2.0-K2.1) to class `IrVisitorVoid` (K2.2+).
+     * Each compat-kXXX uses a private visitor that derives from the type
+     * available on its own baseline and forwards into the callbacks.
+     *
+     * File-level annotations are **not** delivered here — visitor recursion
+     * does not enter `IrFile.annotations`. Use [walkIrFileDeclarations]
+     * combined with main-side iteration over `moduleFragment.files` if file
+     * annotations are needed.
+     */
+    public fun walkIrTree(
+        moduleFragment: IrModuleFragment,
+        onClass: (IrClass) -> Unit = {},
+        onSimpleFunction: (IrSimpleFunction) -> Unit = {},
+        onProperty: (IrProperty) -> Unit = {},
+        onTypeAlias: (IrTypeAlias) -> Unit = {},
+    )
+
+    /**
+     * Walks declarations within a single [file] and dispatches to the matching
+     * callback. The four element kinds correspond to the marker capture site
+     * types (`CapturedSite.CaptureKind.{CLASS, FUNCTION, PROPERTY, TYPEALIAS}`).
+     *
+     * Same drift absorbed as [walkIrTree] (D-IR-1). The split exists so the
+     * main-side collector can interleave per-file work (such as
+     * `collectFileAnnotations` and `collectExpressionSites`) with the visitor
+     * pass without re-walking the whole module.
+     */
+    public fun walkIrFileDeclarations(
+        file: IrFile,
+        onClass: (IrClass) -> Unit = {},
+        onSimpleFunction: (IrSimpleFunction) -> Unit = {},
+        onProperty: (IrProperty) -> Unit = {},
+        onTypeAlias: (IrTypeAlias) -> Unit = {},
+    )
+
+    /**
+     * Transforms every `IrCall` in [moduleFragment] via [onCall]. A `null`
+     * return from the callback leaves the original call untouched; a non-null
+     * `IrExpression` replaces it. Children are visited before the callback so
+     * nested rewrites compose correctly.
+     *
+     * Absorbs drift D-IR-1/D-IR-2 by hiding the transformer base type
+     * (`IrElementTransformerVoid` is stable across baselines but is reached
+     * through SPI for symmetry with [walkIrTree]).
+     *
+     * Used by `RewriteCapturedSourcesCall` to replace
+     * `capturedSources<T>()` calls with `listOf(T(...))`.
+     */
+    public fun transformCallsInModule(
+        moduleFragment: IrModuleFragment,
+        onCall: (IrCall) -> IrExpression?,
+    )
+
+    /**
+     * Sets the value argument at [index] on [call]. Equivalent to the legacy
+     * `call.putValueArgument(index, value)` extension.
+     *
+     * Absorbs drift D-IR-5: `putValueArgument` was deprecated in K2.2+ and
+     * **removed entirely in K2.4-RC**. The K2.4-RC implementation routes
+     * through `arguments[index] = value` semantics (the `putArgumentSafe`
+     * shim defined in `K240RcIrApiShims.kt` extends the underlying
+     * `MutableList<IrExpression?>` with null-padding when needed).
+     */
+    public fun putCallValueArgument(
+        call: IrFunctionAccessExpression,
+        index: Int,
+        value: IrExpression?,
+    )
+
+    /**
+     * Returns the value argument at [index] on [call], or `null` if no
+     * argument has been placed there. Equivalent to the legacy
+     * `call.getValueArgument(index)` extension.
+     *
+     * Absorbs drift D-IR-7 (companion to [putCallValueArgument]).
+     */
+    public fun getCallValueArgument(
+        call: IrFunctionAccessExpression,
+        index: Int,
+    ): IrExpression?
+
+    /**
+     * Sets the type argument at [index] on [call]. Equivalent to the legacy
+     * `call.putTypeArgument(index, type)` extension.
+     *
+     * Absorbs drift D-IR-6: `putTypeArgument` was deprecated in K2.2+ and
+     * removed in K2.4-RC. The K2.4-RC implementation routes through
+     * `typeArguments[index] = type` via the `setTypeArgumentSafe` shim.
+     */
+    public fun setCallTypeArgument(
+        call: IrMemberAccessExpression<*>,
+        index: Int,
+        type: IrType?,
+    )
+
+    /**
+     * Returns the type argument at [index] on [call], or `null` if no type
+     * argument has been placed there. Equivalent to the legacy
+     * `call.getTypeArgument(index)` extension.
+     *
+     * Absorbs drift D-IR-8 (companion to [setCallTypeArgument]).
+     */
+    public fun getCallTypeArgument(
+        call: IrMemberAccessExpression<*>,
+        index: Int,
+    ): IrType?
+
+    /**
+     * Returns the non-dispatch / non-extension value parameters of [function]
+     * (= REGULAR + optional vararg parameter, in declaration order).
+     *
+     * Absorbs drift D-IR-3/D-IR-33: `IrFunction.valueParameters` was
+     * deprecated in K2.3 and **removed in K2.4-RC**, replaced by
+     * `nonDispatchParameters`. The K2.4-RC implementation returns
+     * `function.nonDispatchParameters`; earlier baselines return
+     * `function.valueParameters` (with `@Suppress("DEPRECATION")` from K2.3).
+     */
+    public fun valueParametersOf(function: IrFunction): List<IrValueParameter>
+
+    /**
+     * Builds an [IrCall] for the given [symbol]. The constructed call carries
+     * `typeArgumentsCount = typeArgumentsCount` and pre-allocates exactly one
+     * value argument slot (`valueArgumentsCount = 1`), which matches the
+     * `listOf(vararg)` rewrite site used by `BuildMarkerInstance`.
+     *
+     * Absorbs drift D-IR-9: `IrCallImpl(...)` ctor signature changed:
+     * - K2.0 / K2.0.21: 6-arg ctor (start, end, type, symbol,
+     *   typeArgumentsCount, valueArgumentsCount).
+     * - K2.1+: 5-arg top-level factory; `valueArgumentsCount` is inferred
+     *   from `symbol.owner.valueParameters.size` so it is no longer passed
+     *   explicitly.
+     *
+     * Implementations are free to ignore [typeArgumentsCount] if the IR API
+     * on their baseline derives it automatically; the parameter is kept on
+     * the signature so K2.0 / K2.0.21 baselines can pass it through.
+     */
+    public fun newIrCall(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        symbol: IrSimpleFunctionSymbol,
+        typeArgumentsCount: Int,
+    ): IrCall
+
+    /**
+     * Builds an [IrConstructorCall] for the given [constructorSymbol] via the
+     * appropriate `fromSymbolOwner` factory on the current baseline.
+     *
+     * Absorbs drift D-IR-10: `IrConstructorCallImpl.fromSymbolOwner` was a
+     * companion-object static on K2.0 / K2.0.21 and was hoisted to a
+     * top-level extension on K2.1+ (`org.jetbrains.kotlin.ir.expressions.impl.fromSymbolOwner`).
+     * Each compat-kXXX imports / calls the form that exists on its baseline.
+     */
+    public fun newIrConstructorCall(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        constructorSymbol: IrConstructorSymbol,
+    ): IrConstructorCall
+
+    /**
+     * Returns a deep copy of [expression] with re-bound IrSymbol nodes,
+     * suitable for re-attaching to a different IR tree position without
+     * violating IR parent-pointer invariants.
+     *
+     * Absorbs drift D-IR-15: `IrExpression.deepCopyWithSymbols()` is marked
+     * `@DeprecatedForRemovalCompilerApi` in K2.4-RC. The K2.4-RC
+     * implementation opts in via `@file:OptIn(DeprecatedForRemovalCompilerApi)`
+     * and continues to invoke the same extension; once an alternative
+     * lands in a later kotlin release this method will route through it
+     * without changing the SPI surface.
+     *
+     * Used by `BuildUserArg` to clone a call-site argument expression
+     * before re-attaching it to a freshly constructed marker
+     * `IrConstructorCall`.
+     */
+    public fun deepCopyExpression(expression: IrExpression): IrExpression
 
     /**
      * Factory for compat implementations. Each `compat-kXXX` module registers

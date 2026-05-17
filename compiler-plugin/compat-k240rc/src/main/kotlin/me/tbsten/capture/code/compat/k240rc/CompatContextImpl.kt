@@ -1,3 +1,11 @@
+// task-120-B Phase 2: K2.4-RC で `putValueArgument` / `getValueArgument` /
+// `putTypeArgument` / `getTypeArgument` / `valueParameters` / 旧 `IrCallImpl` ctor 等が
+// 削除済 (deprecated ERROR を超えて symbol 自体消滅)。 内部 shim (`K240RcIrApiShims.kt`) を
+// 経由するため deprecation 抑止は本 file では不要だが、 `deepCopyWithSymbols` 等は
+// `@DeprecatedForRemovalCompilerApi` opt-in が要求されるため file header で対応する。
+@file:Suppress("DEPRECATION", "DEPRECATION_ERROR")
+@file:OptIn(org.jetbrains.kotlin.DeprecatedForRemovalCompilerApi::class)
+
 package me.tbsten.capture.code.compat.k240rc
 
 import com.google.auto.service.AutoService
@@ -38,8 +46,29 @@ import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrFile
+import org.jetbrains.kotlin.ir.declarations.IrFunction
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.declarations.IrProperty
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.declarations.IrTypeAlias
+import org.jetbrains.kotlin.ir.declarations.IrValueParameter
+import org.jetbrains.kotlin.ir.expressions.IrCall
+import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
+import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.expressions.IrFunctionAccessExpression
+import org.jetbrains.kotlin.ir.expressions.IrMemberAccessExpression
+import org.jetbrains.kotlin.ir.expressions.impl.IrCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrConstructorCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.fromSymbolOwner
+import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
+import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
+import org.jetbrains.kotlin.ir.util.nonDispatchParameters
+import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
+import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.psi.KtElement
 
@@ -128,6 +157,118 @@ public class CompatContextImpl : CompatContext {
     }
 
     override fun diagnosticFactory(id: String): Any? = K240RcDiagnostics.MAP[id]
+
+    // -- task-120-B Phase 2: IR primitive overrides (K2.4-RC baseline) --
+    //
+    // K2.4-RC で 削除されている旧 API:
+    //  - `IrMemberAccessExpression.putValueArgument(Int, IrExpression?)` → `arguments[i] = value`
+    //  - `IrMemberAccessExpression.getValueArgument(Int)` → `arguments[i]`
+    //  - `IrMemberAccessExpression.putTypeArgument(Int, IrType?)` → `typeArguments[i] = type`
+    //  - `IrMemberAccessExpression.getTypeArgument(Int)` → `typeArguments[i]`
+    //  - `IrFunction.valueParameters` → `IrFunction.nonDispatchParameters` (IrUtilsKt extension)
+    //
+    // `K240RcIrApiShims.kt` で `putArgumentSafe` / `getArgumentSafe` / `setTypeArgumentSafe` /
+    // `getTypeArgumentSafe` を提供しているので、 SPI override はそれら shim を呼ぶ。
+    //
+    // `IrCallImpl(...)` factory は K2.1+ の top-level 5 引数 form がそのまま残存。
+    // `IrConstructorCallImpl.fromSymbolOwner` も top-level extension form を import。
+
+    override fun walkIrTree(
+        moduleFragment: IrModuleFragment,
+        onClass: (IrClass) -> Unit,
+        onSimpleFunction: (IrSimpleFunction) -> Unit,
+        onProperty: (IrProperty) -> Unit,
+        onTypeAlias: (IrTypeAlias) -> Unit,
+    ) {
+        moduleFragment.acceptChildrenVoid(
+            K240RcCallbackVisitor(onClass, onSimpleFunction, onProperty, onTypeAlias),
+        )
+    }
+
+    override fun walkIrFileDeclarations(
+        file: IrFile,
+        onClass: (IrClass) -> Unit,
+        onSimpleFunction: (IrSimpleFunction) -> Unit,
+        onProperty: (IrProperty) -> Unit,
+        onTypeAlias: (IrTypeAlias) -> Unit,
+    ) {
+        file.acceptChildrenVoid(
+            K240RcCallbackVisitor(onClass, onSimpleFunction, onProperty, onTypeAlias),
+        )
+    }
+
+    override fun transformCallsInModule(
+        moduleFragment: IrModuleFragment,
+        onCall: (IrCall) -> IrExpression?,
+    ) {
+        moduleFragment.transformChildrenVoid(K240RcCallTransformer(onCall))
+    }
+
+    override fun putCallValueArgument(
+        call: IrFunctionAccessExpression,
+        index: Int,
+        value: IrExpression?,
+    ) {
+        // K2.4-RC: `arguments[index] = value` via shim (null padding when needed).
+        call.putArgumentSafe(index, value)
+    }
+
+    override fun getCallValueArgument(
+        call: IrFunctionAccessExpression,
+        index: Int,
+    ): IrExpression? = call.getArgumentSafe(index)
+
+    override fun setCallTypeArgument(
+        call: IrMemberAccessExpression<*>,
+        index: Int,
+        type: IrType?,
+    ) {
+        call.setTypeArgumentSafe(index, type)
+    }
+
+    override fun getCallTypeArgument(
+        call: IrMemberAccessExpression<*>,
+        index: Int,
+    ): IrType? = call.getTypeArgumentSafe(index)
+
+    override fun valueParametersOf(function: IrFunction): List<IrValueParameter> =
+        // K2.4-RC: `valueParameters` is removed. `nonDispatchParameters` returns the
+        // regular + context + extension-receiver parameters in declaration order.
+        function.nonDispatchParameters
+
+    override fun newIrCall(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        symbol: IrSimpleFunctionSymbol,
+        typeArgumentsCount: Int,
+    ): IrCall = IrCallImpl(
+        // K2.1+ top-level factory form, still available on K2.4-RC.
+        startOffset = startOffset,
+        endOffset = endOffset,
+        type = type,
+        symbol = symbol,
+        typeArgumentsCount = typeArgumentsCount,
+    )
+
+    override fun newIrConstructorCall(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        constructorSymbol: IrConstructorSymbol,
+    ): IrConstructorCall = IrConstructorCallImpl.fromSymbolOwner(
+        startOffset = startOffset,
+        endOffset = endOffset,
+        type = type,
+        constructorSymbol = constructorSymbol,
+    )
+
+    override fun deepCopyExpression(expression: IrExpression): IrExpression =
+        // K2.4-RC: `deepCopyWithSymbols` is `@DeprecatedForRemovalCompilerApi` but still
+        // usable when opted-in (see file header `@OptIn`). Phase 2 keeps the existing
+        // call shape; the replacement helper (when it stabilises) will be wired here
+        // without changing the SPI surface.
+        expression.deepCopyWithSymbols()
 
     @AutoService(CompatContext.Factory::class)
     public class Factory : CompatContext.Factory {

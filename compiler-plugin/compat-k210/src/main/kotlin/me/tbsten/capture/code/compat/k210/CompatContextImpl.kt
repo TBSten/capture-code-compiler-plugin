@@ -37,8 +37,28 @@ import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrFile
+import org.jetbrains.kotlin.ir.declarations.IrFunction
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.declarations.IrProperty
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.declarations.IrTypeAlias
+import org.jetbrains.kotlin.ir.declarations.IrValueParameter
+import org.jetbrains.kotlin.ir.expressions.IrCall
+import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
+import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.expressions.IrFunctionAccessExpression
+import org.jetbrains.kotlin.ir.expressions.IrMemberAccessExpression
+import org.jetbrains.kotlin.ir.expressions.impl.IrCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrConstructorCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.fromSymbolOwner
+import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
+import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
+import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
+import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.psi.KtElement
 
@@ -148,6 +168,107 @@ public class CompatContextImpl : CompatContext {
     }
 
     override fun diagnosticFactory(id: String): Any? = K210Diagnostics.MAP[id]
+
+    // -- task-120-B Phase 2: IR primitive overrides (K2.1 baseline) --
+    //
+    // K2.1 では `IrCallImpl(...)` constructor が internal 化され、 top-level factory に
+    // 切り替わっている (`valueArgumentsCount` 引数も削除済)。 `IrConstructorCallImpl.fromSymbolOwner`
+    // は Companion method から top-level extension に格上げされたため
+    // `import org.jetbrains.kotlin.ir.expressions.impl.fromSymbolOwner` を追加。
+    // 旧 `putValueArgument` 等 extension は K2.1 でも引き続き public final method として残る。
+
+    override fun walkIrTree(
+        moduleFragment: IrModuleFragment,
+        onClass: (IrClass) -> Unit,
+        onSimpleFunction: (IrSimpleFunction) -> Unit,
+        onProperty: (IrProperty) -> Unit,
+        onTypeAlias: (IrTypeAlias) -> Unit,
+    ) {
+        moduleFragment.acceptChildrenVoid(
+            K210CallbackVisitor(onClass, onSimpleFunction, onProperty, onTypeAlias),
+        )
+    }
+
+    override fun walkIrFileDeclarations(
+        file: IrFile,
+        onClass: (IrClass) -> Unit,
+        onSimpleFunction: (IrSimpleFunction) -> Unit,
+        onProperty: (IrProperty) -> Unit,
+        onTypeAlias: (IrTypeAlias) -> Unit,
+    ) {
+        file.acceptChildrenVoid(
+            K210CallbackVisitor(onClass, onSimpleFunction, onProperty, onTypeAlias),
+        )
+    }
+
+    override fun transformCallsInModule(
+        moduleFragment: IrModuleFragment,
+        onCall: (IrCall) -> IrExpression?,
+    ) {
+        moduleFragment.transformChildrenVoid(K210CallTransformer(onCall))
+    }
+
+    override fun putCallValueArgument(
+        call: IrFunctionAccessExpression,
+        index: Int,
+        value: IrExpression?,
+    ) {
+        call.putValueArgument(index, value)
+    }
+
+    override fun getCallValueArgument(
+        call: IrFunctionAccessExpression,
+        index: Int,
+    ): IrExpression? = call.getValueArgument(index)
+
+    override fun setCallTypeArgument(
+        call: IrMemberAccessExpression<*>,
+        index: Int,
+        type: IrType?,
+    ) {
+        call.putTypeArgument(index, type)
+    }
+
+    override fun getCallTypeArgument(
+        call: IrMemberAccessExpression<*>,
+        index: Int,
+    ): IrType? = call.getTypeArgument(index)
+
+    override fun valueParametersOf(function: IrFunction): List<IrValueParameter> =
+        function.valueParameters
+
+    override fun newIrCall(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        symbol: IrSimpleFunctionSymbol,
+        typeArgumentsCount: Int,
+    ): IrCall = IrCallImpl(
+        // K2.1+: top-level factory `IrCallImpl(...)` — `valueArgumentsCount` is inferred
+        // from `symbol.owner.valueParameters.size` so it is no longer passed explicitly.
+        startOffset = startOffset,
+        endOffset = endOffset,
+        type = type,
+        symbol = symbol,
+        typeArgumentsCount = typeArgumentsCount,
+    )
+
+    override fun newIrConstructorCall(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        constructorSymbol: IrConstructorSymbol,
+    ): IrConstructorCall = IrConstructorCallImpl.fromSymbolOwner(
+        // K2.1+: `fromSymbolOwner` was hoisted from companion-method to top-level
+        // extension on Companion (imported above).
+        startOffset = startOffset,
+        endOffset = endOffset,
+        type = type,
+        constructorSymbol = constructorSymbol,
+    )
+
+    override fun deepCopyExpression(expression: IrExpression): IrExpression =
+        expression.deepCopyWithSymbols()
 
     @AutoService(CompatContext.Factory::class)
     public class Factory : CompatContext.Factory {

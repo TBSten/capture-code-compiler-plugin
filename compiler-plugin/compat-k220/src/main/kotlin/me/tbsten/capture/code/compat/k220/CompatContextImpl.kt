@@ -1,3 +1,9 @@
+// task-120-B Phase 2: 旧 IR API (`putValueArgument` / `IrCallImpl` ctor 等) は K2.2+ で
+// deprecated だが、 compat-k220 module 自体が K2.2 baseline で compile される間は引き続き
+// public final method として呼べる。 deprecated warning を file 単位で抑止する。
+@file:Suppress("DEPRECATION", "DEPRECATION_ERROR")
+@file:OptIn(org.jetbrains.kotlin.DeprecatedForRemovalCompilerApi::class)
+
 package me.tbsten.capture.code.compat.k220
 
 import com.google.auto.service.AutoService
@@ -37,8 +43,28 @@ import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrFile
+import org.jetbrains.kotlin.ir.declarations.IrFunction
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.declarations.IrProperty
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.declarations.IrTypeAlias
+import org.jetbrains.kotlin.ir.declarations.IrValueParameter
+import org.jetbrains.kotlin.ir.expressions.IrCall
+import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
+import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.expressions.IrFunctionAccessExpression
+import org.jetbrains.kotlin.ir.expressions.IrMemberAccessExpression
+import org.jetbrains.kotlin.ir.expressions.impl.IrCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrConstructorCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.fromSymbolOwner
+import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
+import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
+import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
+import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.psi.KtElement
 
@@ -130,6 +156,102 @@ public class CompatContextImpl : CompatContext {
     }
 
     override fun diagnosticFactory(id: String): Any? = K220Diagnostics.MAP[id]
+
+    // -- task-120-B Phase 2: IR primitive overrides (K2.2 baseline) --
+    //
+    // K2.2: `IrElementVisitorVoid` interface は **deprecated**、 `IrVisitorVoid` class が
+    // 推奨だが旧 interface もまだ public available。 `putValueArgument` 等 extension は
+    // 同じく deprecated だが call は通る。 `IrCallImpl(...)` factory も deprecated ですが
+    // 互換 API として残存。 deprecation warning は file header の `@file:Suppress` で抑制。
+
+    override fun walkIrTree(
+        moduleFragment: IrModuleFragment,
+        onClass: (IrClass) -> Unit,
+        onSimpleFunction: (IrSimpleFunction) -> Unit,
+        onProperty: (IrProperty) -> Unit,
+        onTypeAlias: (IrTypeAlias) -> Unit,
+    ) {
+        moduleFragment.acceptChildrenVoid(
+            K220CallbackVisitor(onClass, onSimpleFunction, onProperty, onTypeAlias),
+        )
+    }
+
+    override fun walkIrFileDeclarations(
+        file: IrFile,
+        onClass: (IrClass) -> Unit,
+        onSimpleFunction: (IrSimpleFunction) -> Unit,
+        onProperty: (IrProperty) -> Unit,
+        onTypeAlias: (IrTypeAlias) -> Unit,
+    ) {
+        file.acceptChildrenVoid(
+            K220CallbackVisitor(onClass, onSimpleFunction, onProperty, onTypeAlias),
+        )
+    }
+
+    override fun transformCallsInModule(
+        moduleFragment: IrModuleFragment,
+        onCall: (IrCall) -> IrExpression?,
+    ) {
+        moduleFragment.transformChildrenVoid(K220CallTransformer(onCall))
+    }
+
+    override fun putCallValueArgument(
+        call: IrFunctionAccessExpression,
+        index: Int,
+        value: IrExpression?,
+    ) {
+        call.putValueArgument(index, value)
+    }
+
+    override fun getCallValueArgument(
+        call: IrFunctionAccessExpression,
+        index: Int,
+    ): IrExpression? = call.getValueArgument(index)
+
+    override fun setCallTypeArgument(
+        call: IrMemberAccessExpression<*>,
+        index: Int,
+        type: IrType?,
+    ) {
+        call.putTypeArgument(index, type)
+    }
+
+    override fun getCallTypeArgument(
+        call: IrMemberAccessExpression<*>,
+        index: Int,
+    ): IrType? = call.getTypeArgument(index)
+
+    override fun valueParametersOf(function: IrFunction): List<IrValueParameter> =
+        function.valueParameters
+
+    override fun newIrCall(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        symbol: IrSimpleFunctionSymbol,
+        typeArgumentsCount: Int,
+    ): IrCall = IrCallImpl(
+        startOffset = startOffset,
+        endOffset = endOffset,
+        type = type,
+        symbol = symbol,
+        typeArgumentsCount = typeArgumentsCount,
+    )
+
+    override fun newIrConstructorCall(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        constructorSymbol: IrConstructorSymbol,
+    ): IrConstructorCall = IrConstructorCallImpl.fromSymbolOwner(
+        startOffset = startOffset,
+        endOffset = endOffset,
+        type = type,
+        constructorSymbol = constructorSymbol,
+    )
+
+    override fun deepCopyExpression(expression: IrExpression): IrExpression =
+        expression.deepCopyWithSymbols()
 
     @AutoService(CompatContext.Factory::class)
     public class Factory : CompatContext.Factory {
