@@ -1,30 +1,47 @@
 package me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.userargs
 
+import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.ir.declarations.IrValueParameter
+import org.jetbrains.kotlin.ir.expressions.IrExpression
+
 /**
  * EXPRESSION 起源 (式 annotation) の場合、 IR phase で marker `IrConstructorCall` が残らないため、
  * FIR session storage から渡された primitive 引数を IR const に再構築する helper class。
  *
- * task-120 (IR logic 移行) で旧 `UserArgPrimitiveIrBuilder` (各 `compat-kXXX/userargs/`) を
- * rename し、 directory structure を main module 側にミラーした版。
+ * task-120-B Phase 4a で signature を確定。 invoke 本体は **Phase 4b 持ち越し**。
  *
- * ## 責務分担
+ * ## 責務 (Phase 4b 以降)
  *
- * IR const factory (`IrConstImpl.string`, `IrConstImpl.int`, `IrGetEnumValueImpl(...)`, etc.) は
- * K2.0 / K2.1 で signature drift があり (IrConstKind の型パラ削除等)、 K2.4-RC では追加の
- * drift がある可能性。 そのため **IR const 構築本体は引き続き compat-kXXX 側に残す**
- * (`compat-kXXX/userargs/UserArgPrimitiveIrBuilder.kt`).
+ * FIR から push された [value] を [parameter] の型に合った IR 式に変換する:
+ * - `Int` / `Long` / `Short` / `Byte` / `Boolean` / `Char` / `Float` / `Double` → `IrConstImpl.xxx`
+ * - `String` + parameter 型 String → `IrConstImpl.string`
+ * - `String` + parameter 型 enum class → `IrGetEnumValueImpl` を組み立て
  *
- * 本 class は task-124+ で IR const drift を CompatContext 経由で吸収できた時点で
- * concrete impl を担う予定。 現状は **directory structure と naming convention の集約** のみを行う。
+ * 変換不可なら `null` を返す (= 上位 [BuildMarkerInstance] が [BuildUserArg] の default 値経路に
+ * fallback する)。
+ *
+ * ## 旧構造との関係
+ *
+ * 既存 `K{XXX}/userargs/UserArgPrimitiveIrBuilder.kt` の `buildOrNull` 関数がそのまま残り、
+ * runtime path として機能する。 Phase 4b で本 class invoke にロジック移植し、 IR const 構築は
+ * 必要に応じて SPI primitive に逃がす。
  */
 internal class BuildUserArgPrimitive {
 
     /**
-     * Reserved entry point。 現状は **fail-fast placeholder**。 task-120-B で IR const drift
-     * を CompatContext 経由で吸収して concrete impl を埋める予定。
+     * FIR から push された [value] を [parameter] の型に合った IR 式に変換して返す。
+     *
+     * Phase 4b で concrete impl を入れる。 signature は既存 `UserArgPrimitiveIrBuilder.buildOrNull`
+     * と同じ (= 第 3 引数 [pluginContext] は enum class symbol 解決等に使う)。
      */
-    internal operator fun invoke(): Nothing =
+    @Suppress("UNUSED_PARAMETER")
+    internal operator fun invoke(
+        value: Any?,
+        parameter: IrValueParameter,
+        pluginContext: IrPluginContext,
+    ): IrExpression? =
         throw UnsupportedOperationException(
-            "Not yet implemented; will be filled in task-120-B. See KDoc.",
+            "BuildUserArgPrimitive.invoke is a Phase 4a signature placeholder. " +
+                "Concrete impl arrives in task-120-B Phase 4b.",
         )
 }
