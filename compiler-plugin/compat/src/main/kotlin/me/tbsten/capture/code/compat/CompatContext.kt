@@ -2,7 +2,6 @@ package me.tbsten.capture.code.compat
 
 import java.util.ServiceLoader
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
-import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.fir.FirSession
@@ -43,9 +42,6 @@ import org.jetbrains.kotlin.name.ClassId
  * Each abstract method here corresponds to a known API drift point between
  * supported Kotlin versions:
  *
- * - [transformIr] — unifies the IR transformation entry point that used to be
- *   `IrInjector.transform`. Each compat module compiles its IR rewriting logic
- *   against its own Kotlin baseline (drift D5–D8).
  * - [literalValueOrNull] / [isLiteralExpression] — absorbs the
  *   `FirLiteralExpression<T>` → `FirLiteralExpression` type-parameter removal
  *   drift (D1).
@@ -74,38 +70,20 @@ import org.jetbrains.kotlin.name.ClassId
  * drift-absorbing methods may be appended here as new drift points emerge
  * (e.g. `containingFilePathOf` / `fullyExpandedTypeOf` added in task-119 to
  * absorb drift D11 / D12).
+ *
+ * ## task-120-B Phase 5 update (2026-05-17)
+ *
+ * The IR orchestration entry point `transformIr(moduleFragment, pluginContext, config)`
+ * has been **removed**. `CaptureCodeIrExtension` now drives the IR phase end-to-end
+ * via main-side [me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.CollectDeclarationSite]
+ * + [me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteCapturedSourcesCall]
+ * directly. Compat-kXXX modules only contribute IR primitives (`walkIrFileDeclarations`
+ * / `transformCallsInModule` / `newIrCall` / `newIrConstructorCall` /
+ * `putCallValueArgument` / `getCallValueArgument` / `setCallTypeArgument` /
+ * `getCallTypeArgument` / `valueParametersOf` / `deepCopyExpression` / `walkIrTree`
+ * / `loadFileText`) plus FIR checker wiring and diagnostic factory dispatch.
  */
 public interface CompatContext {
-
-    /**
-     * Runs the version-specific IR rewriting pass over [moduleFragment].
-     *
-     * Each compat module owns the IR walker / rewriter pair that consumes
-     * [me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry] (FIR-side) and
-     * [me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry] (FIR-side) and produces the
-     * `listOf(T(...))` replacement for every `capturedSources<T>()` call.
-     *
-     * **Before**: `moduleFragment` with unmodified `capturedSources<T>()` calls
-     * that return a stub `listOf()` at runtime.
-     *
-     * **After**: `capturedSources<T>()` is replaced with
-     * `listOf(T(Source(...), SourceLocation(...), ...), ...)` for every
-     * declaration / file / expression annotated with a `@CaptureCode`-meta
-     * marker, with filler values resolved from the captured site's IR.
-     *
-     * task-120-B Phase 1: the `config` parameter is **temporarily `Any`-erased**
-     * to keep the compat module free of plugin-domain types
-     * (`me.tbsten.capture.code.CaptureCodePluginConfig` was hoisted to the
-     * main module). Each compat-kXXX impl casts back to
-     * `CaptureCodePluginConfig` internally. Phase 4 removes `transformIr`
-     * entirely once the main `CaptureCodeIrExtension` drives the IR phase
-     * chain directly, at which point this Any-erasure goes away.
-     */
-    public fun transformIr(
-        moduleFragment: IrModuleFragment,
-        pluginContext: IrPluginContext,
-        config: Any,
-    )
 
     /**
      * Returns the resolved compile-time value of [expression] if it is a

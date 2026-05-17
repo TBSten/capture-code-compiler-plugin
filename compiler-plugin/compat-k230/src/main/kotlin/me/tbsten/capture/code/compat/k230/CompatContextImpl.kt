@@ -20,7 +20,6 @@ import me.tbsten.capture.code.feature.markerDefinition.MarkerDefinitionWarnings
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.MarkerAnnotationErrors
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.MarkerAnnotationWarnings
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
-import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
@@ -94,14 +93,10 @@ internal val k230Compat: CompatContext = CompatContextImpl()
  */
 public class CompatContextImpl : CompatContext {
 
-    override fun transformIr(
-        moduleFragment: IrModuleFragment,
-        pluginContext: IrPluginContext,
-        config: Any,
-    ) {
-        // task-120-B Phase 1: SPI Any-erased; cast back to the main module type.
-        runK230IrTransform(moduleFragment, pluginContext, config as CaptureCodePluginConfig)
-    }
+    // task-120-B Phase 5: `transformIr(...)` SPI method removed. IR orchestration is
+    // owned by `CaptureCodeIrExtension` (main module). `K230IrTransform` +
+    // `K230CapturedSourcesCollector` + `K230CapturedSourcesRewriter` are now dead code
+    // awaiting removal in Phase 6.
 
     override fun literalValueOrNull(expression: FirExpression): Any? {
         // Kotlin 2.3.x: FirLiteralExpression は型パラメータ無し (2.0.21+ と同形)。
