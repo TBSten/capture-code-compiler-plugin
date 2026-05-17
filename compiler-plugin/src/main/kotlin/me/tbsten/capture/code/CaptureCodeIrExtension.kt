@@ -1,6 +1,7 @@
 package me.tbsten.capture.code
 
 import me.tbsten.capture.code.compat.CaptureCodeCompatHolder
+import me.tbsten.capture.code.compat.CaptureCodeMessageCollectorHolder
 import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.CollectDeclarationSite
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteCapturedSourcesCall
@@ -58,7 +59,17 @@ public class CaptureCodeIrExtension(
             val collectedSites = collectDeclarationSite(moduleFragment, pluginContext, compat, config)
             // 経路 2: Logic H。 `capturedSources<T>()` の各 call を `listOf(T(...))` に書き換える。
             // K{XXX}CapturedSourcesRewriter + K{XXX}IrTransform の transformer 部分の置換 (Phase 4a)。
-            rewriteCapturedSourcesCall(moduleFragment, pluginContext, compat, config, collectedSites)
+            // task-120-B Phase 7: opt-in flag が true なら zero-site 検出時に
+            // `CC_CAPTUREDSOURCES_NO_MARKER_FOUND` warning を発火する。 そのための
+            // MessageCollector は registrar 段階で CaptureCodeMessageCollectorHolder に publish 済。
+            rewriteCapturedSourcesCall(
+                moduleFragment,
+                pluginContext,
+                compat,
+                config,
+                collectedSites,
+                CaptureCodeMessageCollectorHolder.get(),
+            )
         } finally {
             // 同一 ClassLoader での連続 compile (kctfork) で前回コンパイルの marker / expression site が
             // 次回に漏れないよう、 marker registry と expression site registry の両方をクリアする。

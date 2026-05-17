@@ -5,8 +5,10 @@ import me.tbsten.capture.code.compat.CompatContext
 import me.tbsten.capture.code.feature.capturedSources.CaptureCodeCallableIds
 import me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.CollectedSite
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.BuildMarkerInstance
+import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.warnIfNoMarkerFound.WarnIfNoMarkerFound
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
@@ -39,6 +41,15 @@ import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
  * する。 Phase 5 で `transformIr` 経由の wiring を main 経由に切り替えるまで、 既存 path が runtime
  * path として残り続け、 本 class は caller 0 件 (= dead code) のまま。 既存 test は引き続き compat-kXXX
  * 経路で PASS する想定。 Phase 6 で各 compat-kXXX の旧 transformer を削除する。
+ *
+ * ## task-120-B Phase 7 update (warning emission)
+ *
+ * [invoke] は `messageCollector` (default = [MessageCollector.NONE]) を受け取り、
+ * `config.warnOnEmptyCapture == true` && `capturedSources<T>()` の T が 0 site の場合に
+ * [WarnIfNoMarkerFound] を経由して `CC_CAPTUREDSOURCES_NO_MARKER_FOUND` warning を 1 marker
+ * FqN あたり 1 度だけ発火する。 既存 caller (`CaptureCodeIrExtension`) は
+ * [me.tbsten.capture.code.compat.CaptureCodeMessageCollectorHolder] 経由で collector を取得して
+ * 渡す。 collector を渡さなければ silent (= 既存 unit test と非破壊な互換)。
  *
  * ## なぜ class with invoke パターンか
  *
@@ -73,12 +84,36 @@ public class RewriteCapturedSourcesCall {
         compat: CompatContext,
         config: CaptureCodePluginConfig,
         collectedSites: List<CollectedSite>,
+        messageCollector: MessageCollector = MessageCollector.NONE,
     ) {
         val buildMarker = BuildMarkerInstance()
+        val warnIfNoMarkerFound = WarnIfNoMarkerFound()
+        // Tracks marker FQNs we already warned about so the same empty-marker
+        // is only reported once per compilation even when multiple
+        // `capturedSources<T>()` calls reference it.
+        val warnedMarkerFqns = mutableSetOf<String>()
+
         compat.transformCallsInModule(moduleFragment) { call ->
             if (!call.isCapturedSourcesCall()) return@transformCallsInModule null
             val markerFqn = call.markerFqnOf(compat) ?: return@transformCallsInModule null
             val sitesForMarker = collectedSites.filter { it.site.markerFqn == markerFqn }
+            // task-120-B Phase 7: warn once per marker FqN when opt-in flag is on
+            // and the current compilation has zero sites for that marker. The
+            // warning is emitted without a file location (the marker FqN in the
+            // message body identifies the target uniquely); plumbing IrFile down
+            // through `transformCallsInModule` would require additional compat
+            // SPI work and isn't justified for an opt-in diagnostic. Future work
+            // can attach (file, line, column) via a dedicated SPI when needed.
+            if (sitesForMarker.isEmpty() && warnedMarkerFqns.add(markerFqn)) {
+                warnIfNoMarkerFound(
+                    call = call,
+                    markerFqn = markerFqn,
+                    siteCount = 0,
+                    config = config,
+                    file = null,
+                    messageCollector = messageCollector,
+                )
+            }
             buildMarker(
                 call = call,
                 markerFqn = markerFqn,

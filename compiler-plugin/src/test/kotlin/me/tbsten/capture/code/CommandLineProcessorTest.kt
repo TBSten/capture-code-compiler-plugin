@@ -8,8 +8,9 @@ import org.jetbrains.kotlin.config.CompilerConfiguration
 /**
  * `CaptureCodeCommandLineProcessor` の processOption 配線テスト。
  *
- * 5 option × (on / off / 未指定) のすべてが `CaptureCodePluginConfig` に正しく集約され、
+ * 6 option × (on / off / 未指定) のすべてが `CaptureCodePluginConfig` に正しく集約され、
  * 未指定時は `CaptureCodePluginConfig.DEFAULT` が使われることを確認する。
+ * (task-120-B Phase 7 で `warnOnEmptyCapture` opt-in flag を追加し、 5 → 6 に拡張。)
  *
  * design `compiler-plugin-design.md` §5 Logic I / §8.5 (`CaptureCodePluginConfig` SSOT) を参照。
  *
@@ -44,7 +45,7 @@ class CommandLineProcessorTest : FunSpec({
         configuration.captureCodePluginConfig shouldBe CaptureCodePluginConfig.DEFAULT
     }
 
-    test("pluginOptions は 5 つの option を公開する") {
+    test("pluginOptions は 6 つの option を公開する") {
         val names = processor.pluginOptions.map { it.optionName }.toSet()
         names shouldBe setOf(
             CaptureCodeCommandLineProcessor.OPTION_INCLUDE_KDOC,
@@ -52,6 +53,7 @@ class CommandLineProcessorTest : FunSpec({
             CaptureCodeCommandLineProcessor.OPTION_INCLUDE_ANNOTATION_LINES,
             CaptureCodeCommandLineProcessor.OPTION_DEDENT,
             CaptureCodeCommandLineProcessor.OPTION_INCLUDE_LINE_INFO,
+            CaptureCodeCommandLineProcessor.OPTION_WARN_ON_EMPTY_CAPTURE,
         )
     }
 
@@ -113,8 +115,22 @@ class CommandLineProcessorTest : FunSpec({
         }
     }
 
+    context("warnOnEmptyCapture") {
+        test("true を渡すと warnOnEmptyCapture = true") {
+            processWith(CaptureCodeCommandLineProcessor.OPTION_WARN_ON_EMPTY_CAPTURE to "true")
+                .warnOnEmptyCapture shouldBe true
+        }
+        test("false を渡すと warnOnEmptyCapture = false") {
+            processWith(CaptureCodeCommandLineProcessor.OPTION_WARN_ON_EMPTY_CAPTURE to "false")
+                .warnOnEmptyCapture shouldBe false
+        }
+        test("default は false (opt-in)") {
+            CaptureCodePluginConfig.DEFAULT.warnOnEmptyCapture shouldBe false
+        }
+    }
+
     // -----------------------------------------------------------------
-    // 5 つの option を同時に指定すると、すべてが反映される (SSOT 集約)
+    // 6 つの option を同時に指定すると、すべてが反映される (SSOT 集約)
     // -----------------------------------------------------------------
     test("複数 option を組み合わせると CaptureCodePluginConfig に集約される") {
         val config = processWith(
@@ -123,6 +139,7 @@ class CommandLineProcessorTest : FunSpec({
             CaptureCodeCommandLineProcessor.OPTION_INCLUDE_ANNOTATION_LINES to "true",
             CaptureCodeCommandLineProcessor.OPTION_DEDENT to "false",
             CaptureCodeCommandLineProcessor.OPTION_INCLUDE_LINE_INFO to "false",
+            CaptureCodeCommandLineProcessor.OPTION_WARN_ON_EMPTY_CAPTURE to "true",
         )
         config shouldBe CaptureCodePluginConfig(
             includeKdoc = false,
@@ -130,6 +147,7 @@ class CommandLineProcessorTest : FunSpec({
             includeAnnotationLines = true,
             dedent = false,
             includeLineInfo = false,
+            warnOnEmptyCapture = true,
         )
     }
 

@@ -31,6 +31,13 @@ import org.jetbrains.kotlin.config.CompilerConfigurationKey
  *                  デフォルト `true`。 Logic D で消費する。
  * @property includeLineInfo `SourceLocation.startLine` / `endLine` を実値で埋めるかどうか。
  *                           デフォルト `true` (design §11 open question #1 は `true` 採用)。
+ * @property warnOnEmptyCapture `capturedSources<T>()` が同一 compilation 内で `@T` site を
+ *                              1 つも見つけられなかった場合に `CC_CAPTUREDSOURCES_NO_MARKER_FOUND`
+ *                              warning を発火するかどうか。 デフォルト `false` (opt-in)。
+ *                              KMP / multi-module setup では別 compilation の site を見落とす
+ *                              false positive が出るため、 single-module pure JVM project で
+ *                              意図的に enable する想定。 task-120-B Phase 7 / task-123 spike
+ *                              (`.local/tmp/task-123-no-marker-found-spike.md`) で導入。
  */
 public data class CaptureCodePluginConfig(
     val includeKdoc: Boolean = true,
@@ -38,6 +45,7 @@ public data class CaptureCodePluginConfig(
     val includeAnnotationLines: Boolean = false,
     val dedent: Boolean = true,
     val includeLineInfo: Boolean = true,
+    val warnOnEmptyCapture: Boolean = false,
 ) {
     public companion object {
         /** すべての option が design 既定値の状態。CommandLineProcessor の初期 base にも使う。 */

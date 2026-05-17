@@ -50,6 +50,13 @@ public class CaptureCodeCommandLineProcessor : CommandLineProcessor {
             description = "Populate SourceLocation.startLine / endLine with real line numbers",
             required = false,
         ),
+        CliOption(
+            optionName = OPTION_WARN_ON_EMPTY_CAPTURE,
+            valueDescription = "<true|false>",
+            description = "Emit CC_CAPTUREDSOURCES_NO_MARKER_FOUND warning when capturedSources<T>() finds no @T site (opt-in; defaults to false to avoid false positives in KMP / multi-module setups)",
+            required = false,
+            allowMultipleOccurrences = false,
+        ),
     )
 
     override fun processOption(
@@ -64,6 +71,7 @@ public class CaptureCodeCommandLineProcessor : CommandLineProcessor {
             OPTION_INCLUDE_ANNOTATION_LINES -> current.copy(includeAnnotationLines = value.toBoolean())
             OPTION_DEDENT -> current.copy(dedent = value.toBoolean())
             OPTION_INCLUDE_LINE_INFO -> current.copy(includeLineInfo = value.toBoolean())
+            OPTION_WARN_ON_EMPTY_CAPTURE -> current.copy(warnOnEmptyCapture = value.toBoolean())
             else -> error("Unknown plugin option: ${option.optionName}")
         }
         configuration.put(CAPTURE_CODE_PLUGIN_CONFIG_KEY, updated)
@@ -75,6 +83,7 @@ public class CaptureCodeCommandLineProcessor : CommandLineProcessor {
         public const val OPTION_INCLUDE_ANNOTATION_LINES: String = "includeAnnotationLines"
         public const val OPTION_DEDENT: String = "dedent"
         public const val OPTION_INCLUDE_LINE_INFO: String = "includeLineInfo"
+        public const val OPTION_WARN_ON_EMPTY_CAPTURE: String = "warnOnEmptyCapture"
     }
 }
 

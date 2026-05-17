@@ -20,14 +20,18 @@ dependencies {
 //
 // と書く。現在の integration-test は `kotlinCompilerPluginClasspath(project(":compiler-plugin"))`
 // で plugin を直接 attach しているため、Gradle DSL ではなく CLI option を直接渡す形になる。
-// 将来、シナリオ別 sub-project を切るか、以下のような freeCompilerArgs で plugin option を渡す方式を
-// 採用することも可能:
+// 以下では `warnOnEmptyCapture = true` を渡し、 `WarnNoMarkerFoundSample` (`src/test/kotlin/.../warning/`)
+// で `CC_CAPTUREDSOURCES_NO_MARKER_FOUND` warning が compile log に乗ることを実機 verify する
+// (task-120-B Phase 7)。 既存 marker は全て declaration / file annotation が紐づくため、 この
+// option を有効にしても他 sample に副作用は出ない。 `--info` を付けて compileTestKotlin を走らせると
+// warning が log に乗る:
 //
-//     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-//         compilerOptions.freeCompilerArgs.addAll(
-//             "-P", "plugin:me.tbsten.capture.code:dedent=false",
-//         )
-//     }
+//     ./gradlew --info :integration-test:test-jvm:compileTestKotlin | grep CC_CAPTUREDSOURCES_NO_MARKER_FOUND
 //
-// 本モジュールでは配線のみ固める方針のため、上記は **コメントとして** 残す。
+// runtime 動作 (= empty list を返す) は sample の StringSpec assertion で確認する。
 // ----------------------------------------------------------------------------
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions.freeCompilerArgs.addAll(
+        "-P", "plugin:me.tbsten.capture.code:warnOnEmptyCapture=true",
+    )
+}

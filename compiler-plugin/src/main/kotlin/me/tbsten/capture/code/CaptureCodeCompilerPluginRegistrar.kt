@@ -2,6 +2,7 @@ package me.tbsten.capture.code
 
 import com.google.auto.service.AutoService
 import me.tbsten.capture.code.compat.CaptureCodeCompatHolder
+import me.tbsten.capture.code.compat.CaptureCodeMessageCollectorHolder
 import me.tbsten.capture.code.compat.CaptureCodePluginConfigHolder
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
@@ -56,6 +57,12 @@ public class CaptureCodeCompilerPluginRegistrar : CompilerPluginRegistrar() {
         // resolved config to a process-scoped holder so the FIR side can pick it
         // up from `CaptureCodePluginConfigHolder.get()`.
         CaptureCodePluginConfigHolder.set(config)
+        // task-120-B Phase 7: publish the IR-phase MessageCollector resolved
+        // from the active CompilerConfiguration so `WarnIfNoMarkerFound` (driven
+        // by `RewriteCapturedSourcesCall` in IR phase) can report
+        // `CC_CAPTUREDSOURCES_NO_MARKER_FOUND` warnings without going through
+        // a compat SPI. See the holder KDoc for the K2.4-RC drift rationale.
+        CaptureCodeMessageCollectorHolder.setFrom(configuration)
         CaptureCodeCompatHolder.context.registerExtensions(
             extensionStorage = this,
             configuration = configuration,
