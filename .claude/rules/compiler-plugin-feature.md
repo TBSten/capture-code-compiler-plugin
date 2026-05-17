@@ -34,11 +34,11 @@ paths:
 
 # 置いてはいけないもの
 
-- **logic の処理本体 (FIR checker class / IR transformer class)** — 一段下の `feature/<feature>/<phase>/<logic>/` 配下 + `compat-kXXX/.../{checker,filler,userargs}/` のバージョン依存層に分散させる
+- **logic の処理本体 (FIR checker class / IR rewriter / filler / userargs)** — 一段下の `feature/<feature>/<phase>/<logic>/` 配下に置く。 task-120-B Phase 3-5 で IR logic 本体は main 側に集約済 (`feature/capturedSources/ir/collectDeclarationSite/`, `feature/capturedSources/ir/rewriteCapturedSourcesCall/buildMarkerInstance/{filler,userargs}/` 等)。 FIR Checker class のみ `compat-kXXX/.../checker/` のバージョン依存層に残る (Visitor base class drift があるため)
 - **1 つの logic にしか使われない定数** — その logic ディレクトリ配下に置く (後で複数 logic が参照するようになった時点で feature 直下に引き上げる)
-- **plugin 横断 (= 複数 feature が参照する) 定数** — feature 横断 SSoT は基本的に存在しないが、 もし発生したら `compat/.../compat/` (`CaptureCodeMarkerOptions` 等) に上げる
-- **compiler API ラッパー** (domain 非依存) — 将来 `compat/.../utils/` に置く
-- **plugin 横断 Error / Warning 基盤** — `compiler-plugin/src/main/.../error/` または `compat/.../error/` 配下
+- **plugin 横断 (= 複数 feature が参照する) 定数** — feature 横断 SSoT は基本的に存在しないが、 もし発生したら `compiler-plugin/src/main/.../code/` (root) に上げる
+- **compiler API ラッパー** (domain 非依存) — 将来 `compiler-plugin/src/main/.../utils/` に置く
+- **plugin 横断 Error / Warning 基盤** — `compiler-plugin/src/main/.../error/` または `compiler-plugin/src/main/.../warning/` 配下
 - **diagnostic 文面 SSoT (`*Errors.kt`)** — feature 直下ではなく **その logic 直下** (例: `feature/markerDefinition/fir/validateMarkerAnnotation/MarkerAnnotationErrors.kt`) に置く。 文面は logic に紐づくため
 
 # Good 例
@@ -83,7 +83,7 @@ internal val CapturedSourcesCallableId = CallableId(
 class CapturedSourcesRewriterImpl { /* IR 置換処理 */ }
 ```
 
-→ IR 置換は version-sensitive (IR drift D5–D8) なので **必ず `compat-kXXX/.../K{XXX}CapturedSourcesRewriter.kt`** に置く。 feature 直下は「複数 logic が共有する SSoT」だけ。
+→ IR 置換は task-120-B Phase 3-4 で main 側に集約済 (`feature/capturedSources/ir/rewriteCapturedSourcesCall/RewriteCapturedSourcesCall.kt`)。 feature 直下は「複数 logic が共有する SSoT」だけで、 logic class 本体は **一段下の `feature/<feature>/<phase>/<logic>/` 配下** に置く。 IR drift D5–D8 は `CompatContext` SPI の 11 IR primitive method (`createIrCall`, `putValueArgument`, `setTypeArgument` 等) で吸収される。
 
 ---
 

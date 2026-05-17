@@ -1,12 +1,11 @@
 ---
 paths:
     - "compiler-plugin/src/main/kotlin/me/tbsten/capture/code/error/**/*.kt"
-    - "compiler-plugin/compat/src/main/kotlin/me/tbsten/capture/code/error/**/*.kt"
 ---
 
-このディレクトリ (`compiler-plugin/src/main/.../error/` および `compiler-plugin/compat/.../error/`) には **plugin 全体で使う構造化 Error / Diagnostic 基盤** を配置する。
+このディレクトリ (`compiler-plugin/src/main/.../error/`) には **plugin 全体で使う構造化 Error / Diagnostic 基盤** を配置する。
 
-task-121 以降は **main module 側 (`compiler-plugin/src/main/kotlin/.../error/`)** が SPI 本体 (`CaptureCodeCompilerPluginError` interface, DSL, `ReportError`, ...) の SSoT。 compat layer 側 (`compiler-plugin/compat/.../error/`) は **compat 層から共有したい補助 SSoT (filler 型の ClassId など)** だけを置く位置づけ。 task-122 で `BilingualMessage` / `CaptureCodeDiagnosticLocale` (i18n 機構) は撤去済で、 diagnostic 文面 SSoT は feature ローカル (`feature/<feature>/.../<Logic>Errors.kt`) に **English-only** で集約されている。
+task-121 以降は **main module 側 (`compiler-plugin/src/main/kotlin/.../error/`)** が SPI 本体 (`CaptureCodeCompilerPluginError` interface, DSL, `ReportError`, ...) の SSoT。 compat layer 側にあった補助 SSoT (`CaptureCodeFillerClassIds.kt` 等) も既に main module の `feature/markerDefinition/` 配下に移動済。 task-122 で `BilingualMessage` / `CaptureCodeDiagnosticLocale` (i18n 機構) は撤去済で、 diagnostic 文面 SSoT は feature ローカル (`feature/<feature>/.../<Logic>Errors.kt`) に **English-only** で集約されている。
 
 **適切でないものを置こうとしていた場合は `compiler-plugin/README.md` を参照して配置場所を再検討** すること。
 
@@ -22,9 +21,9 @@ task-121 以降は **main module 側 (`compiler-plugin/src/main/kotlin/.../error
 - `Replies.kt` — ユーザへの提案文 (`Suggested fix:` テンプレ) 共有 SSoT (現状空)
 - `ReportError.kt` — `DiagnosticReporter.reportError(error, source, context, compat, [arg])` 拡張 (`KtDiagnosticFactory0` / `KtDiagnosticFactory1` 両対応)
 
-## compat module (`compiler-plugin/compat/.../error/`)
+## feature 配下 (`compiler-plugin/src/main/.../feature/<feature>/`)
 
-- `CaptureCodeFillerClassIds.kt` — diagnostic 経由でユーザに見せる runtime filler 型の ClassId / FQN SSoT。 各 `compat-kXXX` から共有参照される
+- `CaptureCodeFillerClassIds.kt` (`feature/markerDefinition/` 直下) — diagnostic 経由でユーザに見せる runtime filler 型の ClassId / FQN SSoT。 各 `compat-kXXX` から `mainClassesOnly` outgoing 経由で compileOnly 参照される
 
 ## feature 配下 (`compiler-plugin/src/main/.../feature/<feature>/.../<Logic>Errors.kt`)
 
@@ -50,7 +49,7 @@ task-121 以降は **main module 側 (`compiler-plugin/src/main/kotlin/.../error
 - **`KtDiagnosticFactory*` の宣言** — `compat-kXXX/.../CompatContextImpl.kt` の nested `K{XXX}Diagnostics` 配下。 factory は `KtDiagnosticsContainer` と renderer chain が密結合のため共有不可
 - **特定 feature / logic にしか出ない Diagnostic の文面を `error/` 配下に追加** — 文面 SSoT は feature ローカル (`feature/<feature>/.../<Logic>Errors.kt`) に閉じる
 - **`BilingualMessage` / `CaptureCodeMessageLocale` の復活** — task-122 で撤去済。 i18n が必要になった場合は別 task で API design からやり直す
-- **Warning 実装** — `compat/.../warning/` (現状未整備) に置く想定
+- **Warning 実装** — `compiler-plugin/src/main/.../warning/` に置く (task-121 で main 側に新設、 task-123/127/128 + task-120-B Phase 7 で具体実装)
 
 # Good 例
 
@@ -91,15 +90,15 @@ put(CC_MARKER_IS_EXPECT, "Marker annotation cannot be declared as 'expect'.")
 → 文面は `feature/<feature>/.../<Logic>Errors.kt` の `CaptureCodeCompilerPluginError.message` に集約する。 各 `K{XXX}` の renderer は `.message` 参照のみ。
 
 ```kotlin
-// compiler-plugin/compat/.../error/CaptureCodeMarkerVisibilityError.kt ← NG
-// feature/logic 固有の Error class を error/ に追加
+// compiler-plugin/src/main/.../error/CaptureCodeMarkerVisibilityError.kt ← NG
+// feature/logic 固有の Error class を error/ 配下に追加
 class MarkerVisibilityError(val fqn: FqName) : RuntimeException()
 ```
 
 → FIR Checker 経由で出す診断は `KtDiagnosticFactory*` の責務で、 plugin 横断 Error interface には乗らない。 文面は feature ローカル `*Errors.kt`, factory は `compat-kXXX/.../CompatContextImpl.kt` の nested object に追加する。
 
 ```kotlin
-// compiler-plugin/compat/.../error/CaptureCodeDiagnosticMessages.kt ← NG (task-122 で撤去済)
+// compiler-plugin/src/main/.../error/CaptureCodeDiagnosticMessages.kt ← NG (task-122 で撤去済)
 public object CaptureCodeDiagnosticMessages {
     public val MARKER_IS_EXPECT: BilingualMessage = BilingualMessage(en = ..., ja = ...)
 }

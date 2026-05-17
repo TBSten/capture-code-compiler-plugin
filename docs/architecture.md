@@ -96,14 +96,25 @@ compiler executes them in order.
                 │ IR phase (early lowering)                     │
                 │                                               │
                 │  CaptureCodeIrExtension                       │
-                │      └── delegates to CompatContext.transformIr│
-                │  B-ir. Declaration-site collection            │
-                │  C.    Source text retrieval (IrFileEntry,    │
-                │        PSI fallback)                          │
+                │      └── runs main-side IR chain directly,    │
+                │          calling 11 CompatContext IR          │
+                │          primitives to bridge drift           │
+                │  B-ir. CollectDeclarationSite                 │
+                │        └── compat.walkIrFileDeclarations(...) │
+                │        └── compat.loadFileText(...)           │
+                │  C.    Source text retrieval (via             │
+                │        compat.loadFileText IrFileEntry / PSI) │
                 │  D.    Source normalization (dedent, trims)   │
-                │  H.    capturedSources<T>() rewrite           │
+                │  H.    RewriteCapturedSourcesCall             │
+                │        └── BuildMarkerInstance                │
+                │            ├── filler/{Source,SourceLocation, │
+                │            │   CaptureKind}                   │
+                │            └── userargs/{BuildUserArg,        │
+                │                BuildUserArgPrimitive}         │
                 │        └── replaces the IrCall with           │
                 │            listOf(MarkerCtor(...), …)         │
+                │  WarnIfNoMarkerFound (opt-in)                 │
+                │        └── warnOnEmptyCapture flag で発火     │
                 └───────────────────────────────────────────────┘
                                        │
                                        ▼
@@ -112,7 +123,9 @@ compiler executes them in order.
 
 The IR transform runs **before inline expansion** so that expression-level
 annotations on inline-function arguments (e.g. `@Marker run { … }`) are still
-addressable.
+addressable. Task-120-B Phase 1–7 (`0.2.0`) migrated the entire IR phase
+logic into the main module; each `compat-kXXX` now only supplies the 11
+IR primitive method impls plus the FIR Checker classes.
 
 ## Feature directory convention
 
@@ -168,21 +181,19 @@ fleet of version-specific implementations:
 
 ### `CompatContext` surface
 
-The SPI is **low-level on purpose** (option 2 in the task-117 decision): each
-known drift point is exposed as one method so the main module can keep its
-2.0.0 baseline bytecode while still working on later runtimes. The current
-methods are:
+The SPI is **low-level on purpose** (option 2 in the task-117 decision):
+each known drift point is exposed as one method so the main module can
+keep its 2.0.0 baseline bytecode while still working on later runtimes.
+As of task-120-B Phase 2 the SPI hosts **23 methods**:
 
-- `transformIr(moduleFragment, pluginContext, config)` — the IR phase entry
-  point. The walker / rewriter / filler / userargs that produce the
-  `listOf(MarkerCtor(...), …)` replacement live inside each compat module
-  (see "IR drift retention" below).
+Existing FIR / config / drift methods (12):
+
 - `firAdditionalCheckersExtensions()` — the FIR phase entry point. Returns
   per-`FirSession` factories that the main `CaptureCodeFirExtensionRegistrar`
   registers via `+::`.
 - `registerExtensions(extensionStorage, ...)` — absorbs drift D10
-  (`CompilerPluginRegistrar.ExtensionStorage.registerExtension(...)` signature
-  change between 2.2.x and 2.3.x).
+  (`CompilerPluginRegistrar.ExtensionStorage.registerExtension(...)`
+  signature change between 2.2.x and 2.3.x).
 - `literalValueOrNull(expr)` / `isLiteralExpression(expr)` — drift D1
   (`FirLiteralExpression<T>` type parameter removal in 2.0.21+).
 - `toRegularClassSymbolOrNull(type, session)` — drift D2 (`fir.types` →
@@ -193,14 +204,46 @@ methods are:
   `containingFilePath`). Added in task-119.
 - `fullyExpandedTypeOf(type, session)` — drift D11 (the 2-arg
   `fullyExpandedType` overload was removed in 2.0.20+). Added in task-119.
-- `loadFileText(file)` — wraps PSI / IrFileEntry source-text retrieval for
-  main-module IR logic that cannot directly hold a PSI reference compiled
-  against the 2.0.0 baseline. Added in task-120.
-- `diagnosticFactory(id)` — looks the id (`CC_<feature>_<rule>`) up in each
-  compat module's nested `K{XXX}Diagnostics`, returning the
+- `diagnosticFactory(id)` — looks the id (`CC_<feature>_<rule>`) up in
+  each compat module's nested `K{XXX}Diagnostics`, returning the
   `KtDiagnosticFactory0` / `KtDiagnosticFactory1<*>`. The main module's
-  `ReportError` / `ReportWarning` helpers narrow the result before calling
-  `reporter.reportOn(...)`. Added in task-121.
+  `ReportError` / `ReportWarning` helpers narrow the result before
+  calling `reporter.reportOn(...)`. Added in task-121.
+
+IR primitive methods (11, added in task-120-B Phase 2 to allow the IR
+walker / rewriter / filler / userargs to live in the main module):
+
+- `acceptIrVisitor(moduleFragment, visitor)` — `IrElementVisitorVoid` →
+  `IrVisitorVoid` base class drift (2.4.x).
+- `walkIrFileDeclarations(file, onClass, onSimpleFunction, onProperty,
+  onTypeAlias)` — declaration walk SAM-style callbacks. Each compat
+  impl uses the appropriate Visitor base for its baseline.
+- `loadFileText(file)` — wraps PSI / IrFileEntry source-text retrieval
+  for main-module IR logic that cannot directly hold a PSI reference
+  compiled against the 2.0.0 baseline.
+- `putValueArgument(call, index, expr)` — `IrCall.putValueArgument(...)`
+  was removed in K2.4-RC; emulated through `arguments[index] = expr` in
+  newer impls.
+- `createIrCall(symbol, type, ...)` — `IrCallImpl(...)` constructor lost
+  the `valueArgumentsCount` parameter in 2.4.x.
+- `setTypeArgument(call, index, type)` — `putTypeArgument` → `typeArguments`
+  drift.
+- `valueParametersOf(function)` — `valueParameters` → `nonDispatchParameters`
+  in 2.4.x.
+- `irExpressionBodyOf(expr)`, `irConstString(value)`,
+  `irGetEnumValueOf(symbol, ...)`, `irGetClassReferenceOf(classifier, ...)`
+  — IR factory / constant builder drift D5–D8.
+
+The actual IR walker / rewriter / filler / userargs live in
+`compiler-plugin/src/main/.../feature/capturedSources/ir/`. The main-side
+holder objects (`CaptureCodeCompatHolder`,
+`CaptureCodePluginConfigHolder`, `CaptureCodeMessageCollectorHolder`)
+sit in `compiler-plugin/src/main/.../compat/`. The
+`CaptureCodePluginConfig` data class lives at the root of the main
+module (`compiler-plugin/src/main/.../code/CaptureCodePluginConfig.kt`).
+Task-120-B Phase 1 moved all of these from `:compiler-plugin:compat` into
+the main module so the `compat/` directory now only ships the SPI plus
+the `KotlinToolingVersion` resolver.
 
 ### `mainClassesOnly` outgoing configuration (task-118)
 
@@ -222,17 +265,46 @@ parallel `mainRuntimeClassesOnly` variant (`Usage.JAVA_RUNTIME`,
 configurations, because the nested `K{XXX}Diagnostics` objects read
 `<Logic>Errors.kt` `.message` strings at `<clinit>` time.
 
-### IR drift retention (task-120-B case C)
+### IR phase main-side consolidation (task-120-B Phase 1–7, `0.2.0`)
 
 Migrating the IR walker / rewriter / filler / userargs **into** the main
-module was investigated in task-120 (the FIR-side moved in task-119 without
-trouble). The IR phase, however, depends on `IrBuilder` /
-`IrConstructorCall` / `IrConst` / `IrFactory` shapes that drift more
-aggressively (D5–D8 are still live), so keeping the IR logic inside each
-`compat-kXXX` module ("case C") was the chosen outcome. The visible effect
-is that each compat module today contains ~12–13 Kotlin files (plus 0–5
-Java shims on 2.2.x+ for FIR Checker signature drift D9) covering the IR
-phase, while the FIR phase is shared via the main module.
+module was first investigated in task-120 (the FIR-side moved cleanly in
+task-119). The follow-up task-120-B initially scoped down to "case C"
+(keep IR logic per-version) on the grounds that the SPI would have to grow
+by ~11 methods, but a second-pass case A all-out pass was completed in
+`0.2.0` after re-evaluating the SPI surface as acceptable churn for the
+SSoT win.
+
+The case A migration ran over seven phases (commits
+`40784fa` → `83e3583`):
+
+1. **Phase 1** — pull `CaptureCodePluginConfig`, `CaptureCodeCompatHolder`,
+   `CaptureCodePluginConfigHolder` and `CaptureCodeMessageCollectorHolder`
+   into the main module (`compiler-plugin/src/main/.../compat/` + root).
+2. **Phase 2** — add the 11 IR primitive methods listed above to
+   `CompatContext` and implement them in every `compat-kXXX/`.
+3. **Phase 3a / 3b / 4a / 4b** — concrete-impl `CollectDeclarationSite`,
+   `RewriteCapturedSourcesCall`, `BuildMarkerInstance`, the three filler
+   builders (`FillSource` / `FillSourceLocation` / `FillCaptureKind`) and
+   the two userargs builders (`BuildUserArg`, `BuildUserArgPrimitive`)
+   under `feature/capturedSources/ir/` in the main module.
+4. **Phase 5** — wire `CaptureCodeIrExtension` directly to the main-side
+   IR chain (no longer routes through `CompatContext.transformIr`).
+5. **Phase 6** — delete the dead `compat-kXXX` IR logic files
+   (per-version `K{XXX}CapturedSourcesCollector`,
+   `K{XXX}CapturedSourcesRewriter`, `K{XXX}IrTransform`,
+   `SourceTextExtractor`, `filler/*`, `userargs/*`). Each compat module is
+   now slim: 3–4 .kt + 0–5 .java.
+6. **Phase 7** — implement `WarnIfNoMarkerFound` (with the
+   `warnOnEmptyCapture` opt-in flag on `CaptureCodePluginConfig`) on the
+   main-side IR chain.
+
+The visible effect is that each compat module today contains 3–4 Kotlin
+files (`CompatContextImpl`, `K{XXX}IrVisitors`,
+`checker/K{XXX}CheckerExtensions`, optionally one reflection shim) plus
+0–5 Java shims on 2.2.x+ for FIR Checker `check(...)` argument-order
+drift D9 and renderer-map static-init drift in 2.3+. All IR logic is
+single-sourced in the main module.
 
 ### Adding a new Kotlin version
 

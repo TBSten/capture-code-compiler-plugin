@@ -1,11 +1,11 @@
 ---
 paths:
-    - "compiler-plugin/compat/src/main/kotlin/me/tbsten/capture/code/utils/**/*.kt"
+    - "compiler-plugin/src/main/kotlin/me/tbsten/capture/code/utils/**/*.kt"
 ---
 
-このディレクトリ (`compiler-plugin/compat/.../utils/`) は **plugin の domain 知識を持たない、 Kotlin compiler API の純粋な汎用 helper** を置く場所として予約されている。 「他の Kotlin Compiler Plugin プロジェクトにそのままコピペできるか？」が判定基準。
+このディレクトリ (`compiler-plugin/src/main/.../utils/`) は **plugin の domain 知識を持たない、 Kotlin compiler API の純粋な汎用 helper** を置く場所として予約されている。 「他の Kotlin Compiler Plugin プロジェクトにそのままコピペできるか？」が判定基準。
 
-**現状このディレクトリ自体まだ存在しない**。 共通 helper が必要になったら `compiler-plugin/compat/src/main/kotlin/me/tbsten/capture/code/utils/` を作成して flat に置き、 サブディレクトリは phase 別 (`utils/fir/`, `utils/ir/`) で切る。
+**現状このディレクトリ自体まだ存在しない**。 共通 helper が必要になったら `compiler-plugin/src/main/kotlin/me/tbsten/capture/code/utils/` を作成して flat に置き、 サブディレクトリは phase 別 (`utils/fir/`, `utils/ir/`) で切る。 task-118 以降の方針で **main module 側に置く** (旧 compat 側ではなく)。
 
 **適切でないものを置こうとしていた場合は `compiler-plugin/README.md` を参照して配置場所を再検討** すること。
 
@@ -28,9 +28,9 @@ plugin 固有の domain 知識を持つコード全般:
 - **plugin 固有の annotation を注入する処理**
 - **plugin の generated declaration の組み立て / 復元**
 - **特定 plugin option の読み取り** (`includeKdoc` / `dedent` 等の解釈)
-- **PSI / source text の切り出し処理** — `compat-kXXX/SourceTextExtractor.kt` に置く (version-sensitive のため)
+- **PSI / source text の切り出し処理** — `CompatContext.loadFileText(file)` SPI 経由で各 compat-kXXX の actual 実装に委譲 (task-120-B Phase 2 で domain-agnostic SPI 化、 version-sensitive のため)
 
-これらは **`compat/.../feature/<feature>/` 配下** か **`compat-kXXX/` 配下** に置く。
+これらは **`compiler-plugin/src/main/.../feature/<feature>/` 配下** か **`compat-kXXX/` 配下** に置く。
 
 # Good 例
 
@@ -55,7 +55,7 @@ internal val CaptureCodePredicate = LookupPredicate.create {
 }
 ```
 
-→ `compiler-plugin/compat/.../fir/marker/CaptureCodeMetaAnnotation.kt` 配下に置く。
+→ `compiler-plugin/src/main/.../feature/markerDefinition/CaptureCodeMetaAnnotation.kt` 配下に置く (task-118 で main 側に集約済)。
 
 ```kotlin
 // utils/ir/CapturedSourcesCallableId.kt  ← NG: capturedSources() の CallableId
@@ -65,7 +65,7 @@ internal val CapturedSourcesCallableId = CallableId(
 )
 ```
 
-→ `compiler-plugin/compat/.../feature/capturedsources/CaptureCodeCallableIds.kt` に既にある。 重複定義しない。
+→ `compiler-plugin/src/main/.../feature/capturedSources/CaptureCodeCallableIds.kt` に既にある (task-118 で main 側に集約済)。 重複定義しない。
 
 # 名前付けの例外
 

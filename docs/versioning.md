@@ -128,7 +128,7 @@ auto-generated GitHub Release notes. Strict policy is in
 ### 0.2.0
 
 **Theme**: internal restructure following the Compatibility Layer pattern
-(tasks 116 – 125). No public API change.
+(tasks 116 – 125 plus task-120-B Phase 1–8). No public API change.
 
 Breaking changes (user-visible, pre-1.0 so packaged as a `MINOR` bump per
 the [Pre-1.0 policy](#pre-10-policy-0xy)):
@@ -146,18 +146,39 @@ the [Pre-1.0 policy](#pre-10-policy-0xy)):
   every supported Kotlin baseline.
 - **Internal package layout was refactored.** Domain logic that lived
   under `:compiler-plugin:compat` in 0.1.x now lives in the main
-  `:compiler-plugin` module under `src/main/kotlin/.../feature/`. The
-  public API surface (`@CaptureCode`, the filler types, the Gradle DSL)
-  is unchanged.
+  `:compiler-plugin` module under `src/main/kotlin/.../feature/`. In
+  particular, task-120-B Phase 1–7 (case A all-out) consolidated the
+  entire IR phase logic — `CollectDeclarationSite`,
+  `RewriteCapturedSourcesCall`, `BuildMarkerInstance`, the three
+  filler builders (`FillSource` / `FillSourceLocation` /
+  `FillCaptureKind`), the two userargs builders (`BuildUserArg` /
+  `BuildUserArgPrimitive`) and `WarnIfNoMarkerFound` — into the main
+  module under `feature/capturedSources/ir/`. The `CompatContext` SPI
+  grew by 11 IR primitive methods (`acceptIrVisitor`,
+  `walkIrFileDeclarations`, `loadFileText`, `putValueArgument`,
+  `createIrCall`, `setTypeArgument`, `valueParametersOf`,
+  `irExpressionBodyOf`, `irConstString`, `irGetEnumValueOf`,
+  `irGetClassReferenceOf`) to bridge the main-side IR chain to each
+  compat impl. The public API surface (`@CaptureCode`, the filler
+  types, the Gradle DSL) is unchanged.
+- **New opt-in DSL flag `warnOnEmptyCapture`** (default `false`).
+  When set to `true`, the plugin emits `CC_CAPTUREDSOURCES_NO_MARKER_FOUND`
+  for each `capturedSources<T>()` call whose marker `T` has zero
+  collected sites. Opt-in to avoid false positives in KMP projects
+  where a marker is defined in `commonMain` but only annotated in a
+  platform target (task-120-B Phase 7).
 
 Compatibility notes:
 
 - **Adding a new Kotlin version still requires a new `compat-kXXX`
-  module.** The IR walker / rewriter / filler / userargs remain inside
-  each `compat-kXXX/` to absorb IR drift D5–D8 (task-120-B case C).
-  Adding a baseline therefore creates a new module with ~12–13 Kotlin
-  files (plus 0–5 Java shims on 2.2.x+ for FIR Checker `check(...)`
-  argument-order drift). See
+  module**, but each module is now much smaller: roughly 3–4 Kotlin
+  files (`CompatContextImpl`, `K{XXX}IrVisitors`,
+  `checker/K{XXX}CheckerExtensions`, optionally one reflection shim)
+  plus 0–5 Java shims on 2.2.x+ for FIR Checker `check(...)`
+  argument-order drift and renderer-map static-init drift. The IR
+  walker / rewriter / filler / userargs no longer live in
+  `compat-kXXX/`; they sit in the main module and talk to each compat
+  impl through the 11 IR primitive SPI methods. See
   [compiler-plugin/compat/README.md](../compiler-plugin/compat/README.md)
   for the full checklist.
 - **Supported Kotlin baselines**: 2.0.0, 2.0.10–2.0.21, 2.1.x, 2.2.x,

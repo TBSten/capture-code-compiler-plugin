@@ -27,60 +27,97 @@ Kotlin version.
 ### Core Interface
 
 The [`CompatContext`](src/main/kotlin/me/tbsten/capture/code/compat/CompatContext.kt)
-interface defines the contract for version-specific operations:
+interface defines the contract for version-specific operations. As of
+task-120-B Phase 2 the SPI hosts **23 methods**:
 
-- `transformIr(...)` — the IR transformation entry point (absorbs IR-side
-  drift D5–D8 between supported Kotlin versions).
-- `literalValueOrNull(expression)` / `isLiteralExpression(expression)` —
-  absorbs the `FirLiteralExpression<T>` → `FirLiteralExpression` type-parameter
-  removal in Kotlin 2.0.21+ (FIR drift D1).
-- `toRegularClassSymbolOrNull(type, session)` — absorbs the
-  `toRegularClassSymbol` extension's package move from `fir.types` (2.0.x) to
-  `fir.resolve` (2.1.x) (FIR drift D2).
-- `classIdOf(symbol)` — guards `FirRegularClassSymbol.classId` accessor
-  drift (D3).
+- **FIR / message / config / classId drift (12 methods, baseline 0.1.x):**
+  `firAdditionalCheckersExtensions(...)`, `registerExtensions(...)`,
+  `literalValueOrNull(expression)`, `isLiteralExpression(expression)`,
+  `toRegularClassSymbolOrNull(type, session)`, `classIdOf(symbol)`,
+  `containingFilePathOf(checkerContext)`, `fullyExpandedTypeOf(type, session)`,
+  `diagnosticFactory(id)` and friends.
+- **IR primitive (11 methods, added in task-120-B Phase 2):**
+  `acceptIrVisitor(moduleFragment, visitor)`,
+  `walkIrFileDeclarations(file, onClass, onSimpleFunction, onProperty, onTypeAlias)`,
+  `loadFileText(file)`,
+  `putValueArgument(call, index, expr)`,
+  `createIrCall(symbol, type, ...)`,
+  `setTypeArgument(call, index, type)`,
+  `valueParametersOf(function)`,
+  `irExpressionBodyOf(expr)`,
+  `irConstString(value)`,
+  `irGetEnumValueOf(symbol, ...)`,
+  `irGetClassReferenceOf(classifier, ...)`.
+
+The IR primitive methods absorb drift D5–D8 (IR builder / `IrConstructorCall`
+/ `IrConst` / `IrFactory` shape changes) and IR Visitor base-class drift
+(`IrElementVisitorVoid` → `IrVisitorVoid` in 2.4.x). The IR walker /
+rewriter / filler / userargs themselves now live in the main module
+(`compiler-plugin/src/main/.../feature/capturedSources/ir/`), built against
+the Kotlin 2.0.0 baseline and using only the 11 IR primitives above to talk
+to the running compiler.
+
+The `:compiler-plugin:compat` module therefore contains only **two Kotlin
+files**:
+
+- `CompatContext.kt` — the 23-method SPI plus `Companion.load` (ServiceLoader
+  selection algorithm).
+- `KotlinToolingVersion.kt` — dev / Beta / RC track parser and resolver.
+
+The holder objects (`CaptureCodeCompatHolder`,
+`CaptureCodePluginConfigHolder`, `CaptureCodeMessageCollectorHolder`) and
+the `CaptureCodePluginConfig` data class were moved into the main module
+under `compiler-plugin/src/main/.../compat/` and `code/` respectively in
+task-120-B Phase 1.
 
 ### Version-Specific Implementations
 
 Each supported Kotlin version has its own module:
 
-- [`compat-k200/`](../compat-k200) — Kotlin 2.0.0 (baseline).
+- [`compat-k200/`](../compat-k200) — Kotlin 2.0.0 (baseline). 4 .kt files.
 - [`compat-k202/`](../compat-k202) — Kotlin 2.0.10 .. 2.0.21 (absorbs drift
-  D8 around `IrVarargImpl` constructor changes etc.).
-- [`compat-k210/`](../compat-k210) — Kotlin 2.1.x.
+  D8 around `IrVarargImpl` constructor changes etc.). 4 .kt files.
+- [`compat-k210/`](../compat-k210) — Kotlin 2.1.x. 3 .kt files.
 - [`compat-k220/`](../compat-k220) — Kotlin 2.2.x (introduces Java shims in
   `src/main/java/.../checker/K220*Shim.java` to absorb FIR Checker
-  `check(...)` argument-order drift D9).
+  `check(...)` argument-order drift D9). 3 .kt + 4 .java.
 - [`compat-k230/`](../compat-k230) — Kotlin 2.3.x (adds
   `K230RendererMapShim.java`; the nested `K230Diagnostics.MAP` is `by lazy`
-  to avoid static-init NPE).
-- [`compat-k240rc/`](../compat-k240rc) — Kotlin 2.4.0-RC{,N}.
+  to avoid static-init NPE). 3 .kt + 5 .java.
+- [`compat-k240rc/`](../compat-k240rc) — Kotlin 2.4.0-RC{,N}. 4 .kt + 5 .java.
 
-### Slim-down outcome (task-120-B case C, task-124)
+### Slim-down outcome (task-120-B Phase 6)
 
-After the domain SSoT migration (task-118 onwards), each `compat-kXXX/`
+After IR-side migration (task-120-B Phase 3–5), each `compat-kXXX/`
 module retains roughly:
 
-- **12–13 Kotlin files** covering `CompatContextImpl` (with nested
-  `K{XXX}Diagnostics`), `K{XXX}IrTransform`, `K{XXX}CapturedSourcesCollector`,
-  `K{XXX}CapturedSourcesRewriter`, `SourceTextExtractor`,
-  `checker/K{XXX}CheckerExtensions`, `filler/*`, `userargs/*`.
+- **3–4 Kotlin files** covering `CompatContextImpl` (with nested
+  `K{XXX}Diagnostics` and the 11 IR primitive impls),
+  `K{XXX}IrVisitors` (Visitor base class drift),
+  `checker/K{XXX}CheckerExtensions` and at most one `checker/*Shim`
+  reflection helper.
 - **0–5 Java shim files** under `src/main/java/.../checker/` from
   Kotlin 2.2.x onwards, for FIR Checker `check(...)` argument-order
   drift D9 and for `RendererMap` static-init drift in 2.3+.
 
-The IR walker / rewriter / filler / userargs were **not** migrated to the
-main module: drift D5–D8 (IR builder / `IrConstructorCall` /
-`IrConst` / `IrFactory` shape changes) is still live and pulling the IR
-phase out would have required reintroducing the same per-version shimming
-under a different name. Keeping the IR logic inside each `compat-kXXX`
-module — the "case C" outcome of task-120-B — leaves the slim form above.
+The IR phase migration is what task-120-B "case A all-out" achieved: the
+declaration walker, the `capturedSources<T>()` rewriter, the
+`BuildMarkerInstance` orchestrator, the three filler builders
+(`FillSource` / `FillSourceLocation` / `FillCaptureKind`) and the userargs
+builder (`BuildUserArg` / `BuildUserArgPrimitive`) all moved to the main
+module. Each version-specific module now only implements the 11 IR
+primitive methods needed to bridge the main-side IR chain to the running
+compiler's IR API shape.
 
 Each module contains:
 
 - `CompatContextImpl` — version-specific implementation, with a nested
   `K{XXX}Diagnostics` object holding the per-id `KtDiagnosticFactory*` map
-  consumed via `CompatContext.diagnosticFactory(id)`.
+  consumed via `CompatContext.diagnosticFactory(id)` plus the 11 IR
+  primitive impls (`putValueArgument`, `createIrCall`, `setTypeArgument`,
+  …).
+- `K{XXX}IrVisitors` — `IrElementVisitorVoid` / `IrVisitorVoid` base class
+  drift absorption (`acceptIrVisitor`, `walkIrFileDeclarations`).
 - An inner `Factory : CompatContext.Factory` that declares the module's
   `minVersion`.
 - AutoService-generated service loader configuration
@@ -128,19 +165,36 @@ After generation, you still need to:
 4. Add it to `compiler-plugin/build.gradle.kts`'s `bundled` and
    `testImplementation` blocks.
 5. Replace the `TODO()`s in `CompatContextImpl.kt` with actual
-   implementations.
-6. If the new baseline drifts a method signature on a FIR Checker base
+   implementations (all 23 SPI methods including the 11 IR primitives
+   added in task-120-B Phase 2 — see existing `compat-k200` /
+   `compat-k210` for canonical templates).
+6. Add `K<XXX>IrVisitors.kt` — implement `acceptIrVisitor(...)` and
+   `walkIrFileDeclarations(...)` against the appropriate Visitor base
+   class for this baseline (`IrElementVisitorVoid` in 2.0–2.3.x,
+   `IrVisitorVoid` in 2.4.x+).
+7. Add `checker/K<XXX>CheckerExtensions.kt` extending
+   `FirAdditionalCheckersExtension` for FIR phase wiring (Logic A / F / G
+   / B-fir). The actual checker classes (`K<XXX>CaptureCodeMarkerClassChecker`,
+   `K<XXX>MarkerAnnotationChecker`, `K<XXX>CapturedSourcesCallChecker`,
+   `K<XXX>ExpressionSiteCollector`) live alongside it.
+8. If the new baseline drifts a method signature on a FIR Checker base
    class (e.g. `check(...)` argument order in 2.2.x), add a Java shim
    under `src/main/java/.../compat/k<XXX>/checker/K<XXX>*Shim.java` that
    extends the corresponding Kotlin checker class and forwards `check(...)`
    with the argument order required by the new baseline. The K220 / K230 /
    K240Rc shims in the existing `compat-k220` / `compat-k230` /
    `compat-k240rc` modules serve as templates.
-7. If the new baseline changes a renderer / static-init shape (e.g.
+9. If the new baseline changes a renderer / static-init shape (e.g.
    `KtDiagnosticFactoryToRendererMap` super-class swap in 2.3+), make the
    nested `K<XXX>Diagnostics.MAP` `by lazy` so the renderer chain does not
    NPE during class init. See `K230RendererMapShim.java` for the K230 / K240Rc
    template.
+
+The expected final shape of the new module is **3–4 .kt + 0–5 .java**
+(matching `compat-k200` through `compat-k240rc`). Anything beyond that
+(IR walker / rewriter / filler / userargs) belongs in the main module's
+`feature/capturedSources/ir/` tree — those were migrated out of
+`compat-kXXX/` in task-120-B Phase 3–5.
 
 ### Version Naming Convention
 
