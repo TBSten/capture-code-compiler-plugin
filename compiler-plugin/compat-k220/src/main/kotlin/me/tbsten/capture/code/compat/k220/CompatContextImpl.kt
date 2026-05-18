@@ -10,6 +10,7 @@ import com.google.auto.service.AutoService
 import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.compat.CompatContext
 import me.tbsten.capture.code.compat.k220.checker.K220CapturedSourcesCallCheckersExtension
+import me.tbsten.capture.code.compat.k220.checker.K220DiagnosticFactoryShim
 import me.tbsten.capture.code.compat.k220.checker.K220ExpressionAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k220.checker.K220MarkerAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k220.checker.K220MarkerCheckersExtension
@@ -28,10 +29,7 @@ import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactoryToRendererMap
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticRenderers
 import org.jetbrains.kotlin.diagnostics.Severity
 import org.jetbrains.kotlin.diagnostics.SourceElementPositioningStrategies
-import org.jetbrains.kotlin.diagnostics.error0
-import org.jetbrains.kotlin.diagnostics.error1
 import org.jetbrains.kotlin.diagnostics.rendering.BaseDiagnosticRendererFactory
-import org.jetbrains.kotlin.diagnostics.rendering.RootDiagnosticRendererFactory
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
@@ -149,7 +147,12 @@ public class CompatContextImpl : CompatContext {
     override fun classIdOfType(type: ConeKotlinType): ClassId? = type.classId
 
     override fun containingFilePathOf(context: CheckerContext): String? =
-        context.containingFile?.sourceFile?.path
+        // task-0.2.0-cifix-3: K2.2.20+ で `CheckerContext.containingFile` が削除され、
+        // 代わりに `containingFileSymbol` (型は `FirFileSymbol`) になった (drift D-CHK-1)。
+        // compat-k220 が K2.2.0 baseline で compile されている都合、 bytecode 上には
+        // 旧 `containingFile` 呼び出しが直書きされ、 K2.2.20+ runtime で NSME を投げる。
+        // shim 経由で reflection で両 baseline の accessor を runtime detect する。
+        K220DiagnosticFactoryShim.containingFilePath(context)
 
     override fun fullyExpandedTypeOf(type: ConeKotlinType, session: FirSession): ConeKotlinType =
         type.fullyExpandedType(session)
@@ -360,62 +363,105 @@ public class CompatContextImpl : CompatContext {
      * Kotlin 2.2.x baseline 向けの **診断 factory** SSoT (task-121 で
      * 旧 `checker/K220CaptureCodeDiagnostics.kt` から本 nested object に集約)。
      *
-     * 構造は [K200Diagnostics][me.tbsten.capture.code.compat.k200.CompatContextImpl.K200Diagnostics]
-     * と同形。 2.2.x は `KtDiagnosticFactory*` constructor / `error0`/`error1` delegate の
-     * signature が 2.0/2.1 と互換のため 機械的コピーで OK。 詳細な背景は K200 側 KDoc 参照。
+     * ## 2.2.10 → 2.2.20 の drift と吸収 (task-0.2.0-cifix-3)
+     *
+     * K2.2.20 で `KtDiagnosticFactory0` / `KtDiagnosticFactory1` および
+     * `DiagnosticFactory0DelegateProvider` / `DiagnosticFactory1DelegateProvider` の ctor
+     * signature が **互換破壊** されている (drift D-DIAG-1)。
+     *
+     * - K2.2.0 / K2.2.10: 4-arg ctor `(name, severity, posStrategy, psiType)`
+     * - K2.2.20 / K2.2.21: 5-arg ctor `(name, severity, posStrategy, psiType, rendererFactory)`
+     *
+     * 旧 ctor は K2.2.20 で削除されたため、 compat-k220 の bytecode に書き込まれた 4-arg
+     * ctor 呼び出しは K2.2.20+ runtime で `NoSuchMethodError` を投げる。
+     *
+     * 対策として、 全 factory 構築を [K220DiagnosticFactoryShim] 経由に統一する。 shim は
+     * reflection で 4-arg / 5-arg ctor を runtime-detect して呼び分けるため、 compat-k220
+     * の bytecode には ctor 呼び出しが残らない。 5-arg ctor が利用可能な K2.2.20+ では
+     * `rendererFactory = K220CaptureCodeDefaultMessages` が渡される。
+     *
+     * 同じ理由で `by error0<T>()` / `by error1<T, A>()` の delegate provider 構文も使えない
+     * (= bytecode に 3-arg `DiagnosticFactoryNDelegateProvider` ctor が書かれてしまうため)。
+     * 直接 shim 経由で factory を構築する形に変更してある。
      */
     public object K220Diagnostics {
 
         /** `CC_MARKER_PARAMETER_TYPE_INVALID` — Kotlin annotation 制約外の parameter 型。 */
-        public val CC_MARKER_PARAMETER_TYPE_INVALID: KtDiagnosticFactory1<String> by error1<PsiElement, String>()
+        public val CC_MARKER_PARAMETER_TYPE_INVALID: KtDiagnosticFactory1<String> =
+            K220DiagnosticFactoryShim.createFactory1(
+                "CC_MARKER_PARAMETER_TYPE_INVALID",
+                Severity.ERROR,
+                SourceElementPositioningStrategies.DEFAULT,
+                PsiElement::class,
+                K220CaptureCodeDefaultMessages,
+            )
 
         /** `CC_MARKER_FILLER_REQUIRES_DEFAULT` — filler 型 parameter にデフォルト値がない。 */
-        public val CC_MARKER_FILLER_REQUIRES_DEFAULT: KtDiagnosticFactory1<String> by error1<PsiElement, String>()
+        public val CC_MARKER_FILLER_REQUIRES_DEFAULT: KtDiagnosticFactory1<String> =
+            K220DiagnosticFactoryShim.createFactory1(
+                "CC_MARKER_FILLER_REQUIRES_DEFAULT",
+                Severity.ERROR,
+                SourceElementPositioningStrategies.DEFAULT,
+                PsiElement::class,
+                K220CaptureCodeDefaultMessages,
+            )
 
         /** `CC_MARKER_IS_EXPECT` — marker 自身が `expect` 宣言。 */
-        public val CC_MARKER_IS_EXPECT: KtDiagnosticFactory0 by error0<PsiElement>()
+        public val CC_MARKER_IS_EXPECT: KtDiagnosticFactory0 =
+            K220DiagnosticFactoryShim.createFactory0(
+                "CC_MARKER_IS_EXPECT",
+                Severity.ERROR,
+                SourceElementPositioningStrategies.DEFAULT,
+                PsiElement::class,
+                K220CaptureCodeDefaultMessages,
+            )
 
         /** `CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE` — T が `@CaptureCode` 付き marker ではない。 */
         public val CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE: KtDiagnosticFactory1<String> =
-            KtDiagnosticFactory1(
-                name = "CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE",
-                severity = Severity.ERROR,
-                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
-                psiType = KtElement::class,
+            K220DiagnosticFactoryShim.createFactory1(
+                "CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE",
+                Severity.ERROR,
+                SourceElementPositioningStrategies.DEFAULT,
+                KtElement::class,
+                K220CaptureCodeDefaultMessages,
             )
 
-        // task-123: warning factories (Severity.WARNING で直接構築)。
+        // task-123: warning factories (Severity.WARNING)。 shim 経由で構築。
 
         public val CC_CAPTUREDSOURCES_NO_MARKER_FOUND: KtDiagnosticFactory1<String> =
-            KtDiagnosticFactory1(
-                name = "CC_CAPTUREDSOURCES_NO_MARKER_FOUND",
-                severity = Severity.WARNING,
-                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
-                psiType = KtElement::class,
+            K220DiagnosticFactoryShim.createFactory1(
+                "CC_CAPTUREDSOURCES_NO_MARKER_FOUND",
+                Severity.WARNING,
+                SourceElementPositioningStrategies.DEFAULT,
+                KtElement::class,
+                K220CaptureCodeDefaultMessages,
             )
 
         public val CC_MARKER_OVERRIDE_NO_EFFECT: KtDiagnosticFactory1<String> =
-            KtDiagnosticFactory1(
-                name = "CC_MARKER_OVERRIDE_NO_EFFECT",
-                severity = Severity.WARNING,
-                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
-                psiType = KtElement::class,
+            K220DiagnosticFactoryShim.createFactory1(
+                "CC_MARKER_OVERRIDE_NO_EFFECT",
+                Severity.WARNING,
+                SourceElementPositioningStrategies.DEFAULT,
+                KtElement::class,
+                K220CaptureCodeDefaultMessages,
             )
 
         public val CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN: KtDiagnosticFactory1<String> =
-            KtDiagnosticFactory1(
-                name = "CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN",
-                severity = Severity.WARNING,
-                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
-                psiType = KtElement::class,
+            K220DiagnosticFactoryShim.createFactory1(
+                "CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN",
+                Severity.WARNING,
+                SourceElementPositioningStrategies.DEFAULT,
+                KtElement::class,
+                K220CaptureCodeDefaultMessages,
             )
 
         public val CC_MARKER_PARAMETER_UNUSED: KtDiagnosticFactory1<String> =
-            KtDiagnosticFactory1(
-                name = "CC_MARKER_PARAMETER_UNUSED",
-                severity = Severity.WARNING,
-                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
-                psiType = KtElement::class,
+            K220DiagnosticFactoryShim.createFactory1(
+                "CC_MARKER_PARAMETER_UNUSED",
+                Severity.WARNING,
+                SourceElementPositioningStrategies.DEFAULT,
+                KtElement::class,
+                K220CaptureCodeDefaultMessages,
             )
 
         /** task-121: lazy MAP (task-088 教訓に従い静的初期化循環依存を予防)。 */
@@ -434,11 +480,22 @@ public class CompatContextImpl : CompatContext {
         }
 
         init {
-            RootDiagnosticRendererFactory.registerFactory(K220CaptureCodeDefaultMessages)
+            // task-0.2.0-cifix-3: K2.2.20+ で
+            // `org.jetbrains.kotlin.diagnostics.rendering.RootDiagnosticRendererFactory`
+            // クラス自体が削除された (drift D-DIAG-2)。 K2.2.0 / K2.2.10 baseline では
+            // 引き続き必要なので、 shim 経由で `Class.forName` で runtime detect しつつ
+            // 存在する場合のみ呼び出す。
+            K220DiagnosticFactoryShim.registerRootRendererFactoryIfAvailable(K220CaptureCodeDefaultMessages)
         }
 
         private object K220CaptureCodeDefaultMessages : BaseDiagnosticRendererFactory() {
-            override val MAP: KtDiagnosticFactoryToRendererMap =
+            // task-0.2.0-cifix-3: K220 では factory 構築を `K220DiagnosticFactoryShim`
+            // 経由に変更したため、 outer `K220Diagnostics.<clinit>` 中に
+            // `K220CaptureCodeDefaultMessages` の object reference が必要になった。
+            // immediate init (`=` で eager) のままだと outer の factory property が
+            // まだ未初期化の段階で MAP put が走り、 null safety / NPE 危険がある。
+            // task-088 K230 と同じく `by lazy` で遅延展開する。
+            override val MAP: KtDiagnosticFactoryToRendererMap by lazy {
                 KtDiagnosticFactoryToRendererMap("CaptureCode").apply {
                     put(
                         CC_MARKER_PARAMETER_TYPE_INVALID,
@@ -481,6 +538,7 @@ public class CompatContextImpl : CompatContext {
                         org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
                     )
                 }
+            }
         }
     }
 }

@@ -36,10 +36,18 @@ internal fun extractDeclarationSource(
     site: CollectDeclarationSite,
 ): String? {
     val fullText = cachedFileText ?: return null
-    val startOffset = declaration.startOffset
+    val rawStartOffset = declaration.startOffset
     val endOffset = declaration.endOffset
-    if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) return null
+    if (rawStartOffset < 0 || endOffset < 0 || rawStartOffset >= endOffset) return null
     if (endOffset > fullText.length) return null
+    // K2.3+ では IR declaration の startOffset が **modifier (`internal` 等) と annotation
+    // 行の後 (= `fun` / `val` トークン直前)** を指すように変わった (drift D-IR-34)。
+    // 一方 K2.0-K2.2 baseline では startOffset が annotation / modifier 行の **先頭** から
+    // 始まる。 plugin としては「@Marker 行は skip、 modifier 含む宣言本体は残す」 挙動が
+    // 期待される。 `expandStartToCoverModifierAndAnnotationLines` で startOffset を modifier
+    // / annotation 行の先頭まで戻すことで、 全 baseline で同一の挙動 (modifier 含む宣言が
+    // 残り、 `@Marker` 行は `skipLeadingAnnotationLines` で skip される) を保証する。
+    val startOffset = site.expandStartToCoverModifierAndAnnotationLines(fullText, rawStartOffset)
     // `includeKdoc = true` (デフォルト) の場合、 declaration の startOffset の
     // 直前にある KDoc を別途抽出する。 KDoc は `@Marker` 行より手前にあるため、
     // 単純に startOffset を前方拡張すると `@Marker` 行が skip されない問題がある

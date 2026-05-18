@@ -90,7 +90,7 @@ internal class BuildMarkerInstance {
             ?: return null
         val markerConstructor = markerSymbol.primaryConstructorOrNull() ?: return null
         val markerType = markerSymbol.typeWith()
-        val listOfSymbol = pluginContext.findListOfVararg() ?: return null
+        val listOfSymbol = pluginContext.findListOfVararg(compat) ?: return null
 
         val parameters = compat.valueParametersOf(markerConstructor.owner)
         // filler 型 dispatch table を 1 回だけ計算する (per-marker plan)。
@@ -273,17 +273,21 @@ internal class BuildMarkerInstance {
      *
      * `listOf` には複数オーバーロード (`()`, `(T)`, `(vararg T)`) があるため、 type parameter が
      * 1 つでかつ value parameter が 1 つ (= vararg) のものを採用する。
+     *
+     * value parameter の取り出しは [CompatContext.valueParametersOf] 経由で行う。 K2.4-RC では
+     * `IrFunction.valueParameters` が削除され `nonDispatchParameters` にリネームされた (drift
+     * D-IR-3/D-IR-33) ため、 直接呼ぶと `NoSuchMethodError` が発生する。
      */
-    private fun IrPluginContext.findListOfVararg(): IrSimpleFunctionSymbol? {
+    private fun IrPluginContext.findListOfVararg(compat: CompatContext): IrSimpleFunctionSymbol? {
         val callableId = CallableId(
             packageName = FqName("kotlin.collections"),
             callableName = Name.identifier("listOf"),
         )
         return referenceFunctions(callableId).firstOrNull { symbol ->
             val function = symbol.owner
-            function.typeParameters.size == 1 &&
-                function.valueParameters.size == 1 &&
-                function.valueParameters[0].varargElementType != null
+            if (function.typeParameters.size != 1) return@firstOrNull false
+            val params = compat.valueParametersOf(function)
+            params.size == 1 && params[0].varargElementType != null
         }
     }
 }
