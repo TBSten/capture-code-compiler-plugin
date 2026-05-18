@@ -8,7 +8,6 @@ import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.declarations.IrValueParameter
 import org.jetbrains.kotlin.ir.expressions.IrExpression
-import org.jetbrains.kotlin.ir.expressions.impl.IrConstImpl
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.typeWith
@@ -63,14 +62,14 @@ internal class FillSourceLocation private constructor(
         return ctorCall
     }
 
-    private fun stringConst(value: String): IrExpression = IrConstImpl.string(
+    private fun stringConst(value: String): IrExpression = compat.newIrConstString(
         startOffset = UNDEFINED_OFFSET,
         endOffset = UNDEFINED_OFFSET,
         type = stringType,
         value = value,
     )
 
-    private fun intConst(value: Int): IrExpression = IrConstImpl.int(
+    private fun intConst(value: Int): IrExpression = compat.newIrConstInt(
         startOffset = UNDEFINED_OFFSET,
         endOffset = UNDEFINED_OFFSET,
         type = intType,

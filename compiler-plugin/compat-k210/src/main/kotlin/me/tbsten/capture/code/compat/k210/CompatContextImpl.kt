@@ -51,14 +51,21 @@ import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.declarations.IrTypeAlias
 import org.jetbrains.kotlin.ir.declarations.IrValueParameter
 import org.jetbrains.kotlin.ir.expressions.IrCall
+import org.jetbrains.kotlin.ir.expressions.IrConstKind
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrFunctionAccessExpression
 import org.jetbrains.kotlin.ir.expressions.IrMemberAccessExpression
+import org.jetbrains.kotlin.ir.expressions.IrVararg
+import org.jetbrains.kotlin.ir.expressions.IrVarargElement
 import org.jetbrains.kotlin.ir.expressions.impl.IrCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrConstImpl
 import org.jetbrains.kotlin.ir.expressions.impl.IrConstructorCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrGetEnumValueImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrVarargImpl
 import org.jetbrains.kotlin.ir.expressions.impl.fromSymbolOwner
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
+import org.jetbrains.kotlin.ir.symbols.IrEnumEntrySymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
@@ -299,6 +306,66 @@ public class CompatContextImpl : CompatContext {
 
     override fun deepCopyExpression(expression: IrExpression): IrExpression =
         expression.deepCopyWithSymbols()
+
+    // -- task-0.2.0-cifix-ir: IR factory drift dispatchers (K2.1 baseline) --
+    //
+    // K2.1 baseline では top-level `IrVarargImpl(...)`, `IrConstImpl(...)`,
+    // `IrGetEnumValueImpl(...)` builders は引き続き `IrVarargImpl.kt` 等の元 file 配下に
+    // 存在し、 個別 `*Kt` host class にコンパイルされる。 main の K2.0 baseline bytecode は
+    // 同名 host を期待しているため、 K2.1 上では引き続き互換だが、 形式的に SPI 経由で
+    // 統一する (Phase 4b で 7 site を一気にルーティングする CI fix の一環)。
+    // `IrConst<T>` / `IrConstKind<T>` の generic 型は K2.1 baseline でも安定。
+
+    override fun newIrVararg(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        varargElementType: IrType,
+        elements: List<IrVarargElement>,
+    ): IrVararg = IrVarargImpl(
+        startOffset = startOffset,
+        endOffset = endOffset,
+        type = type,
+        varargElementType = varargElementType,
+        elements = elements,
+    )
+
+    override fun newIrConstString(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        value: String,
+    ): IrExpression = IrConstImpl.string(startOffset, endOffset, type, value)
+
+    override fun newIrConstInt(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        value: Int,
+    ): IrExpression = IrConstImpl.int(startOffset, endOffset, type, value)
+
+    override fun newIrConstPrimitive(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        kind: Any,
+        value: Any?,
+    ): IrExpression = IrConstImpl(
+        // K2.1 baseline: `IrConstKind` は K2.1 で **non-generic 化** された (drift D-IR-19;
+        // K2.0 / K2.0.21 では `IrConstKind<T>` generic)。 K2.1 では non-generic として cast。
+        startOffset = startOffset,
+        endOffset = endOffset,
+        type = type,
+        kind = kind as IrConstKind,
+        value = value,
+    )
+
+    override fun newIrGetEnumValue(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        symbol: IrEnumEntrySymbol,
+    ): IrExpression = IrGetEnumValueImpl(startOffset, endOffset, type, symbol)
 
     @AutoService(CompatContext.Factory::class)
     public class Factory : CompatContext.Factory {

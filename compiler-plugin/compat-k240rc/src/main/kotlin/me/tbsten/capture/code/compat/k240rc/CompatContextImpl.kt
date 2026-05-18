@@ -60,14 +60,21 @@ import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.declarations.IrTypeAlias
 import org.jetbrains.kotlin.ir.declarations.IrValueParameter
 import org.jetbrains.kotlin.ir.expressions.IrCall
+import org.jetbrains.kotlin.ir.expressions.IrConstKind
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrFunctionAccessExpression
 import org.jetbrains.kotlin.ir.expressions.IrMemberAccessExpression
+import org.jetbrains.kotlin.ir.expressions.IrVararg
+import org.jetbrains.kotlin.ir.expressions.IrVarargElement
 import org.jetbrains.kotlin.ir.expressions.impl.IrCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrConstImpl
 import org.jetbrains.kotlin.ir.expressions.impl.IrConstructorCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrGetEnumValueImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrVarargImpl
 import org.jetbrains.kotlin.ir.expressions.impl.fromSymbolOwner
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
+import org.jetbrains.kotlin.ir.symbols.IrEnumEntrySymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
@@ -301,6 +308,75 @@ public class CompatContextImpl : CompatContext {
         // call shape; the replacement helper (when it stabilises) will be wired here
         // without changing the SPI surface.
         expression.deepCopyWithSymbols()
+
+    // -- task-0.2.0-cifix-ir: IR factory drift dispatchers (K2.4-RC baseline) --
+    //
+    // K2.4-RC では以下が drift:
+    //   - `IrVarargImpl`, `IrConstImpl`, `IrGetEnumValueImpl` class の constructor は **internal**
+    //     化され、 top-level builder fn (`IrVarargImpl(...)` 5-arg / `IrConstImpl(...)` 5-arg /
+    //     `IrGetEnumValueImpl(...)` 4-arg) は consolidated `org.jetbrains.kotlin.ir.expressions.impl.builders`
+    //     file (`BuildersKt`) に集約。 main K2.0 bytecode は旧 `IrVarargImplKt` 等を期待する
+    //     ため、 K2.4-RC runtime で `ClassNotFoundException` を起こすが、 compat-k240rc を経由
+    //     することで自身の baseline (= K2.4-RC) の `BuildersKt` を call できる。
+    //   - `IrConst<T>` / `IrConstKind<T>` の generic 型パラが削除され non-generic 化。
+    //     `IrConstImpl.string(...)` / `.int(...)` companion factory は引き続き提供される
+    //     (戻り型は non-generic `IrConstImpl`)。
+    //   - `IrConstKind<*>` の star projection は K2.4-RC の non-generic `IrConstKind` に対しても
+    //     書ける (Kotlin compiler が ignored type argument として警告抑制で許容)。
+
+    override fun newIrVararg(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        varargElementType: IrType,
+        elements: List<IrVarargElement>,
+    ): IrVararg = IrVarargImpl(
+        // K2.4-RC: top-level `IrVarargImpl(start, end, type, varargElementType, elements)` builder
+        // (consolidated in BuildersKt) — same 5-arg shape as K2.0.
+        startOffset = startOffset,
+        endOffset = endOffset,
+        type = type,
+        varargElementType = varargElementType,
+        elements = elements,
+    )
+
+    override fun newIrConstString(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        value: String,
+    ): IrExpression = IrConstImpl.string(startOffset, endOffset, type, value)
+
+    override fun newIrConstInt(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        value: Int,
+    ): IrExpression = IrConstImpl.int(startOffset, endOffset, type, value)
+
+    override fun newIrConstPrimitive(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        kind: Any,
+        value: Any?,
+    ): IrExpression = IrConstImpl(
+        // K2.4-RC: top-level `IrConstImpl(start, end, type, kind, value)` builder (BuildersKt 集約)。
+        // `IrConstKind` は K2.2 以来 non-generic。 SPI の `Any` erasure を baseline 固有
+        // `IrConstKind` へ cast。
+        startOffset = startOffset,
+        endOffset = endOffset,
+        type = type,
+        kind = kind as IrConstKind,
+        value = value,
+    )
+
+    override fun newIrGetEnumValue(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        symbol: IrEnumEntrySymbol,
+    ): IrExpression = IrGetEnumValueImpl(startOffset, endOffset, type, symbol)
 
     @AutoService(CompatContext.Factory::class)
     public class Factory : CompatContext.Factory {

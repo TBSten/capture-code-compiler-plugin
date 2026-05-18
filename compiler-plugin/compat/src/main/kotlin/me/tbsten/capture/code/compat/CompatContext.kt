@@ -26,7 +26,10 @@ import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrFunctionAccessExpression
 import org.jetbrains.kotlin.ir.expressions.IrMemberAccessExpression
+import org.jetbrains.kotlin.ir.expressions.IrVararg
+import org.jetbrains.kotlin.ir.expressions.IrVarargElement
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
+import org.jetbrains.kotlin.ir.symbols.IrEnumEntrySymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.name.ClassId
@@ -553,6 +556,109 @@ public interface CompatContext {
         type: IrType,
         constructorSymbol: IrConstructorSymbol,
     ): IrConstructorCall
+
+    /**
+     * Builds an [IrVararg] expression with the given [varargElementType] and
+     * pre-populated [elements] (preserving order).
+     *
+     * Absorbs drift D-IR-16: the top-level `IrVarargImpl(...)` builder function
+     * compiles into a different `*Kt` host class across baselines (K2.0 ships
+     * it inside `IrVarargImplKt` from `IrVarargImpl.kt`; K2.4-RC has the same
+     * top-level overload in a consolidated `org.jetbrains.kotlin.ir.expressions.impl.builders`
+     * file -> `BuildersKt`), so a main-module bytecode reference to
+     * `IrVarargImplKt.IrVararg(...)` fails with `ClassNotFoundException` when
+     * loaded under the K2.1+ matrix. Each compat-kXXX calls the top-level
+     * builder that exists on its own baseline.
+     *
+     * Added in task-0.2.0-cifix-ir (2026-05-18).
+     */
+    public fun newIrVararg(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        varargElementType: IrType,
+        elements: List<IrVarargElement>,
+    ): IrVararg
+
+    /**
+     * Builds an `IrConst` carrying a String literal.
+     *
+     * Absorbs drift D-IR-17: same root cause as [newIrVararg] — the
+     * `IrConstImpl.string(...)` companion factory and the top-level
+     * `IrConstImpl(...)` host class were relocated between baselines. The
+     * return type is widened to [IrExpression] so the SPI surface stays
+     * stable across the `IrConst<T>` -> `IrConst` generic-removal drift
+     * introduced in K2.4-RC.
+     *
+     * Added in task-0.2.0-cifix-ir (2026-05-18).
+     */
+    public fun newIrConstString(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        value: String,
+    ): IrExpression
+
+    /**
+     * Builds an `IrConst` carrying an Int literal.
+     *
+     * Absorbs drift D-IR-18; see [newIrConstString] for rationale.
+     *
+     * Added in task-0.2.0-cifix-ir (2026-05-18).
+     */
+    public fun newIrConstInt(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        value: Int,
+    ): IrExpression
+
+    /**
+     * Builds an `IrConst` carrying an arbitrary primitive literal whose IR
+     * kind is supplied as [kind]. Used by `BuildUserArgPrimitive` for
+     * Boolean / Long / Short / Byte / Char / Float / Double / Int / String
+     * EXPRESSION-origin user-argument re-materialisation.
+     *
+     * Absorbs drift D-IR-19: the same `IrConstImpl` 5-arg ctor / top-level
+     * builder relocation drift as [newIrConstString], compounded by the
+     * `IrConstKind<T>` -> `IrConstKind` generic-removal that landed in
+     * **Kotlin 2.2** (not 2.4-RC as initially suspected). On K2.0 / K2.0.21 /
+     * K2.1 the `IrConstKind` class is generic (`IrConstKind<T>`); on K2.2+
+     * it is non-generic — so the SPI surface cannot mention `IrConstKind` in
+     * its signature without breaking at least one baseline.
+     *
+     * To keep the SPI compilable on every `compat-kXXX` baseline, [kind] is
+     * **type-erased to `Any`**. Each compat-kXXX casts it back to the shape
+     * it expects (`IrConstKind<T>` on K2.0-K2.1; `IrConstKind` on K2.2+).
+     * The main module passes `IrConstKind.Int` / `IrConstKind.String` etc.
+     * which is upcast to `Any` at the bytecode level.
+     *
+     * Added in task-0.2.0-cifix-ir (2026-05-18).
+     */
+    public fun newIrConstPrimitive(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        kind: Any,
+        value: Any?,
+    ): IrExpression
+
+    /**
+     * Builds an `IrGetEnumValue` reading the given [symbol].
+     *
+     * Absorbs drift D-IR-20: top-level `IrGetEnumValueImpl(...)` builder
+     * relocated from `IrGetEnumValueImplKt` (K2.0) to the consolidated
+     * `BuildersKt` (K2.4-RC). Same `ClassNotFoundException` failure mode as
+     * [newIrVararg].
+     *
+     * Added in task-0.2.0-cifix-ir (2026-05-18).
+     */
+    public fun newIrGetEnumValue(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        symbol: IrEnumEntrySymbol,
+    ): IrExpression
 
     /**
      * Returns a deep copy of [expression] with re-bound IrSymbol nodes,

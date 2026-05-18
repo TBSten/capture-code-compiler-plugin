@@ -16,7 +16,6 @@ import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrVarargElement
-import org.jetbrains.kotlin.ir.expressions.impl.IrVarargImpl
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
@@ -136,7 +135,7 @@ internal class BuildMarkerInstance {
         compat.putCallValueArgument(
             listCall,
             0,
-            IrVarargImpl(
+            compat.newIrVararg(
                 startOffset = call.startOffset,
                 endOffset = call.endOffset,
                 type = varargType,
@@ -198,7 +197,7 @@ internal class BuildMarkerInstance {
                     } else {
                         val name = parameter.name.asString()
                         val pushed = site.expressionUserArgs[name]
-                        buildUserArgPrimitive(pushed, parameter, pluginContext)
+                        buildUserArgPrimitive(pushed, parameter, pluginContext, compat)
                             ?: buildUserArg(null, index, parameter, compat)
                     }
                 }

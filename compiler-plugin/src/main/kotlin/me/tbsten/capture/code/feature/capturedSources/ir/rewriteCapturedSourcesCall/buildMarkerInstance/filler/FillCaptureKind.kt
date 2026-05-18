@@ -9,7 +9,6 @@ import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.declarations.IrEnumEntry
 import org.jetbrains.kotlin.ir.expressions.IrExpression
-import org.jetbrains.kotlin.ir.expressions.impl.IrGetEnumValueImpl
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
 import org.jetbrains.kotlin.ir.symbols.IrEnumEntrySymbol
 import org.jetbrains.kotlin.ir.types.IrType
@@ -54,7 +53,7 @@ internal class FillCaptureKind private constructor(
             // がすべて [resolveOrNull] で集めた entries に含まれているので実質到達しない。
             ?: kindEnumEntries.values.first()
 
-        val kindValue = IrGetEnumValueImpl(
+        val kindValue = compat.newIrGetEnumValue(
             startOffset = UNDEFINED_OFFSET,
             endOffset = UNDEFINED_OFFSET,
             type = kindEnumType,

@@ -7,7 +7,6 @@ import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.expressions.IrExpression
-import org.jetbrains.kotlin.ir.expressions.impl.IrConstImpl
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.typeWith
@@ -52,7 +51,7 @@ internal class FillSource private constructor(
             type = sourceType,
             constructorSymbol = sourceConstructor,
         )
-        val sourceConst = IrConstImpl.string(
+        val sourceConst = compat.newIrConstString(
             startOffset = UNDEFINED_OFFSET,
             endOffset = UNDEFINED_OFFSET,
             type = stringType,
