@@ -15,7 +15,6 @@ import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
-import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 
 /**
  * Logic G: `capturedSources<T>()` type-argument validation.
@@ -48,7 +47,7 @@ public class ValidateCapturedSourcesCall {
     ) {
         if (!expression.isCapturedSourcesCall()) return
 
-        val typeArgument = expression.firstTypeArgumentOrNull() ?: return
+        val typeArgument = expression.firstTypeArgumentOrNull(compat) ?: return
         val classSymbol = compat.toRegularClassSymbolOrNull(typeArgument, context.session) ?: return
 
         if (classSymbol.hasCaptureCodeMeta(context.session)) return
@@ -68,9 +67,12 @@ public class ValidateCapturedSourcesCall {
         return symbol.callableId == CaptureCodeCallableIds.capturedSources
     }
 
-    private fun FirFunctionCall.firstTypeArgumentOrNull(): ConeKotlinType? {
+    private fun FirFunctionCall.firstTypeArgumentOrNull(compat: CompatContext): ConeKotlinType? {
         val projection = typeArguments.firstOrNull() as? FirTypeProjectionWithVariance ?: return null
-        return projection.typeRef.coneTypeOrNull
+        // drift D13: `FirTypeRef.coneTypeOrNull` の root (`FirResolvedTypeRef.getType()`)
+        // は K2.0 baseline と K2.2+ runtime で interface method shape が drift するため
+        // SPI 経由で dispatch。
+        return compat.coneTypeOrNullOf(projection.typeRef)
     }
 
     private fun FirRegularClassSymbol.hasCaptureCodeMeta(session: FirSession): Boolean =

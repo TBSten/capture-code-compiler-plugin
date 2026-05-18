@@ -36,6 +36,11 @@ import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.fir.types.FirTypeRef
+import org.jetbrains.kotlin.fir.types.classId
+import org.jetbrains.kotlin.fir.types.coneType
+import org.jetbrains.kotlin.fir.types.coneTypeOrNull
+import org.jetbrains.kotlin.fir.types.resolvedType
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.PsiIrFileEntry
 import org.jetbrains.kotlin.ir.declarations.IrFile
@@ -128,6 +133,23 @@ public class CompatContextImpl : CompatContext {
     ): FirRegularClassSymbol? = type.toRegularClassSymbol(session)
 
     override fun classIdOf(symbol: FirRegularClassSymbol): ClassId? = symbol.classId
+
+    // -- task-0.2.0-cifix: FIR type API drift dispatchers (K2.1 baseline) --
+    //
+    // 2.1.x baseline でも `FirTypeRef.coneType`, `FirTypeRef.coneTypeOrNull`,
+    // `FirExpression.resolvedType`, `ConeKotlinType.classId` extension は引き続き
+    // `org.jetbrains.kotlin.fir.types` package に存在し、 同 signature で呼べる
+    // (`toRegularClassSymbol` のみ `fir.resolve` へ移動した drift D2 と異なり、
+    // type extension は package が安定している)。
+
+    override fun coneTypeOrNullOf(typeRef: FirTypeRef): ConeKotlinType? = typeRef.coneTypeOrNull
+
+    override fun coneTypeOrErrorOf(typeRef: FirTypeRef): ConeKotlinType = typeRef.coneType
+
+    override fun resolvedTypeOrNullOf(expression: FirExpression): ConeKotlinType? =
+        expression.resolvedType
+
+    override fun classIdOfType(type: ConeKotlinType): ClassId? = type.classId
 
     override fun containingFilePathOf(context: CheckerContext): String? =
         context.containingFile?.sourceFile?.path

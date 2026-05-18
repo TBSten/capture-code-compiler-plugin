@@ -45,6 +45,11 @@ import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.fir.types.FirTypeRef
+import org.jetbrains.kotlin.fir.types.classId
+import org.jetbrains.kotlin.fir.types.coneType
+import org.jetbrains.kotlin.fir.types.coneTypeOrNull
+import org.jetbrains.kotlin.fir.types.resolvedType
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.PsiIrFileEntry
 import org.jetbrains.kotlin.ir.declarations.IrFile
@@ -118,6 +123,25 @@ public class CompatContextImpl : CompatContext {
     ): FirRegularClassSymbol? = type.toRegularClassSymbol(session)
 
     override fun classIdOf(symbol: FirRegularClassSymbol): ClassId? = symbol.classId
+
+    // -- task-0.2.0-cifix: FIR type API drift dispatchers (K2.4-RC baseline) --
+    //
+    // 2.4.0-RC baseline でも `FirTypeRef.coneType`, `FirTypeRef.coneTypeOrNull`,
+    // `FirExpression.resolvedType`, `ConeKotlinType.classId` は同じ
+    // `org.jetbrains.kotlin.fir.types` package に同 signature で残存。
+    // K2.4-RC では `ConeKotlinType.classId` の実装が `lowerBoundIfFlexible()` 経由に
+    // 変わったが (source-level)、 API surface は安定。
+    // (本 file header の `@file:Suppress("DEPRECATION", "DEPRECATION_ERROR")` +
+    // `@file:OptIn(DeprecatedForRemovalCompilerApi)` がそのまま適用される。)
+
+    override fun coneTypeOrNullOf(typeRef: FirTypeRef): ConeKotlinType? = typeRef.coneTypeOrNull
+
+    override fun coneTypeOrErrorOf(typeRef: FirTypeRef): ConeKotlinType = typeRef.coneType
+
+    override fun resolvedTypeOrNullOf(expression: FirExpression): ConeKotlinType? =
+        expression.resolvedType
+
+    override fun classIdOfType(type: ConeKotlinType): ClassId? = type.classId
 
     override fun containingFilePathOf(context: CheckerContext): String? =
         // Kotlin 2.4.x: `CheckerContext.containingFile` → `containingFilePath` (drift D12, 2.3.x 由来)。

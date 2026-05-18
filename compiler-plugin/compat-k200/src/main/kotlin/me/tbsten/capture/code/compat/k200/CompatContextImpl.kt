@@ -35,6 +35,11 @@ import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
 import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.fir.types.FirTypeRef
+import org.jetbrains.kotlin.fir.types.classId
+import org.jetbrains.kotlin.fir.types.coneType
+import org.jetbrains.kotlin.fir.types.coneTypeOrNull
+import org.jetbrains.kotlin.fir.types.resolvedType
 import org.jetbrains.kotlin.fir.types.toRegularClassSymbol
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.PsiIrFileEntry
@@ -114,6 +119,27 @@ public class CompatContextImpl : CompatContext {
     ): FirRegularClassSymbol? = type.toRegularClassSymbol(session)
 
     override fun classIdOf(symbol: FirRegularClassSymbol): ClassId? = symbol.classId
+
+    // -- task-0.2.0-cifix: FIR type API drift dispatchers (K2.0 baseline) --
+    //
+    // K2.0.0 baseline では `FirTypeRef.coneType`, `FirTypeRef.coneTypeOrNull`,
+    // `FirExpression.resolvedType`, `ConeKotlinType.classId` がいずれも
+    // `org.jetbrains.kotlin.fir.types` package の extension として存在し、
+    // 同名 / 同 signature で呼べる。 main module の bytecode が drift する
+    // `FirResolvedTypeRef.getType()` 等の interface method shape を、
+    // 各 compat-kXXX module が自身の baseline で再 link することで吸収する。
+
+    override fun coneTypeOrNullOf(typeRef: FirTypeRef): ConeKotlinType? = typeRef.coneTypeOrNull
+
+    override fun coneTypeOrErrorOf(typeRef: FirTypeRef): ConeKotlinType = typeRef.coneType
+
+    override fun resolvedTypeOrNullOf(expression: FirExpression): ConeKotlinType? =
+        // K2.0 では `resolvedType` は non-null を返す extension。 main 側で `?.` 連鎖したいので
+        // safe-cast 経由で nullable 化。 expression 未解決 case は extension が
+        // `ConeErrorType` を返す形なので null にはならないが、 main 側 API は nullable で揃える。
+        expression.resolvedType
+
+    override fun classIdOfType(type: ConeKotlinType): ClassId? = type.classId
 
     override fun containingFilePathOf(context: CheckerContext): String? =
         context.containingFile?.sourceFile?.path

@@ -43,6 +43,11 @@ import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.fir.types.FirTypeRef
+import org.jetbrains.kotlin.fir.types.classId
+import org.jetbrains.kotlin.fir.types.coneType
+import org.jetbrains.kotlin.fir.types.coneTypeOrNull
+import org.jetbrains.kotlin.fir.types.resolvedType
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.PsiIrFileEntry
 import org.jetbrains.kotlin.ir.declarations.IrFile
@@ -114,6 +119,23 @@ public class CompatContextImpl : CompatContext {
     ): FirRegularClassSymbol? = type.toRegularClassSymbol(session)
 
     override fun classIdOf(symbol: FirRegularClassSymbol): ClassId? = symbol.classId
+
+    // -- task-0.2.0-cifix: FIR type API drift dispatchers (K2.3 baseline) --
+    //
+    // 2.3.x baseline でも `FirTypeRef.coneType`, `FirTypeRef.coneTypeOrNull`,
+    // `FirExpression.resolvedType`, `ConeKotlinType.classId` extension は引き続き
+    // `org.jetbrains.kotlin.fir.types` package に同 signature で存在。 K2.3 で導入された
+    // `containingFilePath` drift (D12) と同様、 本 SPI 経由で main bytecode の `getType()` /
+    // `getClassId()` interface dispatch shape drift を吸収する。
+
+    override fun coneTypeOrNullOf(typeRef: FirTypeRef): ConeKotlinType? = typeRef.coneTypeOrNull
+
+    override fun coneTypeOrErrorOf(typeRef: FirTypeRef): ConeKotlinType = typeRef.coneType
+
+    override fun resolvedTypeOrNullOf(expression: FirExpression): ConeKotlinType? =
+        expression.resolvedType
+
+    override fun classIdOfType(type: ConeKotlinType): ClassId? = type.classId
 
     override fun containingFilePathOf(context: CheckerContext): String? =
         // Kotlin 2.3.x: `CheckerContext.containingFile` accessor が削除され、

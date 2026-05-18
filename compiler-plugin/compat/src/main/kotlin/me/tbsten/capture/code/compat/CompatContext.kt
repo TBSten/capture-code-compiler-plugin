@@ -11,6 +11,7 @@ import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.fir.types.FirTypeRef
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrFile
@@ -130,6 +131,77 @@ public interface CompatContext {
      * to guard against a future shape change of that accessor (drift D3).
      */
     public fun classIdOf(symbol: FirRegularClassSymbol): ClassId?
+
+    /**
+     * Returns the [ConeKotlinType] of [typeRef], or `null` if it is not yet
+     * resolved (or resolves to an error type).
+     *
+     * Absorbs drift D13: `FirTypeRef.coneTypeOrNull` extension delegates to
+     * `(this as? FirResolvedTypeRef)?.type`, and the Java bytecode shape of
+     * `FirResolvedTypeRef.type` (a Kotlin property whose getter
+     * `FirResolvedTypeRef.getType()` is the actual JVM method symbol) changed
+     * between K2.0 / K2.1 / K2.2 / K2.3 / K2.4-RC. Bytecode compiled against
+     * the K2.0 baseline emits an `INVOKEINTERFACE` to
+     * `FirResolvedTypeRef.getType()` whose return type / abstract-method
+     * marker differs on later baselines, yielding `NoSuchMethodError` at
+     * runtime when the plugin is loaded under K2.1+ / K2.2+ runtimes.
+     *
+     * Each compat-kXXX uses the `coneTypeOrNull` extension that exists on its
+     * own kotlin-compiler-embeddable.
+     *
+     * Added in task-0.2.0-cifix (2026-05-18).
+     */
+    public fun coneTypeOrNullOf(typeRef: FirTypeRef): ConeKotlinType?
+
+    /**
+     * Returns the [ConeKotlinType] of [typeRef], or an error type if the
+     * type ref is not yet resolved. Equivalent to the legacy
+     * `FirTypeRef.coneType` extension (non-null variant of [coneTypeOrNullOf]).
+     *
+     * Absorbs the same drift D13 as [coneTypeOrNullOf]; main-module call
+     * sites that previously read `typeRef.coneType` should route here instead.
+     *
+     * Added in task-0.2.0-cifix (2026-05-18).
+     */
+    public fun coneTypeOrErrorOf(typeRef: FirTypeRef): ConeKotlinType
+
+    /**
+     * Returns the resolved [ConeKotlinType] of [expression], or `null` if the
+     * expression has not yet been resolved (or resolves to an error type).
+     *
+     * Absorbs drift D13 (same root cause as [coneTypeOrNullOf]) for
+     * `FirExpression.resolvedType`, which internally calls
+     * `(this.coneTypeOrNull ?: ConeErrorType(...))` and re-emerges as an
+     * `INVOKEINTERFACE` to `FirResolvedTypeRef.getType()` at the bytecode
+     * level.
+     *
+     * Each compat-kXXX uses the `resolvedType` extension that exists on its
+     * own kotlin-compiler-embeddable.
+     *
+     * Added in task-0.2.0-cifix (2026-05-18).
+     */
+    public fun resolvedTypeOrNullOf(expression: FirExpression): ConeKotlinType?
+
+    /**
+     * Returns the [ClassId] of [type], or `null` if [type] is a non-class
+     * type (type parameter / star projection / error type / etc.).
+     *
+     * Absorbs drift D14: the `ConeKotlinType.classId` extension was
+     * stable in API surface across K2.0-K2.4-RC, but its underlying
+     * implementation delegates to `(type.lookupTagOrNull as? ConeClassLikeLookupTag)?.classId`,
+     * where `ConeClassLikeLookupTag.classId`'s Kotlin property getter
+     * (`ConeClassLikeLookupTag.getClassId()`) shifted across baselines.
+     * Bytecode compiled against the K2.0 baseline references the K2.0
+     * abstract-method shape, which is no longer dispatched on K2.2+
+     * runtimes → `NoSuchMethodError`.
+     *
+     * Distinct from [classIdOf]: that overload takes a
+     * `FirRegularClassSymbol` and reads `symbol.classId` directly; this one
+     * takes a `ConeKotlinType` and reads `type.classId`.
+     *
+     * Added in task-0.2.0-cifix (2026-05-18).
+     */
+    public fun classIdOfType(type: ConeKotlinType): ClassId?
 
     /**
      * Returns the containing file path of the FIR [context], or `null` if the

@@ -15,9 +15,6 @@ import org.jetbrains.kotlin.fir.expressions.FirStatement
 import org.jetbrains.kotlin.fir.expressions.arguments
 import org.jetbrains.kotlin.fir.references.toResolvedCallableSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
-import org.jetbrains.kotlin.fir.types.classId
-import org.jetbrains.kotlin.fir.types.coneType
-import org.jetbrains.kotlin.fir.types.resolvedType
 
 /**
  * Logic B-fir: expression-site `@Marker(...)` annotation collector.
@@ -50,7 +47,7 @@ public class CollectExpressionSite {
 
         val contextFilePath = compat.containingFilePathOf(context)
         for (annotation in annotations) {
-            val markerFqn = annotation.markerFqnOrNull() ?: continue
+            val markerFqn = annotation.markerFqnOrNull(compat) ?: continue
 
             val source = expression.source ?: continue
             val filePath = source.containingFilePath() ?: contextFilePath ?: continue
@@ -71,8 +68,13 @@ public class CollectExpressionSite {
         }
     }
 
-    private fun FirAnnotation.markerFqnOrNull(): String? {
-        val classId = annotationTypeRef.coneType.classId ?: return null
+    private fun FirAnnotation.markerFqnOrNull(compat: CompatContext): String? {
+        // drift D13/D14: `FirTypeRef.coneType` + `ConeKotlinType.classId` を SPI 経由で
+        // dispatch。 main module を K2.0 baseline で compile した bytecode が drift する
+        // `FirResolvedTypeRef.getType()` / `ConeClassLikeLookupTag.getClassId()` interface
+        // method shape を、 各 compat-kXXX module で再 link して吸収する。
+        val coneType = compat.coneTypeOrErrorOf(annotationTypeRef)
+        val classId = compat.classIdOfType(coneType) ?: return null
         return classId.asSingleFqName().asString()
     }
 
@@ -95,14 +97,22 @@ public class CollectExpressionSite {
         )
         val result = linkedMapOf<String, Any?>()
         for ((name, expr) in mapping) {
-            val typeFqn = expr.resolvedType.classId?.asSingleFqName()?.asString()
+            // drift D13/D14: `FirExpression.resolvedType` + `ConeKotlinType.classId` を
+            // SPI 経由で dispatch (root cause は `FirResolvedTypeRef.getType()` の interface
+            // method shape drift)。
+            val typeFqn = compat.resolvedTypeOrNullOf(expr)
+                ?.let { compat.classIdOfType(it) }
+                ?.asSingleFqName()?.asString()
             if (typeFqn != null && typeFqn in fillerFqns) continue
             val value: Any? = when {
                 // drift D1: `FirLiteralExpression<T>` (K2.0) vs `FirLiteralExpression` (K2.0.21+)。
                 // CompatContext 経由で literal value を取り出す。
                 compat.isLiteralExpression(expr) -> compat.literalValueOrNull(expr)
                 expr is FirGetClassCall -> {
-                    val classId = expr.arguments.firstOrNull()?.resolvedType?.classId
+                    val firstArg = expr.arguments.firstOrNull()
+                    val classId = firstArg
+                        ?.let { compat.resolvedTypeOrNullOf(it) }
+                        ?.let { compat.classIdOfType(it) }
                     classId?.asSingleFqName()?.asString()
                 }
                 expr is FirPropertyAccessExpression -> resolveEnumOrNull(expr)

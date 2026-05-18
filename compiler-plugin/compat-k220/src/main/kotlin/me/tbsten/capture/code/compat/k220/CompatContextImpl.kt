@@ -42,6 +42,11 @@ import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.fir.types.FirTypeRef
+import org.jetbrains.kotlin.fir.types.classId
+import org.jetbrains.kotlin.fir.types.coneType
+import org.jetbrains.kotlin.fir.types.coneTypeOrNull
+import org.jetbrains.kotlin.fir.types.resolvedType
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.PsiIrFileEntry
 import org.jetbrains.kotlin.ir.declarations.IrFile
@@ -118,6 +123,23 @@ public class CompatContextImpl : CompatContext {
     ): FirRegularClassSymbol? = type.toRegularClassSymbol(session)
 
     override fun classIdOf(symbol: FirRegularClassSymbol): ClassId? = symbol.classId
+
+    // -- task-0.2.0-cifix: FIR type API drift dispatchers (K2.2 baseline) --
+    //
+    // 2.2.x baseline でも `FirTypeRef.coneType`, `FirTypeRef.coneTypeOrNull`,
+    // `FirExpression.resolvedType`, `ConeKotlinType.classId` extension は同形で残存。
+    // ただし bytecode 上 `FirResolvedTypeRef.getType()` の interface dispatch shape が
+    // K2.0 baseline と微妙に異なるため、 main module から直接呼ぶと NSME が発生する
+    // (本 SPI が absorb する対象の drift)。
+
+    override fun coneTypeOrNullOf(typeRef: FirTypeRef): ConeKotlinType? = typeRef.coneTypeOrNull
+
+    override fun coneTypeOrErrorOf(typeRef: FirTypeRef): ConeKotlinType = typeRef.coneType
+
+    override fun resolvedTypeOrNullOf(expression: FirExpression): ConeKotlinType? =
+        expression.resolvedType
+
+    override fun classIdOfType(type: ConeKotlinType): ClassId? = type.classId
 
     override fun containingFilePathOf(context: CheckerContext): String? =
         context.containingFile?.sourceFile?.path

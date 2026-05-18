@@ -17,8 +17,6 @@ import org.jetbrains.kotlin.fir.declarations.utils.isExpect
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.types.ConeKotlinTypeProjection
 import org.jetbrains.kotlin.fir.types.ConeLookupTagBasedType
-import org.jetbrains.kotlin.fir.types.classId
-import org.jetbrains.kotlin.fir.types.coneTypeSafe
 import org.jetbrains.kotlin.fir.types.isNonPrimitiveArray
 import org.jetbrains.kotlin.fir.types.isPrimitiveOrNullablePrimitive
 import org.jetbrains.kotlin.fir.types.isUnsignedTypeOrNullableUnsignedType
@@ -98,9 +96,13 @@ public class ValidateMarkerAnnotation {
             // drift D11: 2-arg `fullyExpandedType(session)` overload は 2.0.20 で削除されたため、
             // CompatContext 経由で expand する。 各 compat-kXXX が自身の baseline に合った
             // dispatcher (reflection shim / direct call) を提供する。
-            val returnType = parameterSymbol.resolvedReturnTypeRef.coneTypeSafe<ConeLookupTagBasedType>()
+            // drift D13: `FirTypeRef.coneTypeSafe<T>()` inline reified extension の root
+            // (`FirResolvedTypeRef.getType()`) も SPI 経由で dispatch する。
+            // `coneTypeSafe<T>()` 相当は `coneTypeOrNullOf(typeRef) as? T` で再現。
+            val returnType = (compat.coneTypeOrNullOf(parameterSymbol.resolvedReturnTypeRef)
+                as? ConeLookupTagBasedType)
                 ?.let { compat.fullyExpandedTypeOf(it, session) } as? ConeLookupTagBasedType
-            val parameterClassId = returnType?.classId
+            val parameterClassId = returnType?.let { compat.classIdOfType(it) }
 
             val isAllowed = returnType != null && isAllowedAnnotationParameterType(returnType, session, compat)
             if (!isAllowed) {
@@ -132,7 +134,8 @@ public class ValidateMarkerAnnotation {
         session: FirSession,
         compat: CompatContext,
     ): Boolean {
-        val classId = type.classId ?: return false
+        // drift D14: `ConeKotlinType.classId` を SPI 経由で dispatch。
+        val classId = compat.classIdOfType(type) ?: return false
 
         return when {
             type.isPrimitiveOrNullablePrimitive -> true
@@ -156,7 +159,8 @@ public class ValidateMarkerAnnotation {
             ?.type
             ?.let { compat.fullyExpandedTypeOf(it, session) }
             ?: return false
-        val elementClassId = elementType.classId ?: return false
+        // drift D14: `ConeKotlinType.classId` を SPI 経由で dispatch。
+        val elementClassId = compat.classIdOfType(elementType) ?: return false
         return when {
             elementClassId == StandardClassIds.String -> true
             elementClassId == StandardClassIds.KClass -> true
