@@ -76,30 +76,6 @@ plan.
 - **Workaround**: Pass `-PenableAppleTargets=true` to Gradle when building
   on a macOS host with Xcode installed.
 
-## 6. Place the marker annotation **before** other annotations on a declaration
-
-- **Symptom**: When a non-marker annotation precedes the marker annotation,
-  the marker literal leaks into the captured source. For example:
-
-  ```kotlin
-  @Suppress("unused")
-  @Marker
-  internal fun foo(): Int = 1
-  ```
-
-  The captured `source.value` becomes
-  `@Suppress("unused")\n@Marker\ninternal fun foo(): Int = 1` (i.e. the
-  `@Marker` line is **not** stripped). Putting `@Marker` first
-  (`@Marker @Suppress("unused") fun ...`) works correctly.
-- **Cause**: The current implementation of
-  `skipLeadingAnnotationLines` (in `CollectDeclarationSite`) bails out at
-  the first non-marker line, so any marker annotation that appears after
-  a non-marker annotation is not dropped from the captured range. Tracked
-  as BUG-A; fix planned for the `0.2.1` patch.
-- **Workaround**: Always write the marker annotation **first**, before any
-  other annotations on the same declaration. Marker annotations placed
-  after other annotations leak their literal into the captured source.
-
 ---
 
 For the full internal reasoning, ticket references and source-of-truth

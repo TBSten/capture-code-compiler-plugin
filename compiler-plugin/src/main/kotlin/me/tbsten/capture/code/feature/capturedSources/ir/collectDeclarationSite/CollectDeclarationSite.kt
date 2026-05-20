@@ -215,6 +215,11 @@ public class CollectDeclarationSite {
      * marker annotation **そのもの** (`@<simpleName>` + optional `(<args>)`) を token として識別し、
      * 末尾の空白 (改行を含む) を吸収する。 marker でない annotation (`@JvmInline` 等) はソースとして残す。
      *
+     * **BUG-A 注意 (`task-129`)**: 本関数は「先頭が非 marker annotation だったらそこで打ち切り」
+     * という古い方針のため、 「`@Suppress("unused") → @Marker → fun ...`」 の順で並んでいる場合に
+     * 中間の marker 行を drop できず source に leak する。 後方互換のため signature は維持しつつ、
+     * 新規呼び出しは [skipLeadingMarkerAnnotations] (= [SkipMarkerResult] を返す版) を使うこと。
+     *
      * @param markerSimpleNames marker FqN の simple name 集合 (= class 名のみ抜き出したもの)
      */
     public fun skipLeadingAnnotationLines(
@@ -268,6 +273,133 @@ public class CollectDeclarationSite {
             }
         }
         return cursor
+    }
+
+    /**
+     * `startOffset` 〜 `endOffset` の範囲の先頭から連続する **annotation 行 + blank 行** を走査し、
+     * 「source の開始 offset」 と 「途中に存在する **marker annotation token range** リスト」 を返す。
+     *
+     * BUG-A (`task-129`) の修正版。 [skipLeadingAnnotationLines] が「先頭が非 marker annotation
+     * だったら打ち切り」 だったため `@Suppress → @Marker → fun ...` の中間 marker を drop
+     * できなかった。 本関数は 1 pass 走査で:
+     *
+     * - **marker annotation** (`@<simpleName>` + optional `(...)`) を見つけたら、 その token range
+     *   (line head から token 終端 + 行末改行までを含む) を [SkipMarkerResult.markerRanges] に記録
+     * - **非 marker annotation** (`@JvmInline` 等) と **blank 行** はそのまま保持 (source 開始点候補)
+     * - 「`@` でも空行でもない (= modifier / `fun` / `val` / `class` / `object` / `typealias` 等)」
+     *   行に到達したら走査終了
+     *
+     * source 開始 offset は「先頭の non-marker / non-blank 行の頭」 (= 最初に保持される行の lineStart)
+     * を返す。 全行が marker または blank の場合は最終 cursor を返す。
+     *
+     * extractDeclarationSource は [SkipMarkerResult.sourceStart] で substring した上で、
+     * [SkipMarkerResult.markerRanges] の range を **降順** で drop すれば leak を防げる。
+     *
+     * @param markerSimpleNames marker FqN の simple name 集合 (= class 名のみ抜き出したもの)
+     */
+    public fun skipLeadingMarkerAnnotations(
+        text: String,
+        startOffset: Int,
+        endOffset: Int,
+        markerSimpleNames: Set<String>,
+    ): SkipMarkerResult {
+        val markerRanges = mutableListOf<IntRange>()
+        var sourceStart = startOffset
+        var sourceStartFixed = false
+        var cursor = startOffset
+        while (cursor < endOffset) {
+            val lineStart = cursor
+            // 行頭 whitespace を skip
+            var lineContentStart = cursor
+            while (lineContentStart < endOffset &&
+                (text[lineContentStart] == ' ' || text[lineContentStart] == '\t')
+            ) {
+                lineContentStart++
+            }
+            if (lineContentStart >= endOffset) {
+                // 行末まで whitespace のみ → blank 行扱い (= 走査は終了)
+                if (!sourceStartFixed) {
+                    sourceStart = lineStart
+                    sourceStartFixed = true
+                }
+                break
+            }
+            if (text[lineContentStart] != '@') {
+                // 非 annotation 行に到達 → 走査終了 (= declaration 本体 or modifier 行)
+                if (!sourceStartFixed) {
+                    sourceStart = lineStart
+                    sourceStartFixed = true
+                }
+                break
+            }
+            // 行頭が '@'。 simpleName を読む
+            val nameStart = lineContentStart + 1
+            var nameEnd = nameStart
+            while (nameEnd < endOffset) {
+                val ch = text[nameEnd]
+                if (ch.isLetterOrDigit() || ch == '_') nameEnd++ else break
+            }
+            val simpleName = if (nameEnd > nameStart) text.substring(nameStart, nameEnd) else ""
+            // annotation argument `(...)` を skip (depth-balanced)
+            var afterArgs = nameEnd
+            if (afterArgs < endOffset && text[afterArgs] == '(') {
+                var depth = 0
+                while (afterArgs < endOffset) {
+                    when (text[afterArgs]) {
+                        '(' -> depth++
+                        ')' -> {
+                            depth--
+                            if (depth == 0) {
+                                afterArgs++
+                                break
+                            }
+                        }
+                    }
+                    afterArgs++
+                }
+                if (depth != 0) {
+                    // unbalanced `(...)` → 安全側で走査終了
+                    if (!sourceStartFixed) {
+                        sourceStart = lineStart
+                        sourceStartFixed = true
+                    }
+                    break
+                }
+            }
+            // annotation 末尾 → 行末まで whitespace を吸収
+            var afterTrailing = afterArgs
+            while (afterTrailing < endOffset &&
+                (text[afterTrailing] == ' ' || text[afterTrailing] == '\t')
+            ) {
+                afterTrailing++
+            }
+            val lineEndAfterNewline = if (afterTrailing < endOffset && text[afterTrailing] == '\n') {
+                afterTrailing + 1
+            } else {
+                afterTrailing
+            }
+
+            if (simpleName in markerSimpleNames) {
+                // marker 行 → range として記録、 source 開始点は更新しない
+                if (sourceStartFixed) {
+                    // 既に非 marker 行を確定済 → token のみ drop (改行も含めて drop しないと
+                    // source 内の改行レイアウトが崩れるので、 line 全体を drop range にする)
+                    markerRanges += lineStart until lineEndAfterNewline
+                }
+                // sourceStart が未確定の場合は marker 行は完全 skip (= drop range に入れない、
+                // ただし sourceStart は marker 行直後の cursor に進める)
+                cursor = lineEndAfterNewline
+            } else {
+                // 非 marker annotation 行 → source として保持。 sourceStart を確定する
+                if (!sourceStartFixed) {
+                    sourceStart = lineStart
+                    sourceStartFixed = true
+                }
+                cursor = lineEndAfterNewline
+            }
+        }
+        if (!sourceStartFixed) sourceStart = cursor
+        return SkipMarkerResult(sourceStart = sourceStart, markerRanges = markerRanges)
     }
 
     /**
@@ -349,6 +481,22 @@ public class CollectDeclarationSite {
         )
     }
 }
+
+/**
+ * [CollectDeclarationSite.skipLeadingMarkerAnnotations] の戻り値。
+ *
+ * - [sourceStart] : declaration source として抽出を始める offset (= 最初の非 marker / 非 blank 行の頭、
+ *   または全行 marker / blank だった場合は走査終了 cursor)
+ * - [markerRanges] : `[sourceStart, endOffset)` の範囲内に存在する **marker annotation 行 range** のリスト。
+ *   各 range は line head から trailing newline まで (= `start until endExclusive`) で表現される。
+ *   raw substring 抽出後、 これらの range を **降順** で drop すれば marker literal の leak を防げる。
+ *
+ * BUG-A (`task-129`) の修正で導入された型。
+ */
+public data class SkipMarkerResult(
+    val sourceStart: Int,
+    val markerRanges: List<IntRange>,
+)
 
 /**
  * 1 IrFile 分の収集中に [CollectDeclarationSite] の各 internal helper に共有される immutable

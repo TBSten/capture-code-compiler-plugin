@@ -19,10 +19,16 @@ import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
  * 1. file text を取得 (取得不可なら `null`)
  * 2. declaration の `startOffset..endOffset` 範囲 + offset validity 確認
  * 3. `includeKdoc = true` なら直前 KDoc を抽出 ([CollectDeclarationSite.extractKdocPrefix])
- * 4. 先頭 `@Marker` 行を skip ([CollectDeclarationSite.skipLeadingAnnotationLines])
- * 5. raw substring 抽出 ([ExtractSourceText])
+ * 4. 先頭の marker / 非 marker annotation 行を 1 pass 走査 ([CollectDeclarationSite.skipLeadingMarkerAnnotations])
+ *    で「source 開始 offset」 と 「中間 marker range のリスト」 を取得
+ * 5. raw substring 抽出 ([ExtractSourceText]) → marker range を **降順** で drop
  * 6. KDoc prefix と body を結合
  * 7. [NormalizeSource] で dedent / blank trim 等を適用 ([toDeclarationNormalizeOptions])
+ *
+ * BUG-A (`task-129`) 修正前は step 4 で「先頭の marker 行のみ skip」 する 1 段階処理だったため、
+ * 「`@Suppress("unused") → @Marker → fun ...`」 の順で並んでいる場合に中間 marker 行が drop
+ * されず source に leak していた。 修正後は **走査 (source 範囲確定) と drop (marker range) を分離**
+ * することで、 marker と 非 marker annotation がどの順序で並んでいても正しく扱える。
  *
  * 失敗条件 (`null` 返却):
  * - file text が読めない
@@ -46,17 +52,47 @@ internal fun extractDeclarationSource(
     // 始まる。 plugin としては「@Marker 行は skip、 modifier 含む宣言本体は残す」 挙動が
     // 期待される。 `expandStartToCoverModifierAndAnnotationLines` で startOffset を modifier
     // / annotation 行の先頭まで戻すことで、 全 baseline で同一の挙動 (modifier 含む宣言が
-    // 残り、 `@Marker` 行は `skipLeadingAnnotationLines` で skip される) を保証する。
+    // 残り、 `@Marker` 行は skipLeadingMarkerAnnotations で drop される) を保証する。
     val startOffset = site.expandStartToCoverModifierAndAnnotationLines(fullText, rawStartOffset)
     // `includeKdoc = true` (デフォルト) の場合、 declaration の startOffset の
     // 直前にある KDoc を別途抽出する。 KDoc は `@Marker` 行より手前にあるため、
     // 単純に startOffset を前方拡張すると `@Marker` 行が skip されない問題がある
-    // (skipLeadingAnnotationLines は連続する `@` 行のみ skip するため、 KDoc 行で中断する)。
+    // (走査関数は連続する annotation / blank 行のみ走査するため、 KDoc 行で中断する)。
     // そこで KDoc 抽出と body 抽出を **分離** し、 後で連結する戦略を採る。
     val kdocPrefix = if (effective.includeKdoc) site.extractKdocPrefix(fullText, startOffset) else ""
-    val rawStart = site.skipLeadingAnnotationLines(fullText, startOffset, endOffset, markerSimpleNames())
-    val rawBody = ExtractSourceText()(fullText, rawStart, endOffset) ?: return null
-    val rawText = if (kdocPrefix.isNotEmpty()) kdocPrefix + "\n" + rawBody else rawBody
+    val skipResult = site.skipLeadingMarkerAnnotations(
+        fullText, startOffset, endOffset, markerSimpleNames(),
+    )
+    val rawBody = ExtractSourceText()(fullText, skipResult.sourceStart, endOffset) ?: return null
+    // sourceStart 以降に位置する marker annotation 行を drop。
+    // rawBody は `fullText.substring(sourceStart, endOffset)` なので、 marker range の offset を
+    // sourceStart 相対に変換した上で descending 順で削除する (削除順により後続の offset が崩れないため)。
+    val rawBodyWithoutMarkerLeak = if (skipResult.markerRanges.isEmpty()) {
+        rawBody
+    } else {
+        val builder = StringBuilder(rawBody)
+        skipResult.markerRanges
+            // marker range は `lineStart until lineEndAfterNewline` (= half-open) で作られているので、
+            // IntRange.first / last は それぞれ inclusive 端。 sourceStart 相対に変換しつつ、
+            // StringBuilder.delete(start, end) (= half-open `[start, end)`) に渡すために
+            // `last + 1` を end として使う。
+            .map { range ->
+                val start = range.first - skipResult.sourceStart
+                val endExclusive = range.last + 1 - skipResult.sourceStart
+                start to endExclusive
+            }
+            .filter { (start, endExclusive) ->
+                start in 0..builder.length && endExclusive in 0..builder.length && start < endExclusive
+            }
+            .sortedByDescending { it.first }
+            .forEach { (start, endExclusive) -> builder.delete(start, endExclusive) }
+        builder.toString()
+    }
+    val rawText = if (kdocPrefix.isNotEmpty()) {
+        kdocPrefix + "\n" + rawBodyWithoutMarkerLeak
+    } else {
+        rawBodyWithoutMarkerLeak
+    }
     return NormalizeSource()(rawText, effective.toDeclarationNormalizeOptions())
 }
 
