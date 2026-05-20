@@ -2,6 +2,7 @@ package me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.feature.capturedSources.CapturedSite
+import me.tbsten.capture.code.feature.capturedSources.UserArgValue
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 
 /**
@@ -24,8 +25,9 @@ import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
  *   - declaration / file 起源 — 必ず non-null (IR phase に annotation が残る)
  *   - EXPRESSION 起源 — 必ず `null` (Kotlin 2.0 では IR phase に式 annotation が残らない)
  * @property expressionUserArgs EXPRESSION 起源で、 FIR session storage から取り出した
- *   「filler 以外」の parameter 値 (name → primitive / enum FqN)。 declaration / file 起源では
- *   `markerCall` から直接 IR 式が取れるので **空 Map**。
+ *   「filler 以外」の parameter 値 (name → [UserArgValue] sealed の各 branch)。 declaration / file
+ *   起源では `markerCall` から直接 IR 式が取れるので **空 Map**。 task-133 で旧 `Any?` 経路を
+ *   sealed 化。
  * @property effectiveConfig 当該 site に対して計算済の effective config (= global Gradle DSL
  *   config に marker 単位の override
  *   [me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerOptions] を適用した結果)。
@@ -35,6 +37,6 @@ import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 public data class CollectedSite(
     public val site: CapturedSite,
     public val markerCall: IrConstructorCall?,
-    public val expressionUserArgs: Map<String, Any?> = emptyMap(),
+    public val expressionUserArgs: Map<String, UserArgValue> = emptyMap(),
     public val effectiveConfig: CaptureCodePluginConfig,
 )

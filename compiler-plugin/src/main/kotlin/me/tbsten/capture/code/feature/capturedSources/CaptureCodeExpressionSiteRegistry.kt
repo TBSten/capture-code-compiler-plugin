@@ -50,15 +50,17 @@ public object CaptureCodeExpressionSiteRegistry {
      * @property endOffset annotation 対象 expression の endOffset。
      * @property markerFqn marker annotation class の完全修飾名
      *                    ([me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry] と整合)。
-     * @property userArgs filler 以外のパラメータの名前 → 値 (`String`/`Int`/`Boolean`/`enum FqN`) の map。
-     *                    現状 primitive と enum (FqN 文字列) のみサポート。
+     * @property userArgs filler 以外のパラメータの名前 → 値 ([UserArgValue] sealed の各 branch) の map。
+     *                    primitive (`Int`/`String`/`Boolean` 等)、 enum FqN ([UserArgValue.EnumRef])、
+     *                    class FqN ([UserArgValue.ClassRef]) を表現できる。 task-133 で旧 `Any?`
+     *                    経路を sealed 化。
      */
     public data class Site(
         val filePath: String,
         val startOffset: Int,
         val endOffset: Int,
         val markerFqn: String,
-        val userArgs: Map<String, Any?> = emptyMap(),
+        val userArgs: Map<String, UserArgValue> = emptyMap(),
     )
 
     private val sites: MutableList<Site> = CopyOnWriteArrayList()

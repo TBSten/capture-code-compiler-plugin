@@ -98,6 +98,14 @@ public interface CompatContext {
      * parameter removal in Kotlin 2.0.21+. Each compat module dispatches on
      * the concrete FIR class shape that matches its baseline.
      *
+     * task-133 (0.2.1): main 側の userArgs map は sealed
+     * [me.tbsten.capture.code.feature.capturedSources.UserArgValue] に統合されたが、
+     * SPI 自体は引き続き `Any?` を返し、 main 側 caller
+     * ([me.tbsten.capture.code.feature.capturedSources.fir.collectExpressionSite.CollectExpressionSite])
+     * が `UserArgValue.wrapLiteralValue(...)` で sealed branch にラップする。 compat module
+     * を main 側 sealed type に直接依存させると `:compiler-plugin` ↔ `:compiler-plugin:compat`
+     * の循環依存になるため、 SPI signature はあえて `Any?` のまま据え置く。
+     *
      * **Sample call**: `compat.literalValueOrNull(fir.argumentMapping.mapping["label"]!!)`
      *
      * **Result**: `"hello"` for `@Marker(label = "hello")`, `null` for non-literal

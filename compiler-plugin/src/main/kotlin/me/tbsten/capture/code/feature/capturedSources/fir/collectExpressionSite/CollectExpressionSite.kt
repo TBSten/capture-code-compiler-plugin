@@ -2,6 +2,7 @@ package me.tbsten.capture.code.feature.capturedSources.fir.collectExpressionSite
 
 import me.tbsten.capture.code.compat.CompatContext
 import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
+import me.tbsten.capture.code.feature.capturedSources.UserArgValue
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
 import org.jetbrains.kotlin.KtPsiSourceElement
 import org.jetbrains.kotlin.KtSourceElement
@@ -87,7 +88,7 @@ public class CollectExpressionSite {
         return null
     }
 
-    private fun FirAnnotation.collectUserArgs(compat: CompatContext): Map<String, Any?> {
+    private fun FirAnnotation.collectUserArgs(compat: CompatContext): Map<String, UserArgValue> {
         val mapping = argumentMapping.mapping
         if (mapping.isEmpty()) return emptyMap()
         val fillerFqns = setOf(
@@ -95,7 +96,7 @@ public class CollectExpressionSite {
             CaptureCodeFillerClassIds.SourceLocation.asFqNameString(),
             CaptureCodeFillerClassIds.CaptureKind.asFqNameString(),
         )
-        val result = linkedMapOf<String, Any?>()
+        val result = linkedMapOf<String, UserArgValue>()
         for ((name, expr) in mapping) {
             // drift D13/D14: `FirExpression.resolvedType` + `ConeKotlinType.classId` を
             // SPI 経由で dispatch (root cause は `FirResolvedTypeRef.getType()` の interface
@@ -104,22 +105,34 @@ public class CollectExpressionSite {
                 ?.let { compat.classIdOfType(it) }
                 ?.asSingleFqName()?.asString()
             if (typeFqn != null && typeFqn in fillerFqns) continue
-            val value: Any? = when {
+            // task-133: 旧 `Any?` 経路を sealed UserArgValue に統合。 各分岐で対応する
+            // UserArgValue subclass を組み立てる。 解決失敗時は `UserArgValue.NullValue`
+            // で null-safe に統合し、 caller (IR phase) で exhaustive when できるようにする。
+            val arg: UserArgValue = when {
                 // drift D1: `FirLiteralExpression<T>` (K2.0) vs `FirLiteralExpression` (K2.0.21+)。
                 // CompatContext 経由で literal value を取り出す。
-                compat.isLiteralExpression(expr) -> compat.literalValueOrNull(expr)
+                compat.isLiteralExpression(expr) -> {
+                    // SPI は Any? を返す (circular dep 回避のため。 CompatContext.kt の
+                    // literalValueOrNull KDoc 参照)。 main 側で sealed UserArgValue に wrap。
+                    val raw = compat.literalValueOrNull(expr)
+                    if (raw == null) UserArgValue.NullValue
+                    else UserArgValue.wrapLiteralValue(raw) ?: UserArgValue.NullValue
+                }
                 expr is FirGetClassCall -> {
                     val firstArg = expr.arguments.firstOrNull()
-                    val classId = firstArg
+                    val classFqn = firstArg
                         ?.let { compat.resolvedTypeOrNullOf(it) }
                         ?.let { compat.classIdOfType(it) }
-                    classId?.asSingleFqName()?.asString()
+                        ?.asSingleFqName()?.asString()
+                    if (classFqn != null) UserArgValue.ClassRef(classFqn) else UserArgValue.NullValue
                 }
-                expr is FirPropertyAccessExpression -> resolveEnumOrNull(expr)
-                expr is FirQualifiedAccessExpression -> resolveEnumOrNull(expr)
-                else -> null
+                expr is FirPropertyAccessExpression ->
+                    resolveEnumOrNull(expr)?.let(UserArgValue::EnumRef) ?: UserArgValue.NullValue
+                expr is FirQualifiedAccessExpression ->
+                    resolveEnumOrNull(expr)?.let(UserArgValue::EnumRef) ?: UserArgValue.NullValue
+                else -> UserArgValue.NullValue
             }
-            result[name.asString()] = value
+            result[name.asString()] = arg
         }
         return result
     }
