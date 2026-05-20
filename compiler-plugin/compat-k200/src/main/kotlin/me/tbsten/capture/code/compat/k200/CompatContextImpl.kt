@@ -2,6 +2,7 @@ package me.tbsten.capture.code.compat.k200
 
 import com.google.auto.service.AutoService
 import me.tbsten.capture.code.compat.CompatContext
+import me.tbsten.capture.code.compat.DiagnosticFactoryRef
 import me.tbsten.capture.code.compat.k200.checker.FullyExpandedTypeShim
 import me.tbsten.capture.code.compat.k200.checker.K200CapturedSourcesCallCheckersExtension
 import me.tbsten.capture.code.compat.k200.checker.K200ExpressionAnnotationCheckersExtension
@@ -194,7 +195,7 @@ public class CompatContextImpl : CompatContext {
         }
     }
 
-    override fun diagnosticFactory(id: String): Any? = K200Diagnostics.MAP[id]
+    override fun diagnosticFactory(id: String): DiagnosticFactoryRef? = K200Diagnostics.MAP[id]
 
     // -- task-120-B Phase 2: IR primitive overrides (K2.0 baseline) --
     //
@@ -446,18 +447,47 @@ public class CompatContextImpl : CompatContext {
         /**
          * task-121: lazy MAP で id → factory を解決する。 task-088 の教訓
          * (静的初期化循環依存) を予防するため、 K2.3+ と同様に `by lazy` を採用。
+         *
+         * task-132: 戻り値型を [DiagnosticFactoryRef] に変更。 各 entry は
+         * `KtDiagnosticFactory0` か `KtDiagnosticFactory1<String>` の sum を sealed
+         * 経由で表現する。 新 entry 追加時は `Zero(...)` / `OneString(...)` のいずれかを
+         * 必ず選ぶ必要があり、 型ミスマッチが compile-time に弾かれる。
          */
-        internal val MAP: Map<String, Any> by lazy {
+        internal val MAP: Map<String, DiagnosticFactoryRef> by lazy {
             mapOf(
-                "CC_MARKER_PARAMETER_TYPE_INVALID" to CC_MARKER_PARAMETER_TYPE_INVALID,
-                "CC_MARKER_FILLER_REQUIRES_DEFAULT" to CC_MARKER_FILLER_REQUIRES_DEFAULT,
-                "CC_MARKER_IS_EXPECT" to CC_MARKER_IS_EXPECT,
-                "CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE" to CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
+                "CC_MARKER_PARAMETER_TYPE_INVALID" to DiagnosticFactoryRef.OneString(
+                    "CC_MARKER_PARAMETER_TYPE_INVALID",
+                    CC_MARKER_PARAMETER_TYPE_INVALID,
+                ),
+                "CC_MARKER_FILLER_REQUIRES_DEFAULT" to DiagnosticFactoryRef.OneString(
+                    "CC_MARKER_FILLER_REQUIRES_DEFAULT",
+                    CC_MARKER_FILLER_REQUIRES_DEFAULT,
+                ),
+                "CC_MARKER_IS_EXPECT" to DiagnosticFactoryRef.Zero(
+                    "CC_MARKER_IS_EXPECT",
+                    CC_MARKER_IS_EXPECT,
+                ),
+                "CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE" to DiagnosticFactoryRef.OneString(
+                    "CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE",
+                    CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE,
+                ),
                 // task-123: warning factories
-                "CC_CAPTUREDSOURCES_NO_MARKER_FOUND" to CC_CAPTUREDSOURCES_NO_MARKER_FOUND,
-                "CC_MARKER_OVERRIDE_NO_EFFECT" to CC_MARKER_OVERRIDE_NO_EFFECT,
-                "CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN" to CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN,
-                "CC_MARKER_PARAMETER_UNUSED" to CC_MARKER_PARAMETER_UNUSED,
+                "CC_CAPTUREDSOURCES_NO_MARKER_FOUND" to DiagnosticFactoryRef.OneString(
+                    "CC_CAPTUREDSOURCES_NO_MARKER_FOUND",
+                    CC_CAPTUREDSOURCES_NO_MARKER_FOUND,
+                ),
+                "CC_MARKER_OVERRIDE_NO_EFFECT" to DiagnosticFactoryRef.OneString(
+                    "CC_MARKER_OVERRIDE_NO_EFFECT",
+                    CC_MARKER_OVERRIDE_NO_EFFECT,
+                ),
+                "CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN" to DiagnosticFactoryRef.OneString(
+                    "CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN",
+                    CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN,
+                ),
+                "CC_MARKER_PARAMETER_UNUSED" to DiagnosticFactoryRef.OneString(
+                    "CC_MARKER_PARAMETER_UNUSED",
+                    CC_MARKER_PARAMETER_UNUSED,
+                ),
             )
         }
 

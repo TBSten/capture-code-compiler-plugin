@@ -352,16 +352,17 @@ public interface CompatContext {
     )
 
     /**
-     * Returns the `KtDiagnosticFactory0` / `KtDiagnosticFactory1<*>` instance
-     * registered for the given diagnostic [id], or `null` if this compat
-     * implementation does not have one.
+     * Returns the [DiagnosticFactoryRef] registered for the given diagnostic
+     * [id], or `null` if this compat implementation does not have one.
      *
-     * The returned value is intentionally typed as `Any?` because
-     * `KtDiagnosticFactory0` vs `KtDiagnosticFactory1<*>` cannot be expressed
-     * by a single covariant return type, and the main module's
-     * `error/ReportError.kt` / `warning/ReportWarning.kt` helpers already
-     * narrow the result via `as? KtDiagnosticFactory0` / `as? KtDiagnosticFactory1<...>`
-     * before calling `reporter.reportOn(...)`.
+     * The returned value is a sealed [DiagnosticFactoryRef] that distinguishes
+     * `KtDiagnosticFactory0` (wrapped as [DiagnosticFactoryRef.Zero]) from
+     * `KtDiagnosticFactory1<String>` (wrapped as [DiagnosticFactoryRef.OneString]),
+     * so main side callers (`error/ReportError.kt` / `warning/ReportWarning.kt`)
+     * can dispatch with an exhaustive `when` instead of unchecked `as?` casts.
+     * Factory-kind mismatches (e.g. a no-arg overload receiving an `OneString`
+     * factory) are reported by main side via `error(...)` for fail-fast
+     * surfacing of plugin internal bugs.
      *
      * Each `compat-kXXX/CompatContextImpl.kt` looks the id up in a
      * `private object K{XXX}Diagnostics` nested inside the impl, so the
@@ -369,9 +370,10 @@ public interface CompatContext {
      * convention is `CC_<feature>_<rule>` (see each feature's
      * `*Errors.kt` SSoT, e.g. `MarkerAnnotationErrors.kt`).
      *
-     * Added in task-121.
+     * Added in task-121. Sealed-class return type introduced in task-132 to
+     * replace the original `Any?` signature.
      */
-    public fun diagnosticFactory(id: String): Any?
+    public fun diagnosticFactory(id: String): DiagnosticFactoryRef?
 
     // -- task-120-B Phase 2: IR primitive method group --
     //
