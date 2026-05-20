@@ -331,23 +331,15 @@ public interface CompatContext {
      * resolves the call site against the correct signature for the current
      * Kotlin runtime.
      *
-     * The [extensionStorage] is passed as `Any` to avoid the main module
-     * needing a stable reference to its inner-class form across versions.
-     * Implementations cast it to
-     * `CompilerPluginRegistrar.ExtensionStorage` internally.
+     * The plugin-domain config (`CaptureCodePluginConfig`) is **not** threaded
+     * through this SPI: main side publishes it via
+     * `CaptureCodePluginConfigHolder.set(config)` before calling here, and the
+     * FIR / IR phases read it from that holder. This keeps the compat module
+     * free of plugin-domain types.
      *
-     * task-120-B Phase 1: the `config` parameter is **temporarily `Any`-erased**
-     * to keep the compat module free of plugin-domain types
-     * (`me.tbsten.capture.code.CaptureCodePluginConfig` was hoisted to the
-     * main module). Each compat-kXXX impl casts back to
-     * `CaptureCodePluginConfig` internally. Phase 4 narrows this surface again
-     * once the plugin-domain config is no longer threaded through the SPI.
-     *
-     * @param extensionStorage actually a
-     *   `CompilerPluginRegistrar.ExtensionStorage` instance (the receiver of
-     *   `registerExtensions`)
+     * @param extensionStorage the receiver of `registerExtensions` (a
+     *   `CompilerPluginRegistrar.ExtensionStorage` instance)
      * @param configuration the `CompilerConfiguration` of the current compile
-     * @param config the resolved plugin config (`CaptureCodePluginConfig` in main)
      * @param firRegistrar the plugin's [FirExtensionRegistrarAdapter] subclass
      *   instance to register
      * @param irExtension the plugin's [IrGenerationExtension] instance to register
@@ -355,7 +347,6 @@ public interface CompatContext {
     public fun registerExtensions(
         extensionStorage: CompilerPluginRegistrar.ExtensionStorage,
         configuration: CompilerConfiguration,
-        config: Any,
         firRegistrar: FirExtensionRegistrarAdapter,
         irExtension: IrGenerationExtension,
     )

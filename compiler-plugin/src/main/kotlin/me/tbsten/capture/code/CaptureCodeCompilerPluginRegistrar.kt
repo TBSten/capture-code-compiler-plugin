@@ -66,7 +66,6 @@ public class CaptureCodeCompilerPluginRegistrar : CompilerPluginRegistrar() {
         CaptureCodeCompatHolder.context.registerExtensions(
             extensionStorage = this,
             configuration = configuration,
-            config = config,
             firRegistrar = CaptureCodeFirExtensionRegistrar(),
             irExtension = CaptureCodeIrExtension(config),
         )

@@ -7,7 +7,6 @@
 package me.tbsten.capture.code.compat.k220
 
 import com.google.auto.service.AutoService
-import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.compat.CompatContext
 import me.tbsten.capture.code.compat.k220.checker.K220CapturedSourcesCallCheckersExtension
 import me.tbsten.capture.code.compat.k220.checker.K220DiagnosticFactoryShim
@@ -182,13 +181,9 @@ public class CompatContextImpl : CompatContext {
     override fun registerExtensions(
         extensionStorage: CompilerPluginRegistrar.ExtensionStorage,
         configuration: CompilerConfiguration,
-        config: Any,
         firRegistrar: FirExtensionRegistrarAdapter,
         irExtension: IrGenerationExtension,
     ) {
-        // task-120-B Phase 1: SPI Any-erased; the cast keeps the field typed.
-        @Suppress("UNUSED_VARIABLE")
-        val typedConfig = config as CaptureCodePluginConfig
         with(extensionStorage) {
             FirExtensionRegistrarAdapter.registerExtension(firRegistrar)
             IrGenerationExtension.registerExtension(irExtension)
