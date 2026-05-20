@@ -131,7 +131,16 @@ public class CollectDeclarationSite {
         effectiveConfigCache: MutableMap<String, CaptureCodePluginConfig>,
         sink: MutableList<CollectedSite>,
     ) {
-        val cachedFileText: String? by lazy { compat.loadFileText(file) }
+        // BOM-stripped 化。 source file 先頭に UTF-8 BOM (U+FEFF) が含まれている場合、
+        // PSI 経由 / filesystem 経由で取得した raw text には BOM が残るが、 IR の startOffset /
+        // endOffset は BOM を含まない座標系で計算されているため、 raw text のままだと 1 char ずれて
+        // 全ての declaration 起源 source 抽出が off-by-one になる (= marker line 漏れ + 末尾 char
+        // 欠落)。 ここで先頭 BOM を一律 strip することで IR offset と整合する text を提供する。
+        val cachedFileText: String? by lazy {
+            compat.loadFileText(file)?.let { text ->
+                if (text.isNotEmpty() && text[0] == '﻿') text.substring(1) else text
+            }
+        }
         val packageFqn = file.packageFqName.asString()
         val filePath = file.fileEntry.name
         val context = CollectFileContext(
