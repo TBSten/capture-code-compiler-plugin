@@ -211,9 +211,13 @@ public interface CompatContext {
      * checker is not currently positioned inside a file with a known path.
      *
      * Absorbs drift D12 (`CheckerContext.containingFile` removal):
-     * - 2.0.x .. 2.2.x: `context.containingFile?.sourceFile?.path`
-     * - 2.3.x+: the `containingFile: FirFile?` accessor was removed and
-     *   replaced with a flat `containingFilePath: String?` property.
+     * - 2.0.x .. 2.2.10: `context.containingFile?.sourceFile?.path` (FirFile?)
+     * - 2.2.20+: `containingFile: FirFile?` was **renamed** to
+     *   `containingFileSymbol: FirFileSymbol?` (rename, not removal).
+     *   `containingFilePath: String?` remains available as an indirect accessor.
+     * - 2.3.0+: `containingFilePath: String?` is the recommended flat accessor.
+     * - 2.4.0-RC: a new `containingFile: KtSourceFile?` (different type) is
+     *   added alongside `containingFileSymbol` and `containingFilePath`.
      *
      * Each compat module dispatches to the accessor that exists on its own
      * baseline. Main-module logic (compiled against the 2.0.0 baseline)
@@ -622,14 +626,19 @@ public interface CompatContext {
      * Absorbs drift D-IR-19: the same `IrConstImpl` 5-arg ctor / top-level
      * builder relocation drift as [newIrConstString], compounded by the
      * `IrConstKind<T>` -> `IrConstKind` generic-removal that landed in
-     * **Kotlin 2.2** (not 2.4-RC as initially suspected). On K2.0 / K2.0.21 /
-     * K2.1 the `IrConstKind` class is generic (`IrConstKind<T>`); on K2.2+
-     * it is non-generic — so the SPI surface cannot mention `IrConstKind` in
-     * its signature without breaking at least one baseline.
+     * **Kotlin 2.1** (verified via sources jar inspection — earlier than
+     * task-0.2.0-cifix-ir guessed). On K2.0 / K2.0.21 the `IrConstKind` class
+     * is generic (`IrConstKind<T>`); on K2.1+ it is non-generic — so the SPI
+     * surface cannot mention `IrConstKind` in its signature without breaking
+     * at least one baseline.
+     *
+     * Also absorbs drift D-IR-13: the parameterised `IrConst<T>` class
+     * itself was **removed in Kotlin 2.1.0** (not 2.4-RC as previously
+     * suspected); on K2.1+ only `IrConst` (non-generic) remains.
      *
      * To keep the SPI compilable on every `compat-kXXX` baseline, [kind] is
      * **type-erased to `Any`**. Each compat-kXXX casts it back to the shape
-     * it expects (`IrConstKind<T>` on K2.0-K2.1; `IrConstKind` on K2.2+).
+     * it expects (`IrConstKind<T>` on K2.0; `IrConstKind` on K2.1+).
      * The main module passes `IrConstKind.Int` / `IrConstKind.String` etc.
      * which is upcast to `Any` at the bytecode level.
      *
