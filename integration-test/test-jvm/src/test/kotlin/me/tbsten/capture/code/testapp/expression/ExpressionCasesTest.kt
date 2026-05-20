@@ -289,6 +289,37 @@ fun nestedLambdaSquareList(): List<Int> = listOf(1, 2, 3).map { x ->
     @NestedLambdaExpressionMarker() (x * x)
 }
 
+// ============================================================================
+// expression-origin marker × numeric user-arg (BUG-1 regression)
+// ----------------------------------------------------------------------------
+// 2026-05-21 探索的デバッグ Charter 5 で発見: K2 FIR の integer literal `42` は
+// `FirLiteralExpression<Long>` (= 内部 Long 表現) として持たれるため、 marker parameter
+// 型 `Int` 等でも raw 値だけで wrap すると LongValue が構築され、 IR 再構築段階で
+// `VerifyError: Bad type on operand stack` を起こしていた。 修正で `wrapLiteralValue` に
+// expected type FqN を渡して Byte / Short / Int / Float に narrow する。
+// ============================================================================
+@CaptureCode
+@Target(AnnotationTarget.EXPRESSION)
+@Retention(AnnotationRetention.SOURCE)
+internal annotation class NumericUserArgExprMarker(
+    val byteVal: Byte = 0,
+    val shortVal: Short = 0,
+    val intVal: Int = 0,
+    val longVal: Long = 0L,
+    val floatVal: Float = 0.0f,
+    val doubleVal: Double = 0.0,
+    val source: Source = Source(),
+)
+
+val numericUserArgExprResult = @NumericUserArgExprMarker(
+    byteVal = 42,
+    shortVal = 1000,
+    intVal = 123456,
+    longVal = 9876543210L,
+    floatVal = 3.14f,
+    doubleVal = 2.71828,
+) (1 + 2)
+
 class ExpressionCasesTest : StringSpec({
 
     "式のキャプチャ (基本)" {
@@ -463,5 +494,20 @@ class ExpressionCasesTest : StringSpec({
         capturedSources<NestedLambdaExpressionMarker>() shouldBe listOf(
             NestedLambdaExpressionMarker(source = Source(value = "x * x")),
         )
+    }
+
+    // 2026-05-21 探索的デバッグ Charter 5 BUG-1 regression: expression-origin marker に
+    // numeric user-arg (Byte/Short/Int/Long/Float/Double) を渡しても VerifyError にならず、
+    // 値が正しく保持されること。
+    "expression-origin marker × numeric user-arg は正しく保持される (Charter 5 BUG-1 regression)" {
+        val captured = capturedSources<NumericUserArgExprMarker>()
+        captured.size shouldBe 1
+        val marker = captured[0]
+        marker.byteVal shouldBe 42.toByte()
+        marker.shortVal shouldBe 1000.toShort()
+        marker.intVal shouldBe 123456
+        marker.longVal shouldBe 9876543210L
+        marker.floatVal shouldBe 3.14f
+        marker.doubleVal shouldBe 2.71828
     }
 })

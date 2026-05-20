@@ -62,18 +62,51 @@ public sealed class UserArgValue {
          * task-133: sealed 化に伴い導入。 旧 `Any?` 経路から sealed 経路への単一 conversion
          * point として、 各 compat-kXXX が `when (raw) { is Int -> IntValue(raw); ... }` を
          * 再実装しなくて済むようにする。
+         *
+         * task-charter-5-userarg-numeric-coerce (2026-05-21): [expectedTypeFqn] が
+         * `kotlin.Byte` / `kotlin.Short` / `kotlin.Int` / `kotlin.Float` のいずれかで、 raw が
+         * Long / Double (= K2 FIR の integer/float literal の internal representation で起こりやすい
+         * widening) の場合は、 expected type に合わせて narrow する。 この coercion を入れないと
+         * IR 再構築段階で wrong-typed `IrConst` が emit され、 JVM backend が integer slot に
+         * long を積んだ bytecode を生成して `VerifyError: Bad type on operand stack` を起こす。
          */
-        public fun wrapLiteralValue(raw: Any): UserArgValue? = when (raw) {
-            is Boolean -> BoolValue(raw)
-            is Char -> CharValue(raw)
-            is Byte -> ByteValue(raw)
-            is Short -> ShortValue(raw)
-            is Int -> IntValue(raw)
-            is Long -> LongValue(raw)
-            is Float -> FloatValue(raw)
-            is Double -> DoubleValue(raw)
-            is String -> StringValue(raw)
-            else -> null
+        public fun wrapLiteralValue(raw: Any, expectedTypeFqn: String? = null): UserArgValue? {
+            // K2 FIR integer literal narrowing (Long -> Byte/Short/Int) と
+            // float literal narrowing (Double -> Float) を expected type で揃える。
+            val coerced: Any = when (expectedTypeFqn) {
+                "kotlin.Byte" -> when (raw) {
+                    is Long -> raw.toByte()
+                    is Int -> raw.toByte()
+                    is Short -> raw.toByte()
+                    else -> raw
+                }
+                "kotlin.Short" -> when (raw) {
+                    is Long -> raw.toShort()
+                    is Int -> raw.toShort()
+                    else -> raw
+                }
+                "kotlin.Int" -> when (raw) {
+                    is Long -> raw.toInt()
+                    else -> raw
+                }
+                "kotlin.Float" -> when (raw) {
+                    is Double -> raw.toFloat()
+                    else -> raw
+                }
+                else -> raw
+            }
+            return when (coerced) {
+                is Boolean -> BoolValue(coerced)
+                is Char -> CharValue(coerced)
+                is Byte -> ByteValue(coerced)
+                is Short -> ShortValue(coerced)
+                is Int -> IntValue(coerced)
+                is Long -> LongValue(coerced)
+                is Float -> FloatValue(coerced)
+                is Double -> DoubleValue(coerced)
+                is String -> StringValue(coerced)
+                else -> null
+            }
         }
     }
 }

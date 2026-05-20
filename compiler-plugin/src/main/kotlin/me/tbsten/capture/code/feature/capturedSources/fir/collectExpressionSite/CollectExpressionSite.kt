@@ -167,9 +167,18 @@ public class CollectExpressionSite {
                 compat.isLiteralExpression(expr) -> {
                     // SPI は Any? を返す (circular dep 回避のため。 CompatContext.kt の
                     // literalValueOrNull KDoc 参照)。 main 側で sealed UserArgValue に wrap。
+                    //
+                    // task-charter-5-userarg-numeric-coerce (2026-05-21): K2 FIR は integer
+                    // literal (e.g. `42`) を `FirLiteralExpression<Long>` (= IntegerLiteralType
+                    // が Long で represent) として持つことがあるため、 raw value だけで
+                    // wrapLiteralValue すると Int / Byte / Short の expected 型でも LongValue が
+                    // 構築され、 IR 再構築段階で integer slot に long を積む VerifyError を起こす。
+                    // expression の resolved type (= [typeFqn]) を hint として渡し、 Byte / Short /
+                    // Int の expected 型では Long raw を対応する numeric type に narrow する。
                     val raw = compat.literalValueOrNull(expr)
                     if (raw == null) UserArgValue.NullValue
-                    else UserArgValue.wrapLiteralValue(raw) ?: UserArgValue.NullValue
+                    else UserArgValue.wrapLiteralValue(raw, expectedTypeFqn = typeFqn)
+                        ?: UserArgValue.NullValue
                 }
                 expr is FirGetClassCall -> {
                     val firstArg = expr.arguments.firstOrNull()
