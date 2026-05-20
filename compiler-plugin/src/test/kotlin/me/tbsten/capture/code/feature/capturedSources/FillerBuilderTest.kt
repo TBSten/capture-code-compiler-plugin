@@ -144,6 +144,12 @@ class FillerBuilderTest : FunSpec({
         val endLine = annotationProperty(locationFiller, "endLine") as Int
         (startLine > 0) shouldBe true
         (endLine > 0) shouldBe true
+        // Charter 2 drift regression (= Kotlin 2.2.20+ で declaration.startOffset が annotation 行を
+        // skip するように変わったため、 `SourceLocation.startLine` が cell 間で 1 行ずれる drift)。
+        // 設計意図 (= "@LocOnly 行を含む") を守るには startLine == endLine - 1 (= 上記 source で
+        // `@LocOnly` が L12、 `val flag = true` が L13) でなければならない。 Kotlin 2.0/2.1 baseline
+        // も 2.2.20+ も同じ値を返すことを担保する unit-level regression。
+        (endLine - startLine) shouldBe 1
     }
 
     // ----------------------------------------------------------------

@@ -16,6 +16,14 @@ import org.jetbrains.kotlin.ir.declarations.IrDeclarationBase
  * `startLine` / `endLine` は `IrFileEntry.getLineNumber()` 由来 (0-based) なので **+1** で
  * 1-based に揃える (filler の design 値域に合わせる)。
  *
+ * Kotlin 2.2.20+ では `IrDeclaration.startOffset` が宣言キーワード (`val` / `fun` …) を指し、
+ * `@Marker` 行や `internal` modifier 行を含まないように変わった (drift D-IR-34)。 K200/K210
+ * baseline では annotation / modifier 行を含む位置を指していたため、 そのまま `getLineNumber`
+ * すると `SourceLocation.startLine` が cell 間で 1 行ずれて返る (Charter 2 detection)。
+ * [CollectDeclarationSite.expandStartToCoverModifierAndAnnotationLines] で baseline 同等まで
+ * 戻してから line 計算する。 fullText 取得失敗時は補正なし fallback (= 旧 drift を残すが
+ * crash しない)。
+ *
  * ## Preconditions
  *
  * Caller (= [CollectDeclarationSite.collectInFile] 内 declaration walk callback) は以下を保証
@@ -43,7 +51,14 @@ internal fun collectIfMarked(
 ) {
     val markerAnnotations = declaration.annotations.markerAnnotations()
     if (markerAnnotations.isEmpty()) return
-    val startLine = context.file.fileEntry.getLineNumber(declaration.startOffset) + 1
+    val rawStartOffset = declaration.startOffset
+    val cachedFullText = context.cachedFileText()
+    val effectiveStartOffset = if (cachedFullText != null && rawStartOffset >= 0) {
+        context.site.expandStartToCoverModifierAndAnnotationLines(cachedFullText, rawStartOffset)
+    } else {
+        rawStartOffset
+    }
+    val startLine = context.file.fileEntry.getLineNumber(effectiveStartOffset) + 1
     val endLine = context.file.fileEntry.getLineNumber(declaration.endOffset) + 1
     for ((markerFqn, markerCall) in markerAnnotations) {
         val effective = context.effectiveConfigFor(markerFqn)
