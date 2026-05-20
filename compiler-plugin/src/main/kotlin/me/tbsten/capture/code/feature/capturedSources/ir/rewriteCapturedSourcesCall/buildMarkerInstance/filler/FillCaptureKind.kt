@@ -49,9 +49,16 @@ internal class FillCaptureKind private constructor(
 
     override fun invoke(site: CapturedSite, config: CaptureCodePluginConfig): IrExpression {
         val entrySymbol = kindEnumEntries[site.kind]
-            // 未マッピングの kind (将来 enum 拡張があった場合のフォールバック)。 現状は site.kind
-            // がすべて [resolveOrNull] で集めた entries に含まれているので実質到達しない。
-            ?: kindEnumEntries.values.first()
+            // task-137: 未マッピングの kind は到達不能。 [resolveOrNull] は
+            // `CapturedSite.CaptureKind.values()` 全件を `byName` で必ずマッピングしており、
+            // どれか欠ければ resolve 自体が `null` を返して FillCaptureKind は生成されない。
+            // したがってここに来る場合は plugin 内部の不変条件破り (= bug) であり、
+            // silent fallback ではなく fail-fast で plugin 開発者に通知する。
+            ?: error(
+                "Internal: CapturedSite.CaptureKind.${site.kind.name} is not registered " +
+                    "in kindEnumEntries; resolveOrNull invariant is violated. " +
+                    "This is a compiler-plugin bug.",
+            )
 
         val kindValue = compat.newIrGetEnumValue(
             startOffset = UNDEFINED_OFFSET,

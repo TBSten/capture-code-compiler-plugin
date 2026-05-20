@@ -1,6 +1,7 @@
 package me.tbsten.capture.code.compat
 
 import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.config.CompilerConfiguration
 
@@ -65,5 +66,19 @@ public object CaptureCodeMessageCollectorHolder {
         val collector = configuration.get(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY)
             ?: MessageCollector.NONE
         set(collector)
+    }
+
+    /**
+     * Emits a [CompilerMessageSeverity.LOGGING]-level diagnostic via the currently
+     * registered collector. Intended for plugin-internal debug breadcrumbs (e.g.
+     * source-extraction skip notes) that should remain invisible during normal
+     * builds but surface under `--info` / verbose Gradle logging.
+     *
+     * task-137: introduced to debug-log silent source-extraction `return null` /
+     * `continue` paths without bothering users.
+     */
+    public fun reportLogging(message: String) {
+        if (current === MessageCollector.NONE) return
+        current.report(CompilerMessageSeverity.LOGGING, message, null)
     }
 }

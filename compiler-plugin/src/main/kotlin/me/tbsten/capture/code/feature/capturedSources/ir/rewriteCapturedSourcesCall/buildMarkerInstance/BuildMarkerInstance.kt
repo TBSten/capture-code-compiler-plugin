@@ -101,9 +101,26 @@ internal class BuildMarkerInstance {
                 reportWarning(messageCollector, RewriteFailureWarnings.REWRITE_FAILED, markerFqn)
                 return null
             }
-        val markerConstructor = markerSymbol.primaryConstructorOrNull() ?: return null
+        // task-137: marker は事前に FIR phase で `@CaptureCode` メタ annotation 付きの
+        // annotation class として validate 済 (Kotlin spec 上、 annotation class は primary
+        // constructor を必ず持つ)。 そのため primary constructor の欠落は plugin 内部の
+        // 不変条件破り (= bug) であり、 silent fallback ではなく fail-fast する。
+        val markerConstructor = markerSymbol.primaryConstructorOrNull()
+            ?: error(
+                "Internal: marker class '$markerFqn' has no primary constructor; " +
+                    "ANNOTATION_CLASS should always have a primary constructor (Kotlin spec). " +
+                    "This is a compiler-plugin bug.",
+            )
         val markerType = markerSymbol.typeWith()
-        val listOfSymbol = pluginContext.findListOfVararg(compat) ?: return null
+        // task-137: `kotlin.collections.listOf(vararg)` は stdlib に必ず存在する SAM-less
+        // top-level function であり、 plugin の動作対象環境 (= Kotlin compile path) に
+        // stdlib が無い状況は想定外 (= 環境破損)。 silent fallback すると後段の IR 構築
+        // で意味不明な NPE 等になりがちなので、 明示的に internal error として fail-fast。
+        val listOfSymbol = pluginContext.findListOfVararg(compat)
+            ?: error(
+                "Internal: kotlin.collections.listOf(vararg) is not resolvable; " +
+                    "ensure kotlin-stdlib is on the runtime classpath.",
+            )
 
         val parameters = compat.valueParametersOf(markerConstructor.owner)
         // filler 型 dispatch table を 1 回だけ計算する (per-marker plan)。

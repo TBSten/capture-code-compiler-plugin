@@ -1,5 +1,6 @@
 package me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite
 
+import me.tbsten.capture.code.compat.CaptureCodeMessageCollectorHolder
 import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.feature.capturedSources.CapturedSite
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
@@ -31,7 +32,16 @@ internal fun collectExpressionSites(
     sink: MutableList<CollectedSite>,
 ) {
     if (CaptureCodeExpressionSiteRegistry.allSites.isEmpty()) return
-    val fileText = context.cachedFileText() ?: return
+    val fileText = context.cachedFileText() ?: run {
+        // task-137: file text が読めない場合は expression site の収集を file 単位で skip する。
+        // 通常 build には影響しないが、 verbose build (`--info` 等) で plugin 開発者が
+        // skip の発生を観測できるよう LOGGING level で breadcrumb を残す。
+        CaptureCodeMessageCollectorHolder.reportLogging(
+            "[CaptureCode] Failed to load file text for '${context.filePath}'; " +
+                "skipping all expression sites in this file.",
+        )
+        return
+    }
     val matchingSites = CaptureCodeExpressionSiteRegistry.allSites
         .asSequence()
         .filter { CaptureCodeMarkerRegistry.isMarker(it.markerFqn) }

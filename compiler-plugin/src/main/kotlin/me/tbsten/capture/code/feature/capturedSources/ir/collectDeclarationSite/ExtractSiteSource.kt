@@ -1,6 +1,7 @@
 package me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite
 
 import me.tbsten.capture.code.CaptureCodePluginConfig
+import me.tbsten.capture.code.compat.CaptureCodeMessageCollectorHolder
 import me.tbsten.capture.code.feature.capturedSources.ir.extractSourceText.ExtractSourceText
 import me.tbsten.capture.code.feature.capturedSources.ir.normalize.NormalizeSource
 import me.tbsten.capture.code.feature.capturedSources.ir.normalize.toDeclarationNormalizeOptions
@@ -41,7 +42,17 @@ internal fun extractDeclarationSource(
     cachedFileText: String?,
     site: CollectDeclarationSite,
 ): String? {
-    val fullText = cachedFileText ?: return null
+    val fullText = cachedFileText ?: run {
+        // task-137: file text が読めない場合は declaration 起源 site を skip するだけで
+        // user 通常 build には影響しないが、 plugin 開発者の debug 用に LOGGING level で
+        // breadcrumb を残す (= `--info` 等の verbose build でのみ表示)。
+        CaptureCodeMessageCollectorHolder.reportLogging(
+            "[CaptureCode] Failed to load file text for declaration " +
+                "(offset ${declaration.startOffset}..${declaration.endOffset}); " +
+                "skipping declaration site.",
+        )
+        return null
+    }
     val rawStartOffset = declaration.startOffset
     val endOffset = declaration.endOffset
     if (rawStartOffset < 0 || endOffset < 0 || rawStartOffset >= endOffset) return null
@@ -108,7 +119,16 @@ internal fun extractFileSource(
     effective: CaptureCodePluginConfig,
     cachedFileText: String?,
 ): String? {
-    val fullText = cachedFileText ?: return null
+    val fullText = cachedFileText ?: run {
+        // task-137: 通常は file 単位の `cachedFileText()` が一度成功してから本関数が呼ばれる
+        // ため null になる経路は限定的だが、 IR file 経路 (= file-level marker) の skip を
+        // plugin 開発者向けに LOGGING で可視化する。
+        CaptureCodeMessageCollectorHolder.reportLogging(
+            "[CaptureCode] Failed to load file text for file '${file.fileEntry.name}'; " +
+                "skipping file-level capture site.",
+        )
+        return null
+    }
     val withoutMarkers = stripMarkerClassDeclarations(file, fullText)
     return NormalizeSource()(withoutMarkers, effective.toFileNormalizeOptions())
 }

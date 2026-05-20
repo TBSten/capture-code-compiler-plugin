@@ -1,5 +1,6 @@
 package me.tbsten.capture.code.feature.capturedSources.fir.collectExpressionSite
 
+import me.tbsten.capture.code.compat.CaptureCodeMessageCollectorHolder
 import me.tbsten.capture.code.compat.CompatContext
 import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.feature.capturedSources.UserArgValue
@@ -50,11 +51,32 @@ public class CollectExpressionSite {
         for (annotation in annotations) {
             val markerFqn = annotation.markerFqnOrNull(compat) ?: continue
 
-            val source = expression.source ?: continue
+            val source = expression.source
+            if (source == null) {
+                // task-137: synthetic expression は IR/FIR が暗黙生成した非ソース由来の
+                // node であり、 そもそも capture 対象になるべきソース範囲を持たない。
+                // user 通常 build には影響しないが、 plugin 開発者が「該当 marker が
+                // 期待した位置を採用していない」 原因を debug する手掛かりとして LOGGING
+                // で skip を可視化する。
+                CaptureCodeMessageCollectorHolder.reportLogging(
+                    "[CaptureCode] Expression annotated with marker '$markerFqn' has no " +
+                        "source element (synthetic expression); skipping expression site.",
+                )
+                continue
+            }
             val filePath = source.containingFilePath() ?: contextFilePath ?: continue
             val startOffset = source.startOffset
             val endOffset = source.endOffset
-            if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) continue
+            if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) {
+                // task-137: UNDEFINED_OFFSET (-1) や逆転 offset を持つ source は通常
+                // generated code / 解析失敗箇所 で、 ソース文字列を抽出できないため skip。
+                // verbose build で観測できるよう LOGGING で記録する。
+                CaptureCodeMessageCollectorHolder.reportLogging(
+                    "[CaptureCode] Expression annotated with marker '$markerFqn' has " +
+                        "invalid source offsets ($startOffset..$endOffset); skipping expression site.",
+                )
+                continue
+            }
 
             val userArgs = annotation.collectUserArgs(compat)
             val site = CaptureCodeExpressionSiteRegistry.Site(
