@@ -56,6 +56,37 @@ import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
  * task-120 で main 側 logic を `public class XxxLogic { public operator fun invoke(...) }`
  * パターンに統一するため。 [BuildMarkerInstance] と組み合わせて使うため、 invoke は state を
  * 持たない pure method として呼べる (`RewriteCapturedSourcesCall()(...)`)。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [me.tbsten.capture.code.CaptureCodeIrExtension.generate]) は以下を保証する責務がある。
+ *
+ * - `moduleFragment: IrModuleFragment` は IR phase で plugin context に渡される引数 (signature 上保証)。
+ * - `pluginContext: IrPluginContext` は IR phase で resolve 済。 [BuildMarkerInstance] が
+ *   marker class / constructor / `listOf(vararg)` symbol を解決する経路で必要。 stdlib /
+ *   `:annotation` runtime dependency が missing なら fail-fast (task-137 で internal error 化済)
+ *   もしくは warning + silent skip (task-135 で `CC_CAPTUREDSOURCES_REWRITE_FAILED` /
+ *   `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND` 化済)。
+ * - `compat: CompatContext` は同 module の `CompatContextImpl` actual 実装で、
+ *   `transformCallsInModule` (IR transformer base class drift)、 `getCallTypeArgument` (K2.4-RC
+ *   削除 API drift)、 `newIrCall` / `setCallTypeArgument` / `putCallValueArgument` /
+ *   `newIrVararg` 等の SPI が正しく dispatch される。
+ * - `config: CaptureCodePluginConfig` は `CaptureCodePluginConfigHolder` 経由で publish された
+ *   global config。 `warnOnEmptyCapture` 等の DSL option を保持。
+ * - `collectedSites: List<CollectedSite>` は [me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.CollectDeclarationSite]
+ *   の戻り値である必要がある (= 各 site が `markerFqn != ""` の不変条件を満たす)。 違反時は invoke
+ *   冒頭の `require(...)` で fail-fast (= typical root cause: caller が手動構築した invalid
+ *   `CollectedSite` を渡している、 もしくは [CollectDeclarationSite] の戻り値が後段で mutate
+ *   されている)。
+ * - `messageCollector: MessageCollector` は IR phase の collector。 default [MessageCollector.NONE]
+ *   は silent (既存 unit test 互換) で safe。 typical root cause: holder の `compute()` が呼ばれる
+ *   前に invoke された (= phase 順序 bug) — silent fallback は `MessageCollector.NONE` と同等動作。
+ * - call が `capturedSources<T>()` でない場合 (= [isCapturedSourcesCall] false)、 transformer
+ *   は `null` を返して call を変更しない (= silent skip)。
+ * - `compat.getCallTypeArgument(call, 0)` が `null` を返すケース (= type argument 0 件) は
+ *   silent skip。 task-139 で FIR phase の `ValidateCapturedSourcesCall` が `typeArguments.isNotEmpty()`
+ *   を `require(...)` で保証済なので、 IR phase でここに到達するのは silent compile error path
+ *   (= 既に別 error が user に出ている状況) に限られる。
  */
 public class RewriteCapturedSourcesCall {
 
@@ -86,6 +117,17 @@ public class RewriteCapturedSourcesCall {
         collectedSites: List<CollectedSite>,
         messageCollector: MessageCollector = MessageCollector.NONE,
     ) {
+        // task-140: caller (= [CaptureCodeIrExtension.generate]) は `collectedSites` を
+        // [CollectDeclarationSite] の戻り値として渡す必要がある。 そこで生成される [CollectedSite]
+        // は markerFqn を必ず non-blank で詰める (= `markerAnnotations()` filter が
+        // `CaptureCodeMarkerRegistry.isMarker(fqn)` を pass した fqn のみ採用する) ため、
+        // ここに blank markerFqn の site が混ざるのは caller 側の不変条件破り (= bug)。
+        require(collectedSites.all { it.site.markerFqn.isNotBlank() }) {
+            "RewriteCapturedSourcesCall: every CollectedSite must carry a non-blank markerFqn. " +
+                "Typical root cause: caller passed hand-built CollectedSite instances or mutated " +
+                "the CollectDeclarationSite output to drop the marker FqN."
+        }
+
         val buildMarker = BuildMarkerInstance()
         val warnIfNoMarkerFound = WarnIfNoMarkerFound()
         // Tracks marker FQNs we already warned about so the same empty-marker

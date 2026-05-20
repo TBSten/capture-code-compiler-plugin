@@ -35,6 +35,22 @@ import org.jetbrains.kotlin.ir.util.constructors
  * [resolveOrNull] が `null` を返す。 これは
  * [me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.BuildMarkerInstance]
  * 側で当該 marker 全体を書き換え不能として skip する trigger になる。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [BuildMarkerInstance]) は以下を保証する責務がある。 [resolveOrNull] を pass した
+ * instance のみが invoke を呼ばれるため、 instance state の不変条件は constructor 段で保証
+ * 済 (= `require(...)` を invoke 入口に重ねて配置する必要はない)。
+ *
+ * - [resolveOrNull] で symbol resolve に成功している (= `Source` class / primary constructor /
+ *   `value` parameter index がすべて非 null)。 失敗時は instance が生成されず、 caller が
+ *   `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND` warning + 当該 marker 全体 skip (task-135)。
+ * - `site: CapturedSite` は [CollectedSite.site] 由来で、 `site.source` は normalize 済の
+ *   non-null `String` (= [CollectDeclarationSite] の不変条件)。
+ * - `config: CaptureCodePluginConfig` は当該 marker の effective config。 FillSource では config
+ *   を参照しない (= source は常に normalize 済 string をそのまま埋める) ため、 違反による影響なし。
+ * - `compat: CompatContext` は `newIrConstString` / `newIrConstructorCall` / `putCallValueArgument`
+ *   の SPI が正しく dispatch される。
  */
 internal class FillSource private constructor(
     private val sourceType: IrType,

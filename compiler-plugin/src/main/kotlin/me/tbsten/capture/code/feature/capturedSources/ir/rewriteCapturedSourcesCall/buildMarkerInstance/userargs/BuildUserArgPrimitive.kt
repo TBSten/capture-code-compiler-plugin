@@ -42,6 +42,31 @@ import java.text.MessageFormat
  * 既存 `K{XXX}/userargs/UserArgPrimitiveIrBuilder.kt` は runtime path として並行存続する。
  * Phase 5 で `transformIr` を main 経由に切り替えた時点で本 class が runtime path になり、
  * Phase 6 で旧 builder 削除予定。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.BuildMarkerInstance.buildSingle])
+ * は以下を保証する責務がある。 違反時は `null` 返却 + caller の default fallback に倒れる設計の
+ * ため、 `require(...)` での fail-fast は導入していない。
+ *
+ * - `value: UserArgValue?` は FIR phase の `CollectExpressionSite.collectUserArgs` が
+ *   `linkedMapOf` に詰めた sealed 値 (task-133 で `Any?` から sealed 化済)。 `null` は
+ *   「parameter override 無し」 を表し、 caller の default fallback 経路に倒れる。
+ * - `parameter: IrValueParameter` は marker primary constructor の対応する parameter (IR
+ *   resolution 完了済)。 `parameter.type` は IR resolved。 enum/class ref 経路では
+ *   `IrSimpleType` であることが期待される (= classifier 解決可能)。 違反 (IrErrorType /
+ *   IrDynamicType) は silent null fallback。
+ * - `pluginContext: IrPluginContext` は IR phase で resolved。 (現在は使用してない signature
+ *   保持のみ、 task-134 以降の class ref IR 化で利用予定)。
+ * - `compat: CompatContext` は `newIrConstPrimitive` / `newIrConstString` / `newIrGetEnumValue`
+ *   の SPI が正しく dispatch される (= IR const builder の K2.0+ host class drift を吸収)。
+ * - `messageCollector: MessageCollector` は IR phase collector。 default [MessageCollector.NONE]
+ *   は silent (既存 unit test 互換)。 task-134 で warning 経路を notify するために forward する。
+ * - `UserArgValue.EnumRef.entryFqn` は `com.example.Verb.GET` のような FqN (末尾セグメントが
+ *   entry 名)。 entry 解決 fail (= byName で見つからない) は `CC_USERARG_ENUM_NOT_FOUND` warning
+ *   + null fallback (task-134)。
+ * - `UserArgValue.ClassRef` は IR 再構築未対応 (= 0.4.0+ scope)。 受信時点で
+ *   `CC_USERARG_CLASS_REF_UNSUPPORTED` warning + null fallback (task-134)。
  */
 internal class BuildUserArgPrimitive {
 

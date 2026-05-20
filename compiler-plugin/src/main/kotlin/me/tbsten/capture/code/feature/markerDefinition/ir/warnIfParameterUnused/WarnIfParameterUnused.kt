@@ -62,6 +62,27 @@ import java.text.MessageFormat
  * - スコープ外: marker class が IR phase で resolve 不能 (= runtime 依存不足) の場合は silent skip
  *   (= 既存 `BuildMarkerInstance` が `CC_CAPTUREDSOURCES_REWRITE_FAILED` で別途警告するため
  *   ここで重ねて出さない)
+ *
+ * ## Preconditions
+ *
+ * Caller (= [me.tbsten.capture.code.CaptureCodeIrExtension.generate] の末尾、
+ * `RewriteCapturedSourcesCall` 起動後) は以下を保証する責務がある。 違反時は warning が発火し
+ * ないだけで compile flow に影響を与えない設計のため、 `require(...)` での fail-fast は導入して
+ * いない。
+ *
+ * - `allCollectedSites: List<CollectedSite>` は [me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.CollectDeclarationSite]
+ *   の戻り値 (= 各 site が `CollectedSite` の不変条件を満たす)。 typical root cause: caller が
+ *   hand-built site を渡している (= unit test 引数 typo)。
+ * - `pluginContext: IrPluginContext` は IR phase で resolved。 marker class symbol が
+ *   `referenceClass` で取得可能。 取得不能の場合は silent skip (= 既存 BuildMarkerInstance で
+ *   `CC_CAPTUREDSOURCES_REWRITE_FAILED` 別途警告するため重ね報告しない)。
+ * - `compat: CompatContext` は `valueParametersOf` / `getCallValueArgument` の SPI が正しく
+ *   dispatch される (= K2.4-RC drift を吸収)。
+ * - `messageCollector: MessageCollector` は IR phase collector。 [MessageCollector.NONE] を
+ *   渡せば silent (= 既存 unit test 互換)。
+ * - [CaptureCodeMarkerRegistry][me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry]
+ *   は FIR phase 完了後の状態 (= 当該 compilation 由来の全 marker fqn が登録済)。 空 registry
+ *   の場合は早期 return で no-op。
  */
 public class WarnIfParameterUnused {
 

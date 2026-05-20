@@ -37,6 +37,25 @@ import org.jetbrains.kotlin.ir.util.constructors
  * [resolveOrNull] が `null` を返す。 これは
  * [me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.BuildMarkerInstance]
  * 側で当該 marker 全体を書き換え不能として skip する trigger になる。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [BuildMarkerInstance]) は以下を保証する責務がある。 [resolveOrNull] を pass した
+ * instance のみが invoke を呼ばれるため、 instance state の不変条件は constructor 段で保証
+ * 済 (= `require(...)` を invoke 入口に重ねて配置する必要はない)。
+ *
+ * - [resolveOrNull] で symbol resolve に成功している (= `CaptureKind` class / primary constructor /
+ *   `value` parameter index / nested `Kind` enum / 全 [CapturedSite.CaptureKind] entry が
+ *   `byName` で resolved)。 失敗時は instance が生成されず、 caller が
+ *   `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND` warning + 当該 marker 全体 skip (task-135)。
+ * - `site.kind: CapturedSite.CaptureKind` は `kindEnumEntries` に登録済 (= [resolveOrNull] の
+ *   不変条件)。 違反は task-137 で internal `error()` で fail-fast (= `CapturedSite.CaptureKind`
+ *   enum を拡張したが filler runtime `Kind` enum に追加し忘れたケースは [resolveOrNull] 段で
+ *   `byName[siteKind.name] ?: return null` で弾かれるため、 ここに到達するのは plugin bug)。
+ * - `config: CaptureCodePluginConfig` は当該 marker の effective config。 FillCaptureKind では
+ *   config を参照しないため、 違反による影響なし。
+ * - `compat: CompatContext` は `newIrGetEnumValue` / `newIrConstructorCall` /
+ *   `putCallValueArgument` の SPI が正しく dispatch される。
  */
 internal class FillCaptureKind private constructor(
     private val captureKindType: IrType,

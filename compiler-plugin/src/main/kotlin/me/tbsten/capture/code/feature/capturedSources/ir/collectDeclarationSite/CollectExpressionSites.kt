@@ -26,6 +26,25 @@ import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
  *
  * FIR checker は **すべての expression annotation** を push してくるため、 IR phase 側で
  * [CaptureCodeMarkerRegistry.isMarker] による filter を行う。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [CollectDeclarationSite.collectInFile]) は以下を保証する責務がある。 違反時は当該
+ * file の expression site 経路を silent skip するだけで、 user 通常 build には影響しないため
+ * `require(...)` での fail-fast は導入していない (= debug breadcrumb は LOGGING level)。
+ *
+ * - `context: CollectFileContext` は同一 file の 3 経路 (file annotation / declaration walk /
+ *   expression site) で共有される (= file 単位 cache の immutable snapshot)。
+ * - `context.cachedFileText()` は遅延 PSI access で、 `null` 返却時は当該 file の expression
+ *   site を一切処理しない (= LOGGING level の breadcrumb を残す)。 typical root cause: KMP
+ *   klib で source が見つからない / synthetic file が混入。
+ * - [CaptureCodeExpressionSiteRegistry] は FIR phase 完了後の状態 (= `CollectExpressionSite`
+ *   が push 済)。 空 registry なら early-return で no-op。
+ * - [CaptureCodeMarkerRegistry] も FIR phase 完了後の状態 (= `DiscoverMarkerClass` が完了済)。
+ *   registry に未登録の markerFqn を持つ site は silent skip (= `isMarker` filter で弾かれる)。
+ * - `site.startOffset < site.endOffset && site.startOffset >= 0` は FIR phase で既に validate
+ *   済 ([CollectExpressionSite] の precondition と integrity)。 `ExtractSourceText` が改めて
+ *   範囲 check を行うので、 ここでは require しない。
  */
 internal fun collectExpressionSites(
     context: CollectFileContext,

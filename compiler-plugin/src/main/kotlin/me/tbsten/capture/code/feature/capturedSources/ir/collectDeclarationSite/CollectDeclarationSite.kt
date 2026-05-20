@@ -52,6 +52,31 @@ import org.jetbrains.kotlin.ir.declarations.IrTypeAlias
  *
  * task-120 で main 側 logic を `public class XxxLogic { public operator fun invoke(...) }`
  * パターンに統一するため。 pure helper はそのまま public method として残し、 単独利用も可能。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [me.tbsten.capture.code.CaptureCodeIrExtension.generate] = main 側 IR extension) は
+ * 以下を保証する責務がある。 違反した場合の挙動は **silent skip + verbose-log** で plugin
+ * 開発者の debug を補助するに留め、 `require(...)` での fail-fast は導入していない (= source
+ * 抽出失敗で全 site を drop するより、 file 単位 / declaration 単位での silent skip + debug log
+ * のほうが user 体験として safer)。
+ *
+ * - `moduleFragment: IrModuleFragment` は IR phase で plugin context に与えられる引数 (signature 上保証)。
+ *   `moduleFragment.files` は iterate 可能 (IR API 仕様)。
+ * - 各 `IrFile` の `fileEntry.name` が non-null (IR API 仕様)。
+ * - `compat: CompatContext` は同 module の `CompatContextImpl` actual 実装で、 `walkIrFileDeclarations`
+ *   (declaration walk)、 `loadFileText` (PSI 経由 file text load) の SPI が正しく dispatch される。
+ * - `pluginContext: IrPluginContext` は IR phase 用 (現状は未使用、 phase 4a 以降の symbol 解決
+ *   で利用予定)。 `@Suppress("UNUSED_PARAMETER")` で型保持のみ。
+ * - `config: CaptureCodePluginConfig` は `CaptureCodePluginConfigHolder` が publish した
+ *   global config。 typical root cause: holder の `compute()` が呼ばれる前に invoke された (=
+ *   compiler-plugin の phase 順序 bug)。 silent fallback では DEFAULT config が使われる。
+ * - `compat.loadFileText(file)` が `null` を返す場合、 当該 file の全 site を silent skip し、
+ *   `CaptureCodeMessageCollectorHolder.reportLogging` で LOGGING level の breadcrumb を残す
+ *   (= `--info` 等 verbose build でのみ visible)。 typical root cause: KMP の klib で source
+ *   が見つからない / synthetic file が混入。
+ * - [CaptureCodeMarkerRegistry][me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry]
+ *   は FIR phase 完了後の状態。 marker 未登録の compilation でも空 list が返るのは正常。
  */
 public class CollectDeclarationSite {
 

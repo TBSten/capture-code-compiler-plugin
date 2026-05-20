@@ -15,6 +15,25 @@ import org.jetbrains.kotlin.ir.declarations.IrDeclarationBase
  *
  * `startLine` / `endLine` は `IrFileEntry.getLineNumber()` 由来 (0-based) なので **+1** で
  * 1-based に揃える (filler の design 値域に合わせる)。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [CollectDeclarationSite.collectInFile] 内 declaration walk callback) は以下を保証
+ * する責務がある。 違反時は当該 marker 1 件のみ silent skip し、 他 marker / 他 declaration 経路に
+ * 影響を与えない設計のため、 `require(...)` での fail-fast は導入していない。
+ *
+ * - `declaration: IrDeclarationBase` は IR resolution 完了済の class / function / property /
+ *   typealias (= `compat.walkIrFileDeclarations` callback 経由でのみ呼ばれる)。 `annotations`
+ *   は resolved (= `IrConstructorCall.type.classFqName` が解決可能)。
+ * - `kind: CapturedSite.CaptureKind` は caller が `IrClass.kind` (CLASS / OBJECT 等) から
+ *   mapping したもの (CLASS / OBJECT / FUNCTION / PROPERTY / TYPEALIAS のいずれか)。 EXPRESSION
+ *   / FILE は本経路では渡らない (= caller の switch case で別経路に dispatch)。
+ * - `context: CollectFileContext` は declaration が属する IrFile に紐づく immutable cache。
+ * - `declaration.startOffset` / `declaration.endOffset` は file 内 offset (IR API 仕様)。
+ *   UNDEFINED (-1) や逆転 offset は [extractDeclarationSource] 内 `ExtractSourceText` で
+ *   silent skip される。
+ * - [CaptureCodeMarkerRegistry][me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry]
+ *   は FIR phase 完了後の状態。 未登録の annotation は `markerAnnotations()` 内 filter で除外。
  */
 internal fun collectIfMarked(
     declaration: IrDeclarationBase,

@@ -21,6 +21,20 @@ package me.tbsten.capture.code.feature.capturedSources.ir.extractSourceText
  * 形式から、 class + invoke パターンに整理した。
  *
  * 状態を持たないので invoke は instance method として呼べる (`ExtractSourceText()(text, start, end)`)。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.extractDeclarationSource]
+ * / [me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.extractExpressionSource])
+ * は以下を保証する。 違反時は **invoke が `null` を返す pure function** であり、 caller の null
+ * fallback で安全に処理されるため、 `require(...)` での fail-fast は導入していない。
+ *
+ * - `fullText: String` は file 全体テキスト (= IrFile から PSI 経由で取得済の snapshot)。
+ *   typical root cause: caller が空文字列を渡している (= LOGGING で別途可視化される)。
+ * - `startOffset < endOffset && both >= 0 && endOffset <= fullText.length` のいずれかを満たさない
+ *   場合は `null` 返却。 上位 ([extractDeclarationSource] 等) が null fallback で当該 site を
+ *   silent skip。 typical root cause: IR の UNDEFINED_OFFSET (-1) / 逆転 offset / file 末尾
+ *   超過 (= 半 resolve 状態の declaration)。
  */
 public class ExtractSourceText {
 

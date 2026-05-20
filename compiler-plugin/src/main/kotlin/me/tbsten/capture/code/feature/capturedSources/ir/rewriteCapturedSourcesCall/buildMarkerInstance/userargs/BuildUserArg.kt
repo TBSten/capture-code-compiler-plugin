@@ -38,6 +38,27 @@ import org.jetbrains.kotlin.ir.expressions.IrExpression
  * 既存 `K{XXX}/userargs/UserArgIrBuilder.kt` (`buildOrDefault` 関数) は runtime path として並行
  * 存続する。 Phase 5 で `transformIr` を main 経由に切り替えた時点で本 class が runtime path
  * になり、 Phase 6 で旧 `UserArgIrBuilder` 削除予定。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.BuildMarkerInstance.buildSingle])
+ * は以下を保証する責務がある。 違反時は `null` 返却 + caller の default fallback に倒れる設計の
+ * ため、 `require(...)` での fail-fast は導入していない。
+ *
+ * - `markerCall: IrConstructorCall?` は declaration / file 起源で non-null、 EXPRESSION 起源で
+ *   null (= [CollectedSite.markerCall] の不変条件)。 違反は data class フィールド signature
+ *   で保証。
+ * - `parameterIndex: Int` は `parameter` の 0-based index で `markerCall` の value argument 列の
+ *   範囲内。 違反時は `compat.getCallValueArgument` が `null` を返し default fallback (=
+ *   silent skip し constructor 側の default で fill)。
+ * - `parameter: IrValueParameter` は marker primary constructor の対応する value parameter
+ *   (= IR resolution 完了済)。 `parameter.defaultValue?.expression` が null の場合は required
+ *   parameter なので、 site 側で `markerCall` 経由か `expressionUserArgs` 経由のどちらかで
+ *   必ず override される (= 違反すると compile error)。
+ * - `compat: CompatContext` は `getCallValueArgument` / `deepCopyExpression` の SPI が
+ *   正しく dispatch される (K2.4-RC で削除された API を吸収)。
+ * - deepCopy が必要な理由は KDoc 本文の "deepCopy の必要性" section 参照 (= IR tree の parent
+ *   pointer 整合性)。
  */
 internal class BuildUserArg {
 

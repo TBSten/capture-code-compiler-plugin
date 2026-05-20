@@ -35,6 +35,23 @@ import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
  * - file text が読めない
  * - declaration の offset が UNDEFINED (-1) または不正
  * - offset が file text の範囲外
+ *
+ * ## Preconditions
+ *
+ * Caller (= [collectIfMarked]) は以下を保証する責務がある。 違反時は当該 marker 1 件のみ silent
+ * skip し、 LOGGING level の breadcrumb を残す設計のため、 `require(...)` での fail-fast は導入
+ * していない (= 1 file での source 抽出失敗で全 site を crash させるより safer)。
+ *
+ * - `declaration: IrDeclarationBase` は IR resolution 完了済 (= caller の declaration walk から
+ *   届く)。 marker annotation はすでに `markerAnnotations()` filter を pass。
+ * - `effective: CaptureCodePluginConfig` は global config と per-marker override を合成した
+ *   immutable snapshot (= [CollectFileContext.effectiveConfigFor] キャッシュ経由)。
+ * - `cachedFileText: String?` は file text の遅延 PSI access の結果。 `null` の場合は当該
+ *   declaration 起源 site を skip し LOGGING で可視化 (= verbose build でのみ visible)。
+ *   typical root cause: KMP klib で source が見つからない / synthetic file 混入。
+ * - `site: CollectDeclarationSite` は pure helper (= `expandStartToCoverModifierAndAnnotationLines`
+ *   / `extractKdocPrefix` / `skipLeadingMarkerAnnotations`) を呼ぶための back-reference。
+ *   state を持たないので thread-safe。
  */
 internal fun extractDeclarationSource(
     declaration: IrDeclarationBase,
@@ -113,6 +130,18 @@ internal fun extractDeclarationSource(
  * marker class 自身は `@CaptureCode` メタ annotation 付きの annotation class 定義であり、
  * file 起源 capture の **対象** ではない。 marker class の declaration を file source から
  * drop することで、 ユーザ視点で「キャプチャされるべきコード」だけが残るようにする。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [collectFileAnnotations]) は以下を保証する責務がある。 違反時は当該 file の marker
+ * 1 件のみ silent skip + LOGGING breadcrumb で、 `require(...)` での fail-fast は導入していない。
+ *
+ * - `file: IrFile` は IR resolution 完了済の file。 `file.declarations` は marker class
+ *   declaration の resolution 完了済 (= `IrClass.fqNameWhenAvailable` が解決可能)。
+ * - `effective: CaptureCodePluginConfig` は当該 marker fqn 用の effective config (= file 起源
+ *   marker の override も合成済)。
+ * - `cachedFileText: String?` は file text の遅延 PSI access の結果。 `null` の場合は当該 file
+ *   起源 marker を silent skip。 typical root cause: KMP klib / synthetic file 混入。
  */
 internal fun extractFileSource(
     file: IrFile,
@@ -139,6 +168,20 @@ internal fun extractFileSource(
  * FIR session が push する `(startOffset, endOffset)` は対象 expression の source range。
  * 抽出後に [CollectDeclarationSite.stripSurroundingParens] で 両端 `(` `)` を strip し、
  * [toExpressionNormalizeOptions] で expression normalize を適用。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [collectExpressionSites]) は以下を保証する責務がある。 違反時は当該 expression
+ * site 1 件のみ silent skip し、 `require(...)` での fail-fast は導入していない (= invalid
+ * range の expression は ExtractSourceText で null fallback で安全に skip される)。
+ *
+ * - `fullText: String` は当該 file の text (= cachedFileText から取得済の non-null snapshot)。
+ * - `startOffset < endOffset && both >= 0` は FIR phase の [CollectExpressionSite] で validate
+ *   済 (= UNDEFINED_OFFSET -1 や逆転 offset は push されない)。 ただし `ExtractSourceText` が
+ *   改めて範囲 check を行うため、 ここでは require せず安全。
+ * - `effective: CaptureCodePluginConfig` は当該 expression marker の effective config。
+ * - `site: CollectDeclarationSite` は pure helper (= `stripSurroundingParens`) を呼ぶための
+ *   back-reference。 state なし thread-safe。
  */
 internal fun extractExpressionSource(
     fullText: String,

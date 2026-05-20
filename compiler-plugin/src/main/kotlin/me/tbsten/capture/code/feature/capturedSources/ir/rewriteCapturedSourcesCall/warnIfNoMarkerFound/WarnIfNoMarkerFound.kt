@@ -48,6 +48,28 @@ import java.text.MessageFormat
  * setups can produce false positives because the marker registry is
  * compilation-scoped (B compile-time cannot see A's site set). The opt-in flag
  * defaults to `false` so the default behaviour is conservative.
+ *
+ * ## Preconditions
+ *
+ * Caller (= [me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteCapturedSourcesCall.invoke]
+ * の transformer lambda) は以下を保証する責務がある。 違反時は warning が発火しないだけで
+ * compile flow には影響しない設計のため、 `require(...)` での fail-fast は導入していない。
+ *
+ * - `call: IrCall` は `capturedSources<T>()` 呼び出しの IR (= caller の `isCapturedSourcesCall()`
+ *   pass 後)。 `call.startOffset` は file 内 offset (= warning location 計算用)。
+ * - `markerFqn: String` は registered marker FqN (= `RewriteCapturedSourcesCall.markerFqnOf`
+ *   結果)。 caller の warnedMarkerFqns dedupe 経由で「1 marker FqN あたり 1 度のみ」 invoke
+ *   が呼ばれる不変条件。
+ * - `siteCount: Int` は当該 markerFqn の collected site 数。 `siteCount > 0` の場合は warning
+ *   不要 (= 早期 return)。
+ * - `config: CaptureCodePluginConfig` の `warnOnEmptyCapture` を gate flag として参照。 false
+ *   時は warning 不発火 (= 早期 return)。
+ * - `file: IrFile?` は call が属する file。 IR phase の `transformCallsInModule` 経路では現状
+ *   `null` を渡している (= IR phase で warning location の file 経由 plumbing が未実装)。
+ *   `null` の場合は warning location なしで報告 (= marker FqN で対象を特定)。
+ * - `messageCollector: MessageCollector` は IR phase collector。 [MessageCollector.NONE] を
+ *   渡せば silent (= 既存 unit test 互換)。 typical root cause: holder の `compute()` が呼ばれる
+ *   前に invoke された (= phase 順序 bug) — silent path で degrade。
  */
 public class WarnIfNoMarkerFound {
 

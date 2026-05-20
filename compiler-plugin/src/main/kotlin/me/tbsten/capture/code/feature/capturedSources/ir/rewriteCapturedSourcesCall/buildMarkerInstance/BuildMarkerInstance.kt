@@ -65,6 +65,44 @@ import java.text.MessageFormat
  * 既存 `K{XXX}CapturedSourcesRewriter.rewriteCapturedSourcesCall` は引き続き runtime path として
  * 残り、 既存 test は compat-kXXX 経路で PASS する。 Phase 5 で `transformIr` を main 経由に
  * 切り替えた時点で本 class が runtime path になり、 Phase 6 で旧 rewriter 削除。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteCapturedSourcesCall.invoke])
+ * は以下を保証する責務がある。 違反時の挙動は 3 種類に分かれる:
+ *
+ * 1. **`require(...)` で fail-fast** — caller 責務として 100% 保証される値違反
+ * 2. **task-137 で internal `error()` で fail-fast** — Kotlin spec / stdlib で保証され「絶対起きない」
+ *    内部不変条件 (`primaryConstructorOrNull` null、 `listOf(vararg)` resolve fail)
+ * 3. **task-135 で `CC_CAPTUREDSOURCES_REWRITE_FAILED` / `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND`
+ *    warning + `null` 返却** — user 環境依存で起こりうる resolve fail (= marker class / filler class
+ *    が runtime classpath に無い)
+ *
+ * - `markerFqn: String` は **non-blank** であること (= [require](kotlin.require) で fail-fast)。
+ *   typical root cause: caller が空文字列を渡している (= [RewriteCapturedSourcesCall] の
+ *   `markerFqnOf` は registered marker fqn のみ採用するため、 空文字列は来ないはず = caller bug)。
+ * - `markerFqn` は [CaptureCodeMarkerRegistry][me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry]
+ *   に登録済 (= FIR phase の `DiscoverMarkerClass` 経由)。 `pluginContext.referenceClass` で
+ *   marker class symbol が解決可能。 違反時は task-135 で `CC_CAPTUREDSOURCES_REWRITE_FAILED`
+ *   warning + `null` 返却 (= user 環境依存)。
+ * - marker class は `ANNOTATION_CLASS` で primary constructor を持つ (Kotlin spec で保証)。
+ *   違反時は task-137 で internal `error()` で fail-fast (= plugin bug、 絶対起きない)。
+ * - `pluginContext.referenceFunctions(listOf CallableId)` で `kotlin.collections.listOf(vararg)`
+ *   が解決可能 (stdlib 必須)。 違反時は task-137 で internal `error()` で fail-fast (=
+ *   stdlib 不在は環境破損、 絶対起きない)。
+ * - filler class (`Source` / `SourceLocation` / `CaptureKind`) は `:annotation` runtime
+ *   module で classpath に存在する。 違反時は task-135 で
+ *   `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND` warning + `null` 返却 (= user 環境依存)。
+ * - `sites: List<CollectedSite>` の各 site の `markerFqn` は当該 `markerFqn` と等しい (= caller の
+ *   `collectedSites.filter { it.site.markerFqn == markerFqn }` 結果)。 違反は signature 上の
+ *   不変条件破りで silent (= 別 marker の filler 値が混ざる semantics fail だが require は重い)。
+ * - `pluginContext.irBuiltIns.listClass` / `irBuiltIns.arrayClass` / `irBuiltIns.stringType` /
+ *   `irBuiltIns.intType` は K2.0 〜 K2.4-RC 全 baseline で resolved (= stdlib 必須)。
+ * - `compat: CompatContext` は IR primitive (`newIrCall` / `setCallTypeArgument` /
+ *   `putCallValueArgument` / `newIrVararg` / `newIrConstructorCall` / `valueParametersOf` 等)
+ *   の SPI が正しく dispatch される。
+ * - `messageCollector: MessageCollector` は IR phase collector。 default [MessageCollector.NONE]
+ *   は silent (既存 unit test 互換)。
  */
 internal class BuildMarkerInstance {
 
@@ -96,6 +134,15 @@ internal class BuildMarkerInstance {
         @Suppress("UNUSED_PARAMETER") config: CaptureCodePluginConfig,
         messageCollector: MessageCollector = MessageCollector.NONE,
     ): IrExpression? {
+        // task-140: caller (= [RewriteCapturedSourcesCall]) は `markerFqnOf` で
+        // `CaptureCodeMarkerRegistry.isMarker(fqn)` を pass した非空 fqn のみ渡す。
+        // blank fqn が来るのは caller bug (= unit test の引数 typo 等)。
+        require(markerFqn.isNotBlank()) {
+            "BuildMarkerInstance: markerFqn must not be blank. " +
+                "Typical root cause: caller (= RewriteCapturedSourcesCall) passed an empty " +
+                "string or whitespace-only string, bypassing the registered-marker filter."
+        }
+
         val markerSymbol = pluginContext.referenceClass(ClassId.topLevel(FqName(markerFqn)))
             ?: run {
                 reportWarning(messageCollector, RewriteFailureWarnings.REWRITE_FAILED, markerFqn)
@@ -197,6 +244,27 @@ internal class BuildMarkerInstance {
      * 各 parameter の argument が `null` のままになるケースは constructor の primary parameter が
      * 省略されているケース (= 本来 compile error)。 putCallValueArgument は値が null でも呼ばず、
      * primary constructor の default で fill される pattern とする (= 既存 K200 と同等)。
+     *
+     * ## Preconditions
+     *
+     * Caller (= [invoke]) は以下を保証する責務がある。
+     *
+     * - `parameters` は marker primary constructor の value parameters (= caller の
+     *   `compat.valueParametersOf(markerConstructor.owner)` 結果)。 EXPRESSION 起源で
+     *   markerCall == null、 declaration / file 起源で markerCall != null の不変条件は
+     *   [CollectedSite] の data class フィールドで保証 ([CollectDeclarationSite] の各経路
+     *   で markerCall を set/unset)。
+     * - `fillerPlan.bindings` の各 key は `parameters.indices` 内 (= caller の `buildFillerPlan`
+     *   が `forEachIndexed` で構築する不変条件)。 違反時は invoke 冒頭の `require(...)` で
+     *   fail-fast (= typical root cause: `buildFillerPlan` が想定外の index を含む plan を返した、
+     *   = plugin bug)。
+     * - `fillSource` / `fillSourceLocation` / `fillCaptureKind` は caller が `resolveOrNull`
+     *   pass 済 (= non-null filler 実装) で渡す。 violations は signature 上不可能。
+     * - `buildUserArg` / `buildUserArgPrimitive` は state なし factory なので reuse 可。
+     * - `site.markerCall == null ⇔ site.kind == EXPRESSION` (= [CollectedSite] data class の
+     *   不変条件)。 declaration / file 起源は markerCall が非 null。 違反は signature 上不可だが、
+     *   `markerCall == null` 経路では [BuildUserArgPrimitive] → `defaultValue?.expression` の
+     *   2 段 fallback で安全に動作する。
      */
     private fun buildSingle(
         markerType: IrType,
@@ -213,6 +281,18 @@ internal class BuildMarkerInstance {
         buildUserArgPrimitive: BuildUserArgPrimitive,
         messageCollector: MessageCollector,
     ): IrConstructorCall {
+        // task-140: fillerPlan は caller の `buildFillerPlan` が `parameters.forEachIndexed` で
+        // 構築するため、 全 key は `parameters.indices` 内 (= 不変条件)。 万一外れた場合は
+        // `parameters[index]` で IndexOutOfBoundsException になる前に明示 fail-fast する。
+        // typical root cause: buildFillerPlan の構築 logic が誤って `parameters.size` 以上の
+        // index を登録した plugin bug (= caller の不変条件破り)。
+        require(fillerPlan.bindings.keys.all { it in parameters.indices }) {
+            "BuildMarkerInstance.buildSingle: fillerPlan.bindings has keys out of range " +
+                "(0 until ${parameters.size}): ${fillerPlan.bindings.keys}. " +
+                "Typical root cause: buildFillerPlan registered an index past the parameter list, " +
+                "which is a compiler-plugin bug."
+        }
+
         val ctorCall = compat.newIrConstructorCall(
             startOffset = UNDEFINED_OFFSET,
             endOffset = UNDEFINED_OFFSET,

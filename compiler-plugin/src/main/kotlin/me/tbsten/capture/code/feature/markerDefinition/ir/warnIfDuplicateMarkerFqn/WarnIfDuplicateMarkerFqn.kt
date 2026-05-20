@@ -48,6 +48,23 @@ import java.text.MessageFormat
  * 同 compilation 内 (例: commonMain + jvmMain で `expect`/`actual` ではなく
  * 平行 declaration を作ってしまったケース、 または同じ package に同名 marker class
  * を 2 度宣言してしまったケース) に限定する。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [me.tbsten.capture.code.CaptureCodeIrExtension.generate] の冒頭、
+ * `CollectDeclarationSite` 起動前) は以下を保証する責務がある。 違反時は warning が発火しない
+ * だけで compile flow に影響を与えない設計のため、 `require(...)` での fail-fast は導入していない。
+ *
+ * - [CaptureCodeMarkerRegistry] は FIR phase 完了後の状態 (= 当該 compilation 由来の全
+ *   `MarkerRegistration` が push 済)。 typical root cause: caller が FIR phase 完了前に invoke
+ *   した (= phase 順序 bug)。
+ * - [CaptureCodeMarkerRegistry.duplicateMarkerFqns] は 2 回以上 register された fqn のみ返す
+ *   (= 内部 logic)。 重複が無い場合は早期 return で no-op。
+ * - `messageCollector: MessageCollector` は IR phase collector。 [MessageCollector.NONE] を
+ *   渡せば silent。 typical root cause: holder の `compute()` が呼ばれる前に invoke された (=
+ *   phase 順序 bug) — silent path で degrade。
+ * - [CaptureCodeMarkerRegistry.registrationsFor] が `MarkerRegistration` の `sourceFilePath`
+ *   (nullable) を返す。 null の場合は warning location なしで報告 (= marker FqN で対象を特定)。
  */
 public class WarnIfDuplicateMarkerFqn {
 

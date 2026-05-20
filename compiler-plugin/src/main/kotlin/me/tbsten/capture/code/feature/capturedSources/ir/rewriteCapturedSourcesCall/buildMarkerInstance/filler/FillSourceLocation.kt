@@ -33,6 +33,24 @@ import org.jetbrains.kotlin.ir.util.constructors
  *
  * `config.includeLineInfo = false` の場合は `startLine` / `endLine` を 0 で埋める
  * (= filler のデフォルト値と同じ)。 design §11 open question #1 の挙動。
+ *
+ * ## Preconditions
+ *
+ * Caller (= [BuildMarkerInstance]) は以下を保証する責務がある。 [resolveOrNull] を pass した
+ * instance のみが invoke を呼ばれるため、 instance state の不変条件は constructor 段で保証
+ * 済 (= `require(...)` を invoke 入口に重ねて配置する必要はない)。
+ *
+ * - [resolveOrNull] で symbol resolve に成功している (= `SourceLocation` class / primary
+ *   constructor / `packageName` / `filePath` / `startLine` / `endLine` の 4 parameter index が
+ *   すべて非 null)。 失敗時は instance が生成されず、 caller が
+ *   `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND` warning + 当該 marker 全体 skip (task-135)。
+ * - `site: CapturedSite` は [CollectedSite.site] 由来で、 `site.packageFqn` / `site.filePath`
+ *   は non-null `String` (= [CollectDeclarationSite] の不変条件)。 `site.startLine` /
+ *   `site.endLine` は 1-based の Int (= IR `IrFileEntry.getLineNumber` + 1 由来)。
+ * - `config: CaptureCodePluginConfig` の `includeLineInfo` を参照する。 false 時は startLine /
+ *   endLine を 0 で埋める (= design §11 open question #1)。
+ * - `compat: CompatContext` は `newIrConstString` / `newIrConstInt` / `newIrConstructorCall` /
+ *   `putCallValueArgument` の SPI が正しく dispatch される。
  */
 internal class FillSourceLocation private constructor(
     private val locationType: IrType,
