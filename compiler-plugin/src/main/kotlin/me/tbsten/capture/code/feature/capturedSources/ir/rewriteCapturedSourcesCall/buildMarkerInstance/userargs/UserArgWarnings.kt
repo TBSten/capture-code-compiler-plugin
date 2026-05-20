@@ -54,9 +54,12 @@ public object UserArgWarnings {
     public val ENUM_NOT_FOUND: CaptureCodeCompilerPluginWarning =
         object : CaptureCodeCompilerPluginWarning {
             override val id: String = "CC_USERARG_ENUM_NOT_FOUND"
+            // task-charter-6 (apostrophe bug fix): MessageFormat eats lone apostrophes
+            // unless they are escaped as ''. Without the escape, "parameter's" is
+            // rendered as "parameters" and any subsequent `{0}` would also be lost.
             override val message: String =
                 "Could not resolve enum entry ''{0}'' on the marker user argument. " +
-                    "The captured marker instance falls back to the parameter's default value."
+                    "The captured marker instance falls back to the parameter''s default value."
             override val reply: String? =
                 "Check that the enum entry FQN matches an actual entry on the parameter type, " +
                     "or remove the argument to rely on the marker's default value."
@@ -81,10 +84,11 @@ public object UserArgWarnings {
     public val CLASS_REF_UNSUPPORTED: CaptureCodeCompilerPluginWarning =
         object : CaptureCodeCompilerPluginWarning {
             override val id: String = "CC_USERARG_CLASS_REF_UNSUPPORTED"
+            // task-charter-6 (apostrophe bug fix): see ENUM_NOT_FOUND above.
             override val message: String =
                 "::class reference ''{0}'' on an expression-origin marker user argument " +
                     "is not yet supported; the captured marker instance falls back to " +
-                    "the parameter's default value."
+                    "the parameter''s default value."
             override val reply: String? =
                 "Move the `@Marker(...)` annotation to a declaration site (function / class / " +
                     "property / file) so the `::class` reference is preserved verbatim, or " +
