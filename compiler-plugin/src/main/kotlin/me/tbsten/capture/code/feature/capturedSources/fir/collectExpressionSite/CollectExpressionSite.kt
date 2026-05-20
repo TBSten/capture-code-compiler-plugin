@@ -35,6 +35,37 @@ import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
  *   drift (D12) は [CompatContext.containingFilePathOf] 経由で吸収。
  * - `FirCallableSymbol.callableId` の nullability 変更 (K2.3+) は safe call で
  *   吸収。
+ *
+ * ## Preconditions
+ *
+ * Caller (= 各 `compat-kXXX` の `K{XXX}ExpressionSiteCollector` / 拡張 FIR checker) は
+ * 以下を保証する責務がある。 違反時は対応する箇所で silent `continue` / early return
+ * し、 IR phase の rewrite から該当 expression が drop される (= site が拾われない)
+ * 設計のため、 `require(...)` での fail-fast は導入していない。 ただし plugin 開発者
+ * の debug を補助するため、 主要な silent skip 経路 (source null / filePath null /
+ * invalid offsets) には [CaptureCodeMessageCollectorHolder.reportLogging] で
+ * verbose-log を出す。
+ *
+ * - `expression: FirStatement` は FIR-resolved な statement。 `expression.annotations`
+ *   は resolution phase 完了済 (= `coneTypeOrErrorOf(annotationTypeRef)` / `classIdOfType`
+ *   が解決可能)。 typical root cause: caller checker が resolution 完了前の phase に
+ *   登録されている。
+ * - `expression.annotations` が空の場合は冒頭で early-return (= marker annotation
+ *   の付いていない statement は無視)。
+ * - `annotation.toAnnotationClassId(session)` 経由で得られる `markerFqn` が
+ *   [me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry]
+ *   に **登録済の marker FQN** であること (= `DiscoverMarkerClass` が先に走り終えている
+ *   こと)。 違反時は per-annotation `continue` で silent skip。
+ * - `expression.source` が non-null (= synthetic ではない、 ソース由来の expression)。
+ *   typical root cause: コンパイラが暗黙生成した node が `FirAnnotation` を持っている
+ *   状況。 silent skip は verbose-log で可視化される。
+ * - `expression.source.containingFilePath()` か `compat.containingFilePathOf(context)`
+ *   のいずれかが non-null。 KMP の klib で resolve できない極端な case 以外は満たされる。
+ * - `expression.source` の `startOffset` / `endOffset` が `0 <= startOffset < endOffset`。
+ *   UNDEFINED_OFFSET (-1) や逆転 offset は silent skip + verbose-log。
+ * - `compat: CompatContext` は同 module の `CompatContextImpl` actual 実装で、
+ *   `containingFilePathOf` / `coneTypeOrErrorOf` / `classIdOfType` / `isLiteralExpression` /
+ *   `literalValueOrNull` / `resolvedTypeOrNullOf` の SPI が正しく dispatch される。
  */
 public class CollectExpressionSite {
 

@@ -29,6 +29,28 @@ import org.jetbrains.kotlin.fir.expressions.FirAnnotation
  * [invoke] alongside the existing Logic F validation, supplying its own
  * `KtDiagnosticFactory1<String>` for `CC_MARKER_OVERRIDE_NO_EFFECT` via
  * [Diagnostics].
+ *
+ * ## Preconditions
+ *
+ * Caller (= 各 `compat-kXXX` の `K{XXX}MarkerAnnotationChecker`) は以下を保証する責務がある。
+ * いずれも違反した場合は invoke が silently no-op で返り、 warning は出ない設計のため、
+ * `require(...)` での fail-fast は導入していない (= override 設定の SSR ミスで marker
+ * 動作が止まるよりは silent skip の方が safer)。
+ *
+ * - `declaration` は FIR-resolved な `FirRegularClass`。 `classKind` が
+ *   `ANNOTATION_CLASS` でない場合は invoke 冒頭で early-return する。
+ * - `declaration.annotations` の中に `@CaptureCode`-meta annotation が 1 個以上
+ *   含まれること。 含まれない場合は per-annotation の `continue` で no-op。
+ * - `globalConfig: CaptureCodePluginConfig` は `CommandLineProcessor` が
+ *   `CaptureCodePluginOptionsHolder` 経由で publish したものを caller が取得して
+ *   渡すこと。 typical root cause: holder の `compute()` が呼ばれる前に invoke
+ *   された (= compiler-plugin の phase 順序 bug)。 silent fallback では
+ *   `CaptureCodePluginConfig` の DEFAULT (= override 全て `Default`) と diff
+ *   されるため、 「明示 `Yes` / `No` だけが redundant 判定される」 経路に倒れる。
+ * - `diagnostics.markerOverrideNoEffect` は caller の `K{XXX}CaptureCodeDiagnostics`
+ *   から取得した `KtDiagnosticFactory1<String>` (= renderer も含めて registered)。
+ * - `extractMarkerOptions` (= 内部 `ExtractMarkerOptions`) は drift-free。 同一
+ *   marker class に対して invoke を複数回呼んでも結果は deterministic。
  */
 public class WarnIfOverrideNoEffect {
 

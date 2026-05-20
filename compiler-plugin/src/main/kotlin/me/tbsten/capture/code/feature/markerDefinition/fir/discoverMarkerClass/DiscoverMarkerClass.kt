@@ -21,6 +21,26 @@ import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
  * 側で registration 履歴として保持され、 IR phase の
  * [me.tbsten.capture.code.feature.markerDefinition.ir.warnIfDuplicateMarkerFqn.WarnIfDuplicateMarkerFqn]
  * が duplicate FQN 検出時の warning location に利用する。
+ *
+ * ## Preconditions
+ *
+ * Caller (= 各 `compat-kXXX` の FIR class checker) は以下を保証する責務がある。
+ * いずれも違反した場合は invoke が silently no-op で返り、 marker 登録は行われない
+ * (= fail-fast はしないが、 後段 logic で diagnostic に発展しうる)。
+ *
+ * - `declaration` は FIR-resolved な `FirRegularClass` (signature 上保証)。
+ * - `declaration.classKind` は `ClassKind.ANNOTATION_CLASS` であることが期待される。
+ *   そうでない場合は冒頭で early return する (= caller が誤って ordinary class
+ *   を渡したケースでも crash しない設計)。
+ * - `declaration.annotations` は FIR resolution phase 完了済 (= `toAnnotationClassId(session)`
+ *   が解決可能)。 typical root cause: caller が FIR resolution 完了前の declaration
+ *   を渡している (= compiler-plugin 内部の phase 順序の bug)。
+ * - `declaration.symbol.classId` が non-null (= top-level / nested annotation class
+ *   なら必ず存在する)。 K1.x の local annotation class のように classId 不在の
+ *   case は K2 では nominal に発生しない。
+ *
+ * `require(...)` での fail-fast は導入していない (= 想定外 input でも silent
+ * no-op のほうが、 IR phase 側で error を発火させる現行の error 経路を阻害しない)。
  */
 public class DiscoverMarkerClass {
     private val extractMarkerOptions = ExtractMarkerOptions()

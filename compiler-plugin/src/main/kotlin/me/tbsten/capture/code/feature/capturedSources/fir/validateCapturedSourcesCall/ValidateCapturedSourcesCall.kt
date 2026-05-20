@@ -28,6 +28,31 @@ import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
  * していたロジック本体を main module に統一した版。 K2.0 baseline で書き、
  * 2.1.x で package が移動した `toRegularClassSymbol` (drift D2) は
  * [CompatContext.toRegularClassSymbolOrNull] 経由で吸収する。
+ *
+ * ## Preconditions
+ *
+ * Caller (= 各 `compat-kXXX` の `K{XXX}CapturedSourcesCallChecker`) は以下を保証する責務がある。
+ *
+ * - `expression: FirFunctionCall` は FIR-resolved な call (= `FirFunctionCallChecker`
+ *   を継承した caller checker が `Common` phase の resolution 完了後に invoke
+ *   を呼ぶ)。 `expression.calleeReference` は `FirResolvedNamedReference` で
+ *   なければならない。 違反時は invoke 冒頭の `require(...)` で fail-fast (=
+ *   typical root cause: caller checker が resolution 完了前の phase に登録されている)。
+ * - `expression.isCapturedSourcesCall()` (= callee の `callableId` が
+ *   `me.tbsten.capture.code.capturedSources` と一致) を pass した場合のみ、
+ *   `expression.typeArguments` は 1 個以上であることが Kotlin compiler 側で保証される
+ *   (= `public fun <T : Any> capturedSources(): List<CapturedSource>` の signature)。
+ *   違反時は `isCapturedSourcesCall()` を pass した直後の `require(...)` で fail-fast
+ *   (= typical root cause: runtime API の signature が後方非互換に変更された)。
+ * - `compat.toRegularClassSymbolOrNull(coneType, session)` で type 引数の symbol が
+ *   解決可能であること。 null fallback は silent OK (= 後段の error 経路 / 別の
+ *   compiler error が拾う想定)。 例: `capturedSources<typealias Foo = ...>()`
+ *   など FIR phase で resolution 失敗するケース。
+ * - `compat: CompatContext` は同 module の `CompatContextImpl` actual 実装で、
+ *   `coneTypeOrNullOf` / `toRegularClassSymbolOrNull` / `classIdOf` の SPI が
+ *   正しく dispatch される。
+ * - `diagnostics.capturedSourcesTNotCaptureCode` は caller の
+ *   `K{XXX}CaptureCodeDiagnostics` から取得した `KtDiagnosticFactory1<String>`。
  */
 public class ValidateCapturedSourcesCall {
 
@@ -45,7 +70,19 @@ public class ValidateCapturedSourcesCall {
         compat: CompatContext,
         diagnostics: Diagnostics,
     ) {
+        require(expression.calleeReference is FirResolvedNamedReference) {
+            "ValidateCapturedSourcesCall: expression.calleeReference must be FirResolvedNamedReference " +
+                "after FIR resolution, got ${expression.calleeReference::class.simpleName}. " +
+                "Typical root cause: caller checker is registered in a phase that runs before name resolution."
+        }
+
         if (!expression.isCapturedSourcesCall()) return
+
+        require(expression.typeArguments.isNotEmpty()) {
+            "ValidateCapturedSourcesCall: expression.typeArguments must not be empty for " +
+                "capturedSources<T>() calls. Typical root cause: the runtime API signature " +
+                "(public fun <T : Any> capturedSources(): List<CapturedSource>) was changed in a non-backwards-compatible way."
+        }
 
         val typeArgument = expression.firstTypeArgumentOrNull(compat) ?: return
         val classSymbol = compat.toRegularClassSymbolOrNull(typeArgument, context.session) ?: return

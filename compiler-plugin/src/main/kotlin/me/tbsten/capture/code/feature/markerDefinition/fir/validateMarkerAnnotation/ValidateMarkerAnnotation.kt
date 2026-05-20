@@ -42,6 +42,32 @@ import org.jetbrains.kotlin.name.StandardClassIds
  * していたロジック本体を main module に統一した版。 K2.0 baseline で書き、
  * 2.0.20+ の `fullyExpandedType` overload drift (drift D11) は
  * [CompatContext.fullyExpandedTypeOf] 経由で吸収する。
+ *
+ * ## Preconditions
+ *
+ * Caller (= 各 `compat-kXXX` の `K{XXX}MarkerAnnotationChecker`) は以下を保証する責務がある。
+ * いずれも違反した場合は invoke が silently early-return (= diagnostic は発火しない)
+ * もしくは内部の resolution fallback により正常な error 経路 (= `PARAMETER_TYPE_INVALID`)
+ * に倒れる設計のため、 `require(...)` での fail-fast は導入していない。
+ *
+ * - `declaration` は FIR-resolved な `FirRegularClass`。 `classKind` が
+ *   `ANNOTATION_CLASS` でない場合は invoke 冒頭で early-return する (= caller が
+ *   non-annotation class を渡しても crash しない)。
+ * - `declaration` の annotations に `@CaptureCode`-meta annotation が含まれること。
+ *   含まれない場合は冒頭で early-return する (= marker でない annotation class
+ *   に検証を走らせない)。
+ * - `declaration.primaryConstructorIfAny(session)` が non-null (= annotation class
+ *   なら必ず存在)。 null の場合は `checkParameters` 内で silent return する (=
+ *   typical root cause: compiler 内部 bug / 半 resolve の declaration)。
+ * - `parameterSymbol.resolvedReturnTypeRef` は FIR resolution phase 完了済 (=
+ *   各 compat-kXXX checker は `K{XXX}CheckerExtensions` 経由で `Common` phase に
+ *   登録されており、 type ref は resolve 済が保証される)。
+ * - `compat: CompatContext` は同 module の `CompatContextImpl` (= 各 compat-kXXX
+ *   の actual 実装) であり、 `coneTypeOrNullOf` / `fullyExpandedTypeOf` /
+ *   `toRegularClassSymbolOrNull` / `classIdOfType` の SPI が正しく dispatch される。
+ * - `diagnostics` は caller 自身が保有する `K{XXX}CaptureCodeDiagnostics` の
+ *   `Diagnostics` view (= `markerIsExpect` / `markerParameterTypeInvalid` /
+ *   `markerFillerRequiresDefault` の `KtDiagnosticFactory*` が registered)。
  */
 public class ValidateMarkerAnnotation {
 
