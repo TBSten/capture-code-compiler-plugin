@@ -2,7 +2,10 @@ package me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSources
 
 import me.tbsten.capture.code.compat.CompatContext
 import me.tbsten.capture.code.feature.capturedSources.UserArgValue
+import me.tbsten.capture.code.warning.CaptureCodeCompilerPluginWarning
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrEnumEntry
@@ -10,6 +13,7 @@ import org.jetbrains.kotlin.ir.declarations.IrValueParameter
 import org.jetbrains.kotlin.ir.expressions.IrConstKind
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.types.IrSimpleType
+import java.text.MessageFormat
 
 /**
  * EXPRESSION 起源 (式 annotation) の場合、 IR phase で marker `IrConstructorCall` が残らない
@@ -56,12 +60,26 @@ internal class BuildUserArgPrimitive {
      * `is Int -> ...` 暗黙の sum type 分岐を型に持ち上げ、 enum FqN と class FqN の混在
      * (= 旧 `String -> buildStringOrEnum`) を [UserArgValue.EnumRef] / [UserArgValue.ClassRef]
      * / [UserArgValue.StringValue] で 3 分離した。
+     *
+     * task-134 (2026-05-21): silent failure 経路を `CC_USERARG_ENUM_NOT_FOUND` /
+     * `CC_USERARG_CLASS_REF_UNSUPPORTED` warning として [messageCollector] に通知する。
+     * - [UserArgValue.EnumRef] で entry FqN の末尾セグメントが parameter 型の owner class
+     *   から `IrEnumEntry` として見つからない場合、 [UserArgWarnings.ENUM_NOT_FOUND] を発火。
+     * - [UserArgValue.ClassRef] の IR 再構築は 0.4.0+ scope なので、 受信した時点で
+     *   [UserArgWarnings.CLASS_REF_UNSUPPORTED] を発火。
+     *
+     * 発火後の戻り値は引き続き `null` (= caller の default-fallback 経路を維持する) で、
+     * 既存呼び出し側の意思決定 (= null なら default を使う) に変更はない。 [messageCollector]
+     * default は [MessageCollector.NONE] (silent) で、 既存 unit test (例:
+     * [me.tbsten.capture.code.feature.capturedSources.UserArgIrBuilderTest]) は MessageCollector
+     * 引数を渡さずに呼び続けられる。
      */
     internal operator fun invoke(
         value: UserArgValue?,
         parameter: IrValueParameter,
         pluginContext: IrPluginContext,
         compat: CompatContext,
+        messageCollector: MessageCollector = MessageCollector.NONE,
     ): IrExpression? {
         if (value == null) return null
         val type = parameter.type
@@ -86,9 +104,25 @@ internal class BuildUserArgPrimitive {
             is UserArgValue.StringValue ->
                 compat.newIrConstString(UNDEFINED_OFFSET, UNDEFINED_OFFSET, type, value.value)
             is UserArgValue.EnumRef -> buildEnum(value.entryFqn, parameter, pluginContext, compat)
-            // class FqN を IR `IrGetClass` に再構築する経路は未対応 (0.4.0+ で着手余地)。
-            // 旧 `Any?` 経路でも null 返却していたため挙動互換。
-            is UserArgValue.ClassRef -> null
+                ?: run {
+                    reportUserArgWarning(
+                        messageCollector,
+                        UserArgWarnings.ENUM_NOT_FOUND,
+                        value.entryFqn,
+                    )
+                    null
+                }
+            is UserArgValue.ClassRef -> {
+                // class FqN を IR `IrGetClass` に再構築する経路は未対応 (0.4.0+ で着手余地)。
+                // 旧 `Any?` 経路でも null 返却していたため挙動互換だが、 task-134 で silent ignore
+                // を `CC_USERARG_CLASS_REF_UNSUPPORTED` warning に昇格して user に通知する。
+                reportUserArgWarning(
+                    messageCollector,
+                    UserArgWarnings.CLASS_REF_UNSUPPORTED,
+                    value.classFqn,
+                )
+                null
+            }
         }
     }
 
@@ -117,5 +151,27 @@ internal class BuildUserArgPrimitive {
             type = parameter.type,
             symbol = entry.symbol,
         )
+    }
+
+    /**
+     * task-134 helper: emit [warning] (1 String 引数) via [messageCollector]。
+     *
+     * `MessageCollector.report(...)` の bytecode は K2.0 .. K2.4-RC で identical で、 同 pattern を
+     * [me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.BuildMarkerInstance.reportWarning]
+     * + [me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.warnIfNoMarkerFound.WarnIfNoMarkerFound]
+     * が既に採用しているため main 側に閉じた helper として再利用しやすい。
+     *
+     * location は `null` を渡す (= IR const 再構築 path では IrFile を直接保持しないため)。 warning
+     * message body の FqN ([arg]) で対象が一意に特定できる。 collector が
+     * [MessageCollector.NONE] の場合は早期 return (= 既存 unit test 経路を維持)。
+     */
+    private fun reportUserArgWarning(
+        messageCollector: MessageCollector,
+        warning: CaptureCodeCompilerPluginWarning,
+        arg: String,
+    ) {
+        if (messageCollector === MessageCollector.NONE) return
+        val text = MessageFormat.format(warning.message, arg)
+        messageCollector.report(CompilerMessageSeverity.WARNING, text, null)
     }
 }

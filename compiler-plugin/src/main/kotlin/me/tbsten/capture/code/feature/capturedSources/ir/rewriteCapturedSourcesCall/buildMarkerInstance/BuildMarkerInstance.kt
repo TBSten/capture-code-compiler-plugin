@@ -139,6 +139,7 @@ internal class BuildMarkerInstance {
                 fillCaptureKind = fillCaptureKind,
                 buildUserArg = buildUserArg,
                 buildUserArgPrimitive = buildUserArgPrimitive,
+                messageCollector = messageCollector,
             )
         }
 
@@ -193,6 +194,7 @@ internal class BuildMarkerInstance {
         fillCaptureKind: FillCaptureKind,
         buildUserArg: BuildUserArg,
         buildUserArgPrimitive: BuildUserArgPrimitive,
+        messageCollector: MessageCollector,
     ): IrConstructorCall {
         val ctorCall = compat.newIrConstructorCall(
             startOffset = UNDEFINED_OFFSET,
@@ -211,13 +213,20 @@ internal class BuildMarkerInstance {
                     //  - declaration / file 起源 (markerCall != null) → BuildUserArg で deepCopy
                     //  - EXPRESSION 起源 (markerCall == null) → まず BuildUserArgPrimitive で IR
                     //    const 再構築を試み、 それでも null なら BuildUserArg の default 値経路
+                    //
+                    // task-134: EXPRESSION 起源で BuildUserArgPrimitive が enum/class ref を
+                    // 解決できなかった場合は `CC_USERARG_ENUM_NOT_FOUND` /
+                    // `CC_USERARG_CLASS_REF_UNSUPPORTED` warning を発火し、 caller には
+                    // 引き続き null を返して default 値 fallback を行わせる。 messageCollector を
+                    // BuildUserArgPrimitive に forward することで、 warning emit と null fallback
+                    // を 1 経路で完結させる (= 既存 unit test は MessageCollector.NONE で silent)。
                     val markerCall = site.markerCall
                     if (markerCall != null) {
                         buildUserArg(markerCall, index, parameter, compat)
                     } else {
                         val name = parameter.name.asString()
                         val pushed = site.expressionUserArgs[name]
-                        buildUserArgPrimitive(pushed, parameter, pluginContext, compat)
+                        buildUserArgPrimitive(pushed, parameter, pluginContext, compat, messageCollector)
                             ?: buildUserArg(null, index, parameter, compat)
                     }
                 }

@@ -11,6 +11,7 @@ import me.tbsten.capture.code.compat.k200.checker.K200MarkerCheckersExtension
 import me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.CapturedSourcesCallErrors
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.CapturedSourcesWarnings
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteFailureWarnings
+import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.userargs.UserArgWarnings
 import me.tbsten.capture.code.feature.markerDefinition.MarkerDefinitionWarnings
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.MarkerAnnotationErrors
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.MarkerAnnotationWarnings
@@ -468,6 +469,28 @@ public class CompatContextImpl : CompatContext {
                 psiType = KtElement::class,
             )
 
+        // task-134: IR user-arg primitive 再構築失敗の warning factories。 実発火は
+        // main 側 `BuildUserArgPrimitive` が `MessageCollector` 経由で行うが、 renderer
+        // 経路を既存 warning と揃えるため factory 自体は本 MAP に登録する。
+
+        /** `CC_USERARG_ENUM_NOT_FOUND` — EXPRESSION 起源で enum entry が IR phase で見つからない。 */
+        public val CC_USERARG_ENUM_NOT_FOUND: KtDiagnosticFactory1<String> =
+            KtDiagnosticFactory1(
+                name = "CC_USERARG_ENUM_NOT_FOUND",
+                severity = Severity.WARNING,
+                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
+                psiType = KtElement::class,
+            )
+
+        /** `CC_USERARG_CLASS_REF_UNSUPPORTED` — EXPRESSION 起源 `::class` ref は IR 再構築未対応。 */
+        public val CC_USERARG_CLASS_REF_UNSUPPORTED: KtDiagnosticFactory1<String> =
+            KtDiagnosticFactory1(
+                name = "CC_USERARG_CLASS_REF_UNSUPPORTED",
+                severity = Severity.WARNING,
+                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
+                psiType = KtElement::class,
+            )
+
         /**
          * task-121: lazy MAP で id → factory を解決する。 task-088 の教訓
          * (静的初期化循環依存) を予防するため、 K2.3+ と同様に `by lazy` を採用。
@@ -520,6 +543,15 @@ public class CompatContextImpl : CompatContext {
                 "CC_CAPTUREDSOURCES_FILLER_NOT_FOUND" to DiagnosticFactoryRef.OneString(
                     "CC_CAPTUREDSOURCES_FILLER_NOT_FOUND",
                     CC_CAPTUREDSOURCES_FILLER_NOT_FOUND,
+                ),
+                // task-134: IR user-arg primitive 再構築失敗の warning factories
+                "CC_USERARG_ENUM_NOT_FOUND" to DiagnosticFactoryRef.OneString(
+                    "CC_USERARG_ENUM_NOT_FOUND",
+                    CC_USERARG_ENUM_NOT_FOUND,
+                ),
+                "CC_USERARG_CLASS_REF_UNSUPPORTED" to DiagnosticFactoryRef.OneString(
+                    "CC_USERARG_CLASS_REF_UNSUPPORTED",
+                    CC_USERARG_CLASS_REF_UNSUPPORTED,
                 ),
             )
         }
@@ -584,6 +616,17 @@ public class CompatContextImpl : CompatContext {
                     put(
                         CC_CAPTUREDSOURCES_FILLER_NOT_FOUND,
                         RewriteFailureWarnings.FILLER_NOT_FOUND.message,
+                        org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
+                    )
+                    // task-134: IR user-arg primitive 再構築失敗の warning renderers
+                    put(
+                        CC_USERARG_ENUM_NOT_FOUND,
+                        UserArgWarnings.ENUM_NOT_FOUND.message,
+                        org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
+                    )
+                    put(
+                        CC_USERARG_CLASS_REF_UNSUPPORTED,
+                        UserArgWarnings.CLASS_REF_UNSUPPORTED.message,
                         org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
                     )
                 }
