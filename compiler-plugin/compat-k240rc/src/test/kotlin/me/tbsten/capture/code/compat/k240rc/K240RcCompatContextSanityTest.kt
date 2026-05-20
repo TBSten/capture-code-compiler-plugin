@@ -1,12 +1,14 @@
 package me.tbsten.capture.code.compat.k240rc
 
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldStartWith
 import io.kotest.matchers.types.shouldBeInstanceOf
 import java.util.ServiceLoader
 import me.tbsten.capture.code.compat.CompatContext
+import me.tbsten.capture.code.compat.DiagnosticFactoryRef
 
 /**
  * task-076: `:compiler-plugin:compat-k240rc` 専用の最小 sanity test。
@@ -59,5 +61,48 @@ class K240RcCompatContextSanityTest : StringSpec({
 
         val ctx = k240rcFactory.create()
         ctx.shouldBeInstanceOf<CompatContextImpl>()
+    }
+
+    // task-132 (exploratory-debug Charter 4 follow-up): the sealed
+    // DiagnosticFactoryRef wrap must remain coherent across compat-kXXX. Main
+    // module's ReportSealedFactoryWrapProbeTest exercises k200/k202/k210/k220
+    // dynamically but cannot instantiate k240rc in a K2.0 baseline classpath,
+    // so we verify the K240Rc MAP locally here (kctfork-free, K2.4-RC-only).
+    //
+    // Expected: 12 diagnostic ids, all OneString except CC_MARKER_IS_EXPECT
+    // which is Zero. ref.id always equals the lookup key.
+    val expectedIds: List<String> = listOf(
+        "CC_MARKER_PARAMETER_TYPE_INVALID",
+        "CC_MARKER_FILLER_REQUIRES_DEFAULT",
+        "CC_MARKER_IS_EXPECT",
+        "CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE",
+        "CC_CAPTUREDSOURCES_NO_MARKER_FOUND",
+        "CC_MARKER_OVERRIDE_NO_EFFECT",
+        "CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN",
+        "CC_MARKER_PARAMETER_UNUSED",
+        "CC_CAPTUREDSOURCES_REWRITE_FAILED",
+        "CC_CAPTUREDSOURCES_FILLER_NOT_FOUND",
+        "CC_USERARG_ENUM_NOT_FOUND",
+        "CC_USERARG_CLASS_REF_UNSUPPORTED",
+    )
+
+    "K240Rc diagnosticFactory exposes the full 12-id set with matching wrap kinds" {
+        val ctx = CompatContextImpl()
+        val observed = expectedIds.filter { ctx.diagnosticFactory(it) != null }
+        observed.shouldContainExactlyInAnyOrder(expectedIds)
+        expectedIds.forEach { id ->
+            val ref = ctx.diagnosticFactory(id)
+                ?: error("K240Rc MAP missing id: $id")
+            ref.id shouldBe id
+            val expectedWrap: Class<out DiagnosticFactoryRef> =
+                if (id == "CC_MARKER_IS_EXPECT") DiagnosticFactoryRef.Zero::class.java
+                else DiagnosticFactoryRef.OneString::class.java
+            ref.javaClass shouldBe expectedWrap
+        }
+    }
+
+    "K240Rc diagnosticFactory returns null for unknown ids (silent no-op contract)" {
+        val ctx = CompatContextImpl()
+        ctx.diagnosticFactory("UNKNOWN_BOGUS_ID") shouldBe null
     }
 })
