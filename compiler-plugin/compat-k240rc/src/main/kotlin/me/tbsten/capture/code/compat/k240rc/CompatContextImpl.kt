@@ -18,6 +18,7 @@ import me.tbsten.capture.code.compat.k240rc.checker.K240RcMarkerCheckersExtensio
 import me.tbsten.capture.code.compat.k240rc.checker.K240RcRendererMapShim
 import me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.CapturedSourcesCallErrors
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.CapturedSourcesWarnings
+import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteFailureWarnings
 import me.tbsten.capture.code.feature.markerDefinition.MarkerDefinitionWarnings
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.MarkerAnnotationErrors
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.MarkerAnnotationWarnings
@@ -445,6 +446,25 @@ public class CompatContextImpl : CompatContext {
                 rendererFactory = K240RcCaptureCodeDefaultMessages,
             )
 
+        // task-135: IR rewrite phase silent fall back の warning factories (Severity.WARNING)。
+        public val CC_CAPTUREDSOURCES_REWRITE_FAILED: KtDiagnosticFactory1<String> =
+            KtDiagnosticFactory1(
+                name = "CC_CAPTUREDSOURCES_REWRITE_FAILED",
+                severity = Severity.WARNING,
+                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
+                psiType = KtElement::class,
+                rendererFactory = K240RcCaptureCodeDefaultMessages,
+            )
+
+        public val CC_CAPTUREDSOURCES_FILLER_NOT_FOUND: KtDiagnosticFactory1<String> =
+            KtDiagnosticFactory1(
+                name = "CC_CAPTUREDSOURCES_FILLER_NOT_FOUND",
+                severity = Severity.WARNING,
+                defaultPositioningStrategy = SourceElementPositioningStrategies.DEFAULT,
+                psiType = KtElement::class,
+                rendererFactory = K240RcCaptureCodeDefaultMessages,
+            )
+
         override fun getRendererFactory(): BaseDiagnosticRendererFactory = K240RcCaptureCodeDefaultMessages
 
         /**
@@ -487,6 +507,15 @@ public class CompatContextImpl : CompatContext {
                 "CC_MARKER_PARAMETER_UNUSED" to DiagnosticFactoryRef.OneString(
                     "CC_MARKER_PARAMETER_UNUSED",
                     CC_MARKER_PARAMETER_UNUSED,
+                ),
+                // task-135: IR rewrite silent fall back の warning factories
+                "CC_CAPTUREDSOURCES_REWRITE_FAILED" to DiagnosticFactoryRef.OneString(
+                    "CC_CAPTUREDSOURCES_REWRITE_FAILED",
+                    CC_CAPTUREDSOURCES_REWRITE_FAILED,
+                ),
+                "CC_CAPTUREDSOURCES_FILLER_NOT_FOUND" to DiagnosticFactoryRef.OneString(
+                    "CC_CAPTUREDSOURCES_FILLER_NOT_FOUND",
+                    CC_CAPTUREDSOURCES_FILLER_NOT_FOUND,
                 ),
             )
         }
@@ -534,6 +563,17 @@ public class CompatContextImpl : CompatContext {
                     put(
                         CC_MARKER_PARAMETER_UNUSED,
                         MarkerDefinitionWarnings.PARAMETER_UNUSED.message,
+                        org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
+                    )
+                    // task-135: IR rewrite silent fall back warning renderers
+                    put(
+                        CC_CAPTUREDSOURCES_REWRITE_FAILED,
+                        RewriteFailureWarnings.REWRITE_FAILED.message,
+                        org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
+                    )
+                    put(
+                        CC_CAPTUREDSOURCES_FILLER_NOT_FOUND,
+                        RewriteFailureWarnings.FILLER_NOT_FOUND.message,
                         org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
                     )
                 }

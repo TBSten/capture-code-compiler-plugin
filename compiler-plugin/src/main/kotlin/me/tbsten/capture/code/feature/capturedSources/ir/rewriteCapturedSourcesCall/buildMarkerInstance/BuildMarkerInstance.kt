@@ -3,6 +3,7 @@ package me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSources
 import me.tbsten.capture.code.CaptureCodePluginConfig
 import me.tbsten.capture.code.compat.CompatContext
 import me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.CollectedSite
+import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteFailureWarnings
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.filler.BuildFiller
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.filler.FillCaptureKind
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.filler.FillSource
@@ -10,7 +11,10 @@ import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesC
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.userargs.BuildUserArg
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.userargs.BuildUserArgPrimitive
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
+import me.tbsten.capture.code.warning.CaptureCodeCompilerPluginWarning
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
@@ -27,6 +31,7 @@ import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
+import java.text.MessageFormat
 
 /**
  * Logic H sub-step: marker FqN ごとに `listOf(T(...), T(...), ...)` の IR を構築する logic。
@@ -76,6 +81,10 @@ internal class BuildMarkerInstance {
      * @param pluginContext IrPluginContext (class / function symbol 解決用)
      * @param compat IR primitive を委譲する SPI
      * @param config global Gradle DSL config (per-site effective config は [CollectedSite] が保持)
+     * @param messageCollector IR-phase [MessageCollector]。 task-135 で導入。 silent return null の
+     *   経路 (marker resolve fail / filler resolve fail) を `CC_CAPTUREDSOURCES_REWRITE_FAILED` /
+     *   `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND` warning として user に通知する。 default の
+     *   [MessageCollector.NONE] を渡せば silent (既存 unit test と非破壊な互換)。
      * @return `listOf<T>(T(...), ...)` を表す [IrExpression]、 resolve 失敗時は `null`
      */
     operator fun invoke(
@@ -85,9 +94,13 @@ internal class BuildMarkerInstance {
         pluginContext: IrPluginContext,
         compat: CompatContext,
         @Suppress("UNUSED_PARAMETER") config: CaptureCodePluginConfig,
+        messageCollector: MessageCollector = MessageCollector.NONE,
     ): IrExpression? {
         val markerSymbol = pluginContext.referenceClass(ClassId.topLevel(FqName(markerFqn)))
-            ?: return null
+            ?: run {
+                reportWarning(messageCollector, RewriteFailureWarnings.REWRITE_FAILED, markerFqn)
+                return null
+            }
         val markerConstructor = markerSymbol.primaryConstructorOrNull() ?: return null
         val markerType = markerSymbol.typeWith()
         val listOfSymbol = pluginContext.findListOfVararg(compat) ?: return null
@@ -95,13 +108,20 @@ internal class BuildMarkerInstance {
         val parameters = compat.valueParametersOf(markerConstructor.owner)
         // filler 型 dispatch table を 1 回だけ計算する (per-marker plan)。
         // null 戻り = 必要な filler class が runtime に無い → 本 marker は書き換え不能 → null。
-        val fillerPlan = buildFillerPlan(parameters, pluginContext) ?: return null
+        val fillerPlan = buildFillerPlan(parameters, pluginContext, markerFqn, messageCollector)
+            ?: return null
 
         // 各 filler は symbol resolve を eager に行い、 marker FqN ごと 1 度だけ生成する。
         // resolve fail (runtime annotation 依存不足) は marker 全体 skip の trigger になる。
-        val fillSource = FillSource.resolveOrNull(pluginContext, compat) ?: return null
-        val fillSourceLocation = FillSourceLocation.resolveOrNull(pluginContext, compat) ?: return null
-        val fillCaptureKind = FillCaptureKind.resolveOrNull(pluginContext, compat) ?: return null
+        // task-135: silent skip だった経路を `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND` warning に
+        // 昇格する。 3 つの filler のどれが欠けていても発火条件は同じ (= annotation runtime dep
+        // 不足) なので emit は 1 度だけ。
+        val fillSource = FillSource.resolveOrNull(pluginContext, compat)
+            ?: return reportFillerNotFoundAndSkip(messageCollector, markerFqn)
+        val fillSourceLocation = FillSourceLocation.resolveOrNull(pluginContext, compat)
+            ?: return reportFillerNotFoundAndSkip(messageCollector, markerFqn)
+        val fillCaptureKind = FillCaptureKind.resolveOrNull(pluginContext, compat)
+            ?: return reportFillerNotFoundAndSkip(messageCollector, markerFqn)
         val buildUserArg = BuildUserArg()
         val buildUserArgPrimitive = BuildUserArgPrimitive()
 
@@ -218,11 +238,15 @@ internal class BuildMarkerInstance {
      *
      * IR drift 吸収のため、 必要な filler class が `pluginContext.referenceClass(...)` で resolve
      * 不能の場合は plan の構築自体が `null` を返し、 [RewriteCapturedSourcesCall] が原 call を
-     * そのまま残す (= silent skip)。
+     * そのまま残す (= silent skip)。 task-135 で silent skip 経路を
+     * `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND` warning として [messageCollector] に通知するようにし、
+     * その後 `null` を返す挙動は維持する。
      */
     private fun buildFillerPlan(
         parameters: List<org.jetbrains.kotlin.ir.declarations.IrValueParameter>,
         pluginContext: IrPluginContext,
+        markerFqn: String,
+        messageCollector: MessageCollector,
     ): FillerPlan? {
         val sourceFqn = CaptureCodeFillerClassIds.Source.asFqNameString()
         val locationFqn = CaptureCodeFillerClassIds.SourceLocation.asFqNameString()
@@ -245,11 +269,49 @@ internal class BuildMarkerInstance {
                 FillerKind.SOURCE_LOCATION -> CaptureCodeFillerClassIds.SourceLocation
                 FillerKind.CAPTURE_KIND -> CaptureCodeFillerClassIds.CaptureKind
             }
-            pluginContext.referenceClass(fillerClassId) ?: return null
+            if (pluginContext.referenceClass(fillerClassId) == null) {
+                reportWarning(
+                    messageCollector,
+                    RewriteFailureWarnings.FILLER_NOT_FOUND,
+                    markerFqn,
+                )
+                return null
+            }
 
             bindings[index] = fillerKind
         }
         return FillerPlan(bindings)
+    }
+
+    /**
+     * task-135 helper: emit [warning] (1 String 引数) via [messageCollector]。
+     * `MessageCollector.report(...)` の bytecode は K2.0 .. K2.4-RC で identical で、
+     * 同 pattern を [me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.warnIfNoMarkerFound.WarnIfNoMarkerFound]
+     * が既に採用しているため main 側に閉じた helper として再利用しやすい。
+     *
+     * location は `null` を渡す (= `transformCallsInModule` 内では [org.jetbrains.kotlin.ir.declarations.IrFile]
+     * を直接保持しないため)。 warning message body の marker FqN で対象が一意に特定できる。
+     */
+    private fun reportWarning(
+        messageCollector: MessageCollector,
+        warning: CaptureCodeCompilerPluginWarning,
+        markerFqn: String,
+    ) {
+        if (messageCollector === MessageCollector.NONE) return
+        val text = MessageFormat.format(warning.message, markerFqn)
+        messageCollector.report(CompilerMessageSeverity.WARNING, text, null)
+    }
+
+    /**
+     * `FILLER_NOT_FOUND` を 1 度発火しつつ `null` を返す convenience。 invoke の `?: run { ... }`
+     * を `?: return reportFillerNotFoundAndSkip(...)` の 1 行に詰めるため。
+     */
+    private fun reportFillerNotFoundAndSkip(
+        messageCollector: MessageCollector,
+        markerFqn: String,
+    ): IrExpression? {
+        reportWarning(messageCollector, RewriteFailureWarnings.FILLER_NOT_FOUND, markerFqn)
+        return null
     }
 
     /**

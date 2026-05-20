@@ -92,6 +92,13 @@ public class RewriteCapturedSourcesCall {
         // is only reported once per compilation even when multiple
         // `capturedSources<T>()` calls reference it.
         val warnedMarkerFqns = mutableSetOf<String>()
+        // task-135: dedupe `CC_CAPTUREDSOURCES_REWRITE_FAILED` /
+        // `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND` warnings per marker FqN. Several
+        // `capturedSources<T>()` calls can reference the same broken marker, but
+        // the user only needs to hear about each problem once. Pass
+        // `MessageCollector.NONE` to BuildMarkerInstance on subsequent calls so
+        // only the first invocation actually reports.
+        val rewriteFailureWarnedMarkerFqns = mutableSetOf<String>()
 
         compat.transformCallsInModule(moduleFragment) { call ->
             if (!call.isCapturedSourcesCall()) return@transformCallsInModule null
@@ -114,6 +121,9 @@ public class RewriteCapturedSourcesCall {
                     messageCollector = messageCollector,
                 )
             }
+            val collectorForBuildMarker =
+                if (rewriteFailureWarnedMarkerFqns.add(markerFqn)) messageCollector
+                else MessageCollector.NONE
             buildMarker(
                 call = call,
                 markerFqn = markerFqn,
@@ -121,6 +131,13 @@ public class RewriteCapturedSourcesCall {
                 pluginContext = pluginContext,
                 compat = compat,
                 config = config,
+                // task-135: forward the IR-phase MessageCollector so the previously
+                // silent `?: return null` fall-back paths in BuildMarkerInstance can
+                // emit `CC_CAPTUREDSOURCES_REWRITE_FAILED` / `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND`
+                // warnings. Existing unit tests that don't go through the registrar
+                // pass `MessageCollector.NONE` (= silent, non-breaking). Subsequent
+                // calls for the same marker get `NONE` to deduplicate.
+                messageCollector = collectorForBuildMarker,
             )
         }
     }
