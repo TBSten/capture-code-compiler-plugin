@@ -23,7 +23,7 @@ import org.jetbrains.kotlin.gradle.plugin.SubpluginOption
  *   1. plugin apply で `captureCode` extension が登録される
  *   2. `KotlinCompilerPluginSupportPlugin` の subclass である (KGP integration の前提)
  *   3. `getCompilerPluginId()` / `getPluginArtifact()` の値
- *   4. `applyToCompilation` が DSL の値を 5 個の SubpluginOption に変換する
+ *   4. `applyToCompilation` が DSL の値を 6 個の SubpluginOption に変換する
  *
  * `afterEvaluate` での dependency 自動追加検証は **ProjectBuilder では afterEvaluate が
  * trigger されないため scope 外**。 代わりに「plugin が install できる」「extension が
@@ -68,20 +68,21 @@ class CaptureCodeGradlePluginTest : StringSpec({
         artifact.version shouldContain "0."
     }
 
-    "applyToCompilation はデフォルト値を 5 個の SubpluginOption に変換する" {
+    "applyToCompilation はデフォルト値を 6 個の SubpluginOption に変換する" {
         // CaptureCodeExtension のデフォルト値 (CaptureCodePluginConfig.DEFAULT) が
         // SubpluginOption として正しく伝播することを verify。 これが正しく
         // wire されていないと CLI processor 側で plugin option が received されず、
         // FIR / IR extension がデフォルトでは無く想定外の挙動をする (silent bug)。
         val options = collectSubpluginOptions(applyDsl = { /* 全部デフォルト */ })
 
-        options shouldHaveSize 5
+        options shouldHaveSize 6
         options.map { it.key }.toSet() shouldBe setOf(
             "includeKdoc",
             "includeImports",
             "includeAnnotationLines",
             "dedent",
             "includeLineInfo",
+            "warnOnEmptyCapture",
         )
 
         // デフォルト値 (CaptureCodeExtension のクラス default) を verify。
@@ -92,6 +93,7 @@ class CaptureCodeGradlePluginTest : StringSpec({
             "includeAnnotationLines" to "false",
             "dedent" to "true",
             "includeLineInfo" to "true",
+            "warnOnEmptyCapture" to "false",
         )
     }
 
@@ -105,6 +107,7 @@ class CaptureCodeGradlePluginTest : StringSpec({
             ext.includeAnnotationLines = true
             ext.dedent = false
             ext.includeLineInfo = false
+            ext.warnOnEmptyCapture = true
         })
 
         options.toMap()["includeKdoc"] shouldBe "false"
@@ -112,6 +115,7 @@ class CaptureCodeGradlePluginTest : StringSpec({
         options.toMap()["includeAnnotationLines"] shouldBe "true"
         options.toMap()["dedent"] shouldBe "false"
         options.toMap()["includeLineInfo"] shouldBe "false"
+        options.toMap()["warnOnEmptyCapture"] shouldBe "true"
     }
 
     "CaptureCodeExtension.EXTENSION_NAME と plugin apply で登録される名前は一致する" {
@@ -224,6 +228,7 @@ private fun collectSubpluginOptions(
         SubpluginOption("includeAnnotationLines", ext.includeAnnotationLines.toString()),
         SubpluginOption("dedent", ext.dedent.toString()),
         SubpluginOption("includeLineInfo", ext.includeLineInfo.toString()),
+        SubpluginOption("warnOnEmptyCapture", ext.warnOnEmptyCapture.toString()),
     )
 }
 

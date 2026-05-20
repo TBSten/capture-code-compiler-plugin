@@ -145,6 +145,7 @@ public class CaptureCodeGradlePlugin : KotlinCompilerPluginSupportPlugin {
                 SubpluginOption(OPTION_INCLUDE_ANNOTATION_LINES, extension.includeAnnotationLines.toString()),
                 SubpluginOption(OPTION_DEDENT, extension.dedent.toString()),
                 SubpluginOption(OPTION_INCLUDE_LINE_INFO, extension.includeLineInfo.toString()),
+                SubpluginOption(OPTION_WARN_ON_EMPTY_CAPTURE, extension.warnOnEmptyCapture.toString()),
             )
         }
     }
@@ -164,6 +165,7 @@ public class CaptureCodeGradlePlugin : KotlinCompilerPluginSupportPlugin {
         const val OPTION_INCLUDE_ANNOTATION_LINES = "includeAnnotationLines"
         const val OPTION_DEDENT = "dedent"
         const val OPTION_INCLUDE_LINE_INFO = "includeLineInfo"
+        const val OPTION_WARN_ON_EMPTY_CAPTURE = "warnOnEmptyCapture"
 
         // IC fallback: KotlinCompile task input property key. 名前は Gradle UP の
         // diagnostic 出力にもそのまま出るため、 plugin identity を含めておく。
