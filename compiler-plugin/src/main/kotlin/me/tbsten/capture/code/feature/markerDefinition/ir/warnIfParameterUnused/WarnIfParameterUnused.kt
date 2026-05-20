@@ -1,49 +1,168 @@
 package me.tbsten.capture.code.feature.markerDefinition.ir.warnIfParameterUnused
 
+import me.tbsten.capture.code.compat.CompatContext
+import me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.CollectedSite
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
+import me.tbsten.capture.code.feature.markerDefinition.MarkerDefinitionWarnings
+import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import org.jetbrains.kotlin.ir.types.classFqName
+import org.jetbrains.kotlin.ir.util.constructors
+import org.jetbrains.kotlin.name.ClassId
+import org.jetbrains.kotlin.name.FqName
+import java.text.MessageFormat
+
 /**
- * Marker-definition warning (skeleton, deferred): would emit
- * `CC_MARKER_PARAMETER_UNUSED` for a marker parameter that carries a default
- * value but is never overridden at any capture site in the compilation.
+ * Marker-definition warning: emits `CC_MARKER_PARAMETER_UNUSED` for each marker
+ * constructor parameter that **carries a default value** but is **never
+ * overridden** at any captured site in the current compilation.
  *
- * ## Status (task-120-B Phase 7)
+ * ## task-128: 具体実装
  *
- * **Silent no-op.** Implementing this warning correctly requires the IR phase
- * to (a) resolve each marker class' constructor symbol via `IrPluginContext`,
- * (b) iterate `valueParameters` for default values, (c) walk every captured
- * site's marker call expression to check whether each parameter is overridden,
- * and (d) deduplicate per `(markerFqn, paramName)` pair. This logic is
- * medium-cost and orthogonal to the runtime-drift collapse that drives
- * task-120-B, so it is deferred.
+ * task-120-B Phase 7 で deferred とされていた unused parameter 検出を本クラスで
+ * concrete 化する。 検出 + warning 発火の責務分担は以下:
  *
- * Tracked as deferred work in `.local/ticket/task-128-warn-parameter-unused-impl.md`.
+ * - **marker class 走査**: [CaptureCodeMarkerRegistry.markerFqns] に登録された各 FQN を
+ *   [IrPluginContext.referenceClass] で IR class symbol に解決し、 primary constructor の
+ *   value parameter を [CompatContext.valueParametersOf] で取得する。
+ * - **filler 除外**: parameter の型が `Source` / `SourceLocation` / `CaptureKind` の場合は
+ *   plugin 側で自動 fill されるため unused 判定対象外。
+ * - **default 値判定**: `parameter.defaultValue == null` の parameter は unused 判定対象外
+ *   (= 必須 parameter は site 側で必ず override されるはず)。
+ * - **site 走査**: 当該 marker の全 site (`allCollectedSites.filter { it.site.markerFqn == fqn }`)
+ *   を回し、 各 parameter が override されているかを確認:
+ *   - **declaration / file 起源** (`markerCall != null`): `compat.getCallValueArgument(markerCall, index)`
+ *     が non-null なら override されている
+ *   - **EXPRESSION 起源** (`markerCall == null`): `expressionUserArgs[paramName]` に entry が
+ *     あれば override されている
+ * - **warning 発火**: site が 0 件 (= 当該 marker が一切使われていない) でも default 値 parameter
+ *   は意味を持たないため発火する。 同 `(markerFqn, paramName)` ペアに対する warning は **1 度だけ**
+ *   出力する (= site 数によらず常に 1 message)。
  *
- * ## When implementation lands
+ * ## Why MessageCollector instead of DiagnosticReporter
  *
- * 1. After IR `RewriteCapturedSourcesCall` produces the final marker
- *    instance graph, iterate every (marker, parameter) pair where the
- *    parameter has a default value.
- * 2. For each pair, check whether any captured site's marker instance carries
- *    a non-default argument for that parameter. If none, call
- *    `WarnIfParameterUnused()(markerFqn, paramName, ...)`.
- * 3. Each `compat-kXXX` already supplies `K{XXX}Diagnostics.CC_MARKER_PARAMETER_UNUSED`
- *    (`KtDiagnosticFactory1<String>`); the MessageCollector channel used by
- *    `WarnIfNoMarkerFound` works for the IR-phase reporting.
- * 4. The source location should be the parameter declaration on the marker
- *    class.
+ * [WarnIfNoMarkerFound] / [WarnIfDuplicateMarkerFqn] と同じ理由。 IR phase では
+ * `KtSourceElement` が手軽に手に入らず、 K2.0 .. K2.4-RC で `MessageCollector.report` の
+ * bytecode 互換が確認済なので main module から直接呼ぶ。
  *
- * ## Why no-op (not `throw`)
+ * ## 発火タイミング
  *
- * Symmetry with `WarnIfDuplicateMarkerFqn`: the IR chain is now fully concrete
- * (task-120-B Phase 5+), so an accidental caller of this class must not crash
- * the compilation. `invoke()` is therefore a no-op until task-128 lands.
+ * [me.tbsten.capture.code.CaptureCodeIrExtension.generate] の末尾、
+ * `RewriteCapturedSourcesCall` (= 全 site の確定後) のあとに呼ぶ。 registry の reset は
+ * 同 extension の `finally` 節で行われるため、 本クラス起動時点では registry が当該
+ * compilation 由来の entry を保持している。
+ *
+ * ## 動作保証スコープ (task-128 Phase 1)
+ *
+ * - 保証する: declaration / file annotation 起源と EXPRESSION 起源の両方で override 検出
+ * - 保証する: 同 `(markerFqn, paramName)` ペアの warning は 1 度だけ発火
+ * - スコープ外: cross-compilation の override 検出 (registry は compilation-scoped のため)
+ * - スコープ外: marker class が IR phase で resolve 不能 (= runtime 依存不足) の場合は silent skip
+ *   (= 既存 `BuildMarkerInstance` が `CC_CAPTUREDSOURCES_REWRITE_FAILED` で別途警告するため
+ *   ここで重ねて出さない)
  */
 public class WarnIfParameterUnused {
 
     /**
-     * Deferred no-op. Returns immediately without reporting anything. The
-     * concrete unused-parameter detection lives in task-128; see class KDoc.
+     * registry に登録された各 marker class の primary constructor を走査し、 default 値あり
+     * かつ全 site で override されていない parameter について `CC_MARKER_PARAMETER_UNUSED`
+     * warning を発火する。
+     *
+     * @param allCollectedSites module 全体から収集した [CollectedSite] のリスト。
+     *   `CollectDeclarationSite` の戻り値をそのまま渡せばよい。
+     * @param pluginContext IR phase の [IrPluginContext]。 marker class symbol 解決に使う。
+     * @param compat IR primitive (`valueParametersOf`, `getCallValueArgument`) を委譲する SPI
+     * @param messageCollector IR phase の [MessageCollector]。 [MessageCollector.NONE] を
+     *   渡せば silent (= 既存 unit test との互換)。
      */
-    public operator fun invoke() {
-        // intentionally empty — deferred to task-128
+    public operator fun invoke(
+        allCollectedSites: List<CollectedSite>,
+        pluginContext: IrPluginContext,
+        compat: CompatContext,
+        messageCollector: MessageCollector,
+    ) {
+        val markerFqns = CaptureCodeMarkerRegistry.markerFqns
+        if (markerFqns.isEmpty()) return
+
+        // filler 型 FQN を 1 回だけ計算 (per-marker loop の hot path で文字列比較する)。
+        val fillerFqns = setOf(
+            CaptureCodeFillerClassIds.Source.asFqNameString(),
+            CaptureCodeFillerClassIds.SourceLocation.asFqNameString(),
+            CaptureCodeFillerClassIds.CaptureKind.asFqNameString(),
+        )
+
+        for (markerFqn in markerFqns) {
+            val markerSymbol = pluginContext.referenceClass(
+                ClassId.topLevel(FqName(markerFqn)),
+            ) ?: continue
+            // primary constructor を取得 (annotation class は 1 つしか持てないので first で十分)。
+            val constructor = markerSymbol.owner.constructors.firstOrNull { it.isPrimary }
+                ?: markerSymbol.owner.constructors.firstOrNull()
+                ?: continue
+            val parameters = compat.valueParametersOf(constructor)
+            if (parameters.isEmpty()) continue
+
+            val sitesForMarker = allCollectedSites.filter { it.site.markerFqn == markerFqn }
+
+            parameters.forEachIndexed { index, parameter ->
+                // default 値なし parameter は必須引数 (= site 側で必ず override される) なので
+                // unused 判定対象外。 また filler 型 parameter は plugin 側で自動 fill されるため
+                // user の override が無いのは想定通り。
+                if (parameter.defaultValue == null) return@forEachIndexed
+                val paramTypeFqn = parameter.type.classFqName?.asString()
+                if (paramTypeFqn in fillerFqns) return@forEachIndexed
+
+                val paramName = parameter.name.asString()
+                val overriddenAtAnySite = sitesForMarker.any { site ->
+                    isParameterOverridden(site, index, paramName, compat)
+                }
+                if (overriddenAtAnySite) return@forEachIndexed
+
+                emitWarning(messageCollector, markerFqn, paramName)
+            }
+        }
+    }
+
+    /**
+     * 1 site で指定 parameter が override されているかを判定する。
+     *
+     * - declaration / file 起源 (`markerCall != null`): 当該 index の value argument が
+     *   non-null なら override されている (= site 側で `Marker(param = ...)` の形で値を指定)。
+     * - EXPRESSION 起源 (`markerCall == null`): FIR phase で push された `expressionUserArgs`
+     *   map に当該 parameter 名の entry があれば override されている。
+     */
+    private fun isParameterOverridden(
+        site: CollectedSite,
+        index: Int,
+        paramName: String,
+        compat: CompatContext,
+    ): Boolean {
+        val markerCall = site.markerCall
+        return if (markerCall != null) {
+            compat.getCallValueArgument(markerCall, index) != null
+        } else {
+            site.expressionUserArgs.containsKey(paramName)
+        }
+    }
+
+    /**
+     * `CC_MARKER_PARAMETER_UNUSED` warning を 1 件出力する。 文面は
+     * [MarkerDefinitionWarnings.PARAMETER_UNUSED] (SSoT) を `{0}` placeholder に
+     * `"<markerFqn>.<paramName>"` を埋めて出力する。 IR phase では psi source element が
+     * 自然に取れないため location は `null` (= marker FqN + param 名で対象一意に特定)。
+     */
+    private fun emitWarning(
+        messageCollector: MessageCollector,
+        markerFqn: String,
+        paramName: String,
+    ) {
+        val payload = "$markerFqn.$paramName"
+        val text = MessageFormat.format(
+            MarkerDefinitionWarnings.PARAMETER_UNUSED.message,
+            payload,
+        )
+        messageCollector.report(CompilerMessageSeverity.WARNING, text, null)
     }
 }

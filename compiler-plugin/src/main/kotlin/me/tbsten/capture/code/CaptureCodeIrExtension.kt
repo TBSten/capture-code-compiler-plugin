@@ -7,6 +7,7 @@ import me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteCapturedSourcesCall
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.feature.markerDefinition.ir.warnIfDuplicateMarkerFqn.WarnIfDuplicateMarkerFqn
+import me.tbsten.capture.code.feature.markerDefinition.ir.warnIfParameterUnused.WarnIfParameterUnused
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
@@ -48,6 +49,7 @@ public class CaptureCodeIrExtension(
     private val collectDeclarationSite = CollectDeclarationSite()
     private val rewriteCapturedSourcesCall = RewriteCapturedSourcesCall()
     private val warnIfDuplicateMarkerFqn = WarnIfDuplicateMarkerFqn()
+    private val warnIfParameterUnused = WarnIfParameterUnused()
 
     override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
         try {
@@ -75,6 +77,16 @@ public class CaptureCodeIrExtension(
                 compat,
                 config,
                 collectedSites,
+                CaptureCodeMessageCollectorHolder.get(),
+            )
+            // 経路 3: task-128 で concrete 化した `CC_MARKER_PARAMETER_UNUSED` warning。
+            // 各 marker class の constructor parameter のうち default 値あり / filler 型以外 /
+            // 全 site で 1 度も override されないものについて警告する。 site 集合 (= 経路 1 の
+            // 戻り値) が確定したあとに走らせる必要があるので、 rewrite chain の **後ろ** に置く。
+            warnIfParameterUnused(
+                collectedSites,
+                pluginContext,
+                compat,
                 CaptureCodeMessageCollectorHolder.get(),
             )
         } finally {
