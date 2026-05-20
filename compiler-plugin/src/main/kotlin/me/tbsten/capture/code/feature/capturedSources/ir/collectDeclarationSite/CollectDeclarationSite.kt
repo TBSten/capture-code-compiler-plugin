@@ -222,14 +222,28 @@ public class CollectDeclarationSite {
 
     /**
      * 行が「modifier のみで構成された行」または「annotation で始まる行 (`@...`)」であるかを判定する。
+     *
+     * **注意**: 同一行に annotation と declaration keyword (`val` / `var` / `fun` / `class` / `object`
+     * / `interface` / `typealias` / `enum`) の両方がある行 (例: `@Marker val a = 1`) は declaration
+     * 行とみなし、 annotation 行扱いしない (= 遡り停止)。 これは [expandStartToCoverModifierAndAnnotationLines]
+     * の while ループが「前 declaration 行」 まで遡って source に leak させないための gating 条件。
+     *
+     * caveat: annotation argument 内の string literal に keyword 文字列が含まれるケース
+     * (例: `@Marker("val foo")`) は false negative となり、 当該行は annotation 行と判定されない
+     * = 遡り停止する。 broken syntax 経路だが、 string literal 内に "val" を含む annotation も
+     * 同じ理由で遡り停止する側に倒れる (= 安全側)。
      */
     private fun isModifierOrAnnotationLine(line: String): Boolean {
         val trimmed = line.trim()
         if (trimmed.isEmpty()) return false
         if (trimmed.startsWith("*") || trimmed.startsWith("/*")) return false
         if (trimmed.startsWith("//")) return false
-        if (trimmed.startsWith("@")) return true
         val tokens = trimmed.split(Regex("\\s+"))
+        // 同一行に annotation + declaration keyword (val/var/fun/...) があれば declaration 行扱い
+        // (遡り停止)。 これにより `@Marker val a = 1` 行を annotation 行と誤判定して前 declaration
+        // line まで遡る bug (= prev-property-leak) を防ぐ。
+        if (tokens.any { it in DECLARATION_KEYWORDS }) return false
+        if (trimmed.startsWith("@")) return true
         return tokens.all { it in DECLARATION_MODIFIERS }
     }
 
@@ -503,6 +517,20 @@ public class CollectDeclarationSite {
             "const", "lateinit",
             "reified", "vararg",
             "expect", "actual",
+        )
+
+        /**
+         * Kotlin の declaration keyword 集合 (= `val` / `var` / `fun` / `class` / `object` /
+         * `interface` / `typealias` / `enum`)。 [isModifierOrAnnotationLine] で「同一行に
+         * annotation + declaration keyword がある行」 を declaration 行と判定して遡り停止する
+         * ために使う。 prev-property-leak (= `@Marker val a = 1\n@Marker val b = 2` のような
+         * 1 行 1 property 形式で前の declaration が source に leak する) を防ぐ。
+         *
+         * NOTE: `enum` は `DECLARATION_MODIFIERS` にも含まれるが、 `enum class Foo` のように
+         * declaration keyword としても使われるため、 keyword 側に重複して列挙している。
+         */
+        public val DECLARATION_KEYWORDS: Set<String> = setOf(
+            "val", "var", "fun", "class", "object", "interface", "typealias", "enum",
         )
     }
 }
