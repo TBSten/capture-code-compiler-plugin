@@ -1,47 +1,85 @@
 package me.tbsten.capture.code.feature.markerDefinition.ir.warnIfDuplicateMarkerFqn
 
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
+import me.tbsten.capture.code.feature.markerDefinition.MarkerDefinitionWarnings
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageLocation
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import java.text.MessageFormat
+
 /**
- * Marker-definition warning (skeleton, deferred): would emit
- * `CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN` when two or more marker classes
- * sharing the same FQN are registered into the IR-phase marker registry.
+ * Marker-definition warning: emits `CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN`
+ * when two or more marker classes sharing the same FQN are registered into the
+ * compilation-scoped [CaptureCodeMarkerRegistry].
  *
- * ## Status (task-120-B Phase 7)
+ * ## task-127: 具体実装
  *
- * **Silent no-op.** Wiring this warning requires extending
- * [me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry]
- * with a "registration history" mechanism (currently it is a `Set<String>` and
- * duplicates silently dedupe), which falls outside the scope of task-120-B
- * (which focuses on collapsing the runtime drift surface to the main module).
+ * task-120-B Phase 7 で deferred とされていた duplicate FQN 検出を本クラスで
+ * concrete 化する。 検出 + warning 発火の責務分担は以下:
  *
- * Tracked as deferred work in `.local/ticket/task-127-warn-duplicate-marker-fqn-impl.md`.
+ * - **registration 履歴**: [CaptureCodeMarkerRegistry.registrations] が各
+ *   `registerMarker` 呼び出しを `MarkerRegistration` として保持する。 同 FQN を
+ *   異なる declaration site から複数回 register したケースは複数 entry として
+ *   積まれるので、 `duplicateMarkerFqns()` で 2 件以上のものを抽出できる。
+ * - **warning 発火**: [WarnIfNoMarkerFound] と同様に IR phase の
+ *   [MessageCollector] を経由して `CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN`
+ *   を出力する。 文面は [MarkerDefinitionWarnings.DUPLICATE_MARKER_FQN] (SSoT) を
+ *   `{0}` placeholder に offending FQN を埋めて出力する。
  *
- * ## When implementation lands
+ * ## Why MessageCollector instead of DiagnosticReporter
  *
- * 1. At the start of IR phase (after `CollectDeclarationSite` runs), inspect
- *    the merged `CaptureCodeMarkerRegistry`. Group entries by FQN; for any
- *    group with `size > 1`, call [invoke] with `fqn` + reporting context.
- * 2. Each `compat-kXXX` already supplies `K{XXX}Diagnostics.CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN`
- *    (a `KtDiagnosticFactory1<String>`), so the diagnostic dispatch surface is
- *    in place. The IR phase reporting layer can route through the same
- *    `MessageCollector` channel used by `WarnIfNoMarkerFound`.
- * 3. The source location should be the first marker declaration's `IrFile`
- *    location (deterministic ordering required).
+ * - FIR phase の `DiagnosticReporter` は `KtSourceElement` 必須だが IR phase には
+ *   それが自然に存在しない (registrations は FIR phase で push されているが、
+ *   `WarnIfDuplicateMarkerFqn` が起動する時点ではすでに source 情報は失われている)。
+ * - [MessageCollector.report] は K2.0 .. K2.4-RC で同一 bytecode 互換のため
+ *   `compat` SPI を介さずに直接呼べる。 [WarnIfNoMarkerFound] と同じ pattern。
  *
- * ## Why no-op (not `throw`)
+ * ## 発火タイミング
  *
- * Previously this class threw `UnsupportedOperationException` from `invoke()`
- * to flag the unwired state. With the IR chain now fully concrete
- * (task-120-B Phase 5+), any accidental caller would crash the compilation, so
- * `invoke()` is now a no-op to keep the build green while the implementation
- * is deferred to task-127.
+ * [me.tbsten.capture.code.CaptureCodeIrExtension.generate] の冒頭、
+ * `CollectDeclarationSite` よりも前 (= FIR phase 完了直後) に呼ぶ。 registry の
+ * reset は同 extension の `finally` 節で行われるため、 本クラス起動時点では
+ * registry が当該 compilation 由来の entry を保持している。
+ *
+ * ## False positive
+ *
+ * cross-module の duplicate (= 別 compilation 由来の同名 marker) は当該 compilation
+ * の registry には現れない (compilation-scoped) ため検出対象外。 task-127 の範囲は
+ * 同 compilation 内 (例: commonMain + jvmMain で `expect`/`actual` ではなく
+ * 平行 declaration を作ってしまったケース、 または同じ package に同名 marker class
+ * を 2 度宣言してしまったケース) に限定する。
  */
 public class WarnIfDuplicateMarkerFqn {
 
     /**
-     * Deferred no-op. Returns immediately without reporting anything. The
-     * concrete duplicate-FQN detection lives in task-127; see class KDoc.
+     * registry を走査し、 同 FQN が 2 件以上 register されているものに対して
+     * `CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN` warning を発火する。
+     *
+     * 1 つの duplicate FQN に対して warning は **1 度だけ** 出る (= 同 FQN が 3 回
+     * register されていても warning は 1 件)。 文面の `{0}` placeholder に offending
+     * FQN が埋め込まれるので、 caller は marker を一意に特定できる。
+     *
+     * @param messageCollector IR phase の [MessageCollector]。
+     *   [MessageCollector.NONE] を渡せば silent (= 既存 unit test との互換)。
      */
-    public operator fun invoke() {
-        // intentionally empty — deferred to task-127
+    public operator fun invoke(messageCollector: MessageCollector) {
+        val duplicates = CaptureCodeMarkerRegistry.duplicateMarkerFqns()
+        if (duplicates.isEmpty()) return
+
+        for (fqn in duplicates) {
+            val text = MessageFormat.format(
+                MarkerDefinitionWarnings.DUPLICATE_MARKER_FQN.message,
+                fqn,
+            )
+            // duplicate の最初の registration の file path を warning location として使う。
+            // IR phase 起動時点で psi の source element は持っていないので、 file path
+            // ベースで「どの marker が duplicate か」 だけ示し、 line/column は提供しない
+            // (= location.create(path, -1, -1, null) で line/column 未指定にする)。
+            // 取得不能な場合は null location で出力する。
+            val firstRegistration = CaptureCodeMarkerRegistry.registrationsFor(fqn).firstOrNull()
+            val location = firstRegistration?.sourceFilePath
+                ?.let { CompilerMessageLocation.create(it, -1, -1, null) }
+            messageCollector.report(CompilerMessageSeverity.WARNING, text, location)
+        }
     }
 }

@@ -6,6 +6,7 @@ import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteR
 import me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.CollectDeclarationSite
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteCapturedSourcesCall
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
+import me.tbsten.capture.code.feature.markerDefinition.ir.warnIfDuplicateMarkerFqn.WarnIfDuplicateMarkerFqn
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
@@ -46,6 +47,7 @@ public class CaptureCodeIrExtension(
 ) : IrGenerationExtension {
     private val collectDeclarationSite = CollectDeclarationSite()
     private val rewriteCapturedSourcesCall = RewriteCapturedSourcesCall()
+    private val warnIfDuplicateMarkerFqn = WarnIfDuplicateMarkerFqn()
 
     override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
         try {
@@ -54,6 +56,11 @@ public class CaptureCodeIrExtension(
             // ServiceLoader を 1 回だけ走らせ、 K2 compiler 起動の hot path で全 generate()
             // invocation 共有する。
             val compat = CaptureCodeCompatHolder.context
+            // task-127: 経路 0a。 FIR phase で registry に積まれた registration 履歴を走査し、
+            // 同 FQN を複数回 register された marker に対して `CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN`
+            // warning を発火する。 これは CollectDeclarationSite よりも前に呼ぶ (= 後段の
+            // marker FqN 解決が ambiguous な状態でもログに残るようにする)。
+            warnIfDuplicateMarkerFqn(CaptureCodeMessageCollectorHolder.get())
             // 経路 1: Logic B-ir。 declaration + file annotation + expression site を全 file 走査して
             // CollectedSite として収集する。 K{XXX}CapturedSourcesCollector の置換 (Phase 3a)。
             val collectedSites = collectDeclarationSite(moduleFragment, pluginContext, compat, config)

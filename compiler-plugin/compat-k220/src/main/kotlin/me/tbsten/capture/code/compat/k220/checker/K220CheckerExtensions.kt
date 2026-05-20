@@ -52,7 +52,7 @@ public object K220CaptureCodeMarkerClassCheckerLogic {
         @Suppress("UNUSED_PARAMETER") reporter: DiagnosticReporter,
         declaration: FirRegularClass,
     ) {
-        discoverMarkerClass(context, declaration)
+        discoverMarkerClass(context, declaration, k220Compat)
     }
 }
 

@@ -50,7 +50,7 @@ internal object K200CaptureCodeMarkerClassChecker : FirRegularClassChecker(MppCh
         context: CheckerContext,
         @Suppress("UNUSED_PARAMETER") reporter: DiagnosticReporter,
     ) {
-        discoverMarkerClass(context, declaration)
+        discoverMarkerClass(context, declaration, k200Compat)
     }
 }
 

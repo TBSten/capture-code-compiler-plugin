@@ -52,7 +52,7 @@ public object K240RcCaptureCodeMarkerClassCheckerLogic {
         @Suppress("UNUSED_PARAMETER") reporter: DiagnosticReporter,
         declaration: FirRegularClass,
     ) {
-        discoverMarkerClass(context, declaration)
+        discoverMarkerClass(context, declaration, k240RcCompat)
     }
 }
 
