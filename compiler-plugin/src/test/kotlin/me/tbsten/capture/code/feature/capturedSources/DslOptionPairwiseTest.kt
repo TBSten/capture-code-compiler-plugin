@@ -291,16 +291,12 @@ class DslOptionPairwiseTest : FunSpec({
             // (`NormalizeOptions.stripPackageAndImport = !includeImports` couples the
             // two SSoT; see `CaptureCodePluginConfigBridge.toFileNormalizeOptions`).
             //
-            // **Charter 3 finding (BUG-3-2)**: when `includeAnnotationLines = true`
-            // the leading `@file:Marker` annotation line stays, and the
-            // `stripPackageAndImportLines` helper — which is a "greedy from the
-            // head" filter — bails out at the first non-package / non-import line
-            // (`@file:...`). As a result the `package` and `import` lines **leak
-            // even when `includeImports = false`**. This assertion intentionally
-            // captures the current (buggy) behaviour so a future fix forces a
-            // deliberate flip — see
-            // `.local/tmp/probe/exploratory-debug/charter-3-dsl-pairwise/BUG-3-2-file-annotation-import-strip-bypassed.md`.
-            val packageStripped = !config.includeImports && !config.includeAnnotationLines
+            // **task-143 (Plan B, post-0.2.1)**: `stripPackageAndImportLines` was
+            // changed from a "greedy from the head" filter to a full line filter so
+            // that `includeImports = false` is honored even when the leading
+            // `@file:Marker` annotation line survives (= `includeAnnotationLines = true`).
+            // Previously C3 / C7 captured the buggy behaviour as a regression lock.
+            val packageStripped = !config.includeImports
             if (packageStripped) {
                 src shouldNotContain "package example.file_$name"
                 src shouldNotContain "import me.tbsten.capture.code.CaptureCode"
