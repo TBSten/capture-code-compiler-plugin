@@ -37,6 +37,11 @@ public object MarkerAnnotationErrors {
      */
     public val IS_EXPECT: CaptureCodeCompilerPluginError = object : CaptureCodeCompilerPluginError {
         override val id: String = "CC_MARKER_IS_EXPECT"
+        // `KtDiagnosticFactory0` (placeholder 無し) の renderer は `MessageFormat` を
+        // 通さないため lone `'` の escape (`''expect''`) は不要 (= render 後文字列が
+        // `''expect''` のままになり既存 test も壊れる)。 placeholder ある factory
+        // (`PARAMETER_TYPE_INVALID` / `FILLER_REQUIRES_DEFAULT`) は MessageFormat
+        // 経由なので apostrophe escape を維持。
         override val message: String =
             "@CaptureCode marker annotation cannot be declared as 'expect'. " +
                 "Markers must be concrete annotation declarations (see design §7.6).\n" +
@@ -70,12 +75,15 @@ public object MarkerAnnotationErrors {
      */
     public val FILLER_REQUIRES_DEFAULT: CaptureCodeCompilerPluginError = object : CaptureCodeCompilerPluginError {
         override val id: String = "CC_MARKER_FILLER_REQUIRES_DEFAULT"
+        // `MessageFormat` 仕様: lone `'` は literal-escape の開始扱いで後続文字列が
+        // literal 化される (= placeholder 不展開 + 文字落ち)。 `''` 二重化で literal `'`
+        // として render させる。 同種 fix は commit 3aa6a34 (warning 側) 参照。
         override val message: String =
             "@CaptureCode marker filler parameter ''{0}'' must have a default value " +
-                "(e.g., 'val source: Source = Source()'). The plugin auto-fills filler values " +
+                "(e.g., ''val source: Source = Source()''). The plugin auto-fills filler values " +
                 "at compile time, so use sites do not specify them explicitly.\n" +
-                "Suggested fix: assign a default constructor call (e.g., '= Source()') to ''{0}''."
+                "Suggested fix: assign a default constructor call (e.g., ''= Source()'') to ''{0}''."
         override val reply: String? =
-            "Assign a default constructor call (e.g., '= Source()') to parameter ''{0}''."
+            "Assign a default constructor call (e.g., ''= Source()'') to parameter ''{0}''."
     }
 }

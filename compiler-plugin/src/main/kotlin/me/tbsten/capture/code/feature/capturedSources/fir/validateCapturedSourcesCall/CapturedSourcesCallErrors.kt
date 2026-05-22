@@ -21,13 +21,16 @@ public object CapturedSourcesCallErrors {
      */
     public val T_NOT_CAPTURE_CODE: CaptureCodeCompilerPluginError = object : CaptureCodeCompilerPluginError {
         override val id: String = "CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE"
+        // `MessageFormat` 仕様: lone `'` は literal-escape の開始扱いで後続文字列が
+        // literal 化される (= placeholder 不展開 + 文字落ち)。 `''` 二重化で literal `'`
+        // として render させる。 同種 fix は commit 3aa6a34 (warning 側) 参照。
         override val message: String =
             "Type parameter T of capturedSources<T>() must be annotated with @CaptureCode. " +
                 "{0} does not have @CaptureCode.\n" +
-                "Suggested fix: add '@CaptureCode' meta-annotation to {0}, " +
+                "Suggested fix: add ''@CaptureCode'' meta-annotation to {0}, " +
                 "or pass a @CaptureCode-meta marker as T."
         override val reply: String? =
-            "Add '@CaptureCode' meta-annotation to {0}, " +
+            "Add ''@CaptureCode'' meta-annotation to {0}, " +
                 "or pass a @CaptureCode-meta marker as T."
     }
 }
