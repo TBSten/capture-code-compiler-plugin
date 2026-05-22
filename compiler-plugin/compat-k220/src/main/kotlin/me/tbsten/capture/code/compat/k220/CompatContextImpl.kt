@@ -15,6 +15,7 @@ import me.tbsten.capture.code.compat.k220.checker.K220ExpressionAnnotationChecke
 import me.tbsten.capture.code.compat.k220.checker.K220MarkerAnnotationCheckersExtension
 import me.tbsten.capture.code.compat.k220.checker.K220MarkerCheckersExtension
 import me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.CapturedSourcesCallErrors
+import me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.CapturedSourcesCallWarnings
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.CapturedSourcesWarnings
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteFailureWarnings
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.userargs.UserArgWarnings
@@ -500,6 +501,17 @@ public class CompatContextImpl : CompatContext {
                 K220CaptureCodeDefaultMessages,
             )
 
+        // task-148 (BUG-H provisional warn): inline reified `capturedSources<T>()` を
+        // silent runtime crash から compile-time warning に変換するための factory。
+        public val CC_CAPTUREDSOURCES_T_IS_TYPE_PARAMETER: KtDiagnosticFactory1<String> =
+            K220DiagnosticFactoryShim.createFactory1(
+                "CC_CAPTUREDSOURCES_T_IS_TYPE_PARAMETER",
+                Severity.WARNING,
+                SourceElementPositioningStrategies.DEFAULT,
+                KtElement::class,
+                K220CaptureCodeDefaultMessages,
+            )
+
         /**
          * task-121: lazy MAP (task-088 教訓に従い静的初期化循環依存を予防)。
          *
@@ -558,6 +570,11 @@ public class CompatContextImpl : CompatContext {
                 "CC_USERARG_CLASS_REF_UNSUPPORTED" to DiagnosticFactoryRef.OneString(
                     "CC_USERARG_CLASS_REF_UNSUPPORTED",
                     CC_USERARG_CLASS_REF_UNSUPPORTED,
+                ),
+                // task-148: BUG-H provisional warn factory
+                "CC_CAPTUREDSOURCES_T_IS_TYPE_PARAMETER" to DiagnosticFactoryRef.OneString(
+                    "CC_CAPTUREDSOURCES_T_IS_TYPE_PARAMETER",
+                    CC_CAPTUREDSOURCES_T_IS_TYPE_PARAMETER,
                 ),
             )
         }
@@ -640,6 +657,12 @@ public class CompatContextImpl : CompatContext {
                     put(
                         CC_USERARG_CLASS_REF_UNSUPPORTED,
                         UserArgWarnings.CLASS_REF_UNSUPPORTED.message,
+                        org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
+                    )
+                    // task-148: BUG-H provisional warn renderer
+                    put(
+                        CC_CAPTUREDSOURCES_T_IS_TYPE_PARAMETER,
+                        CapturedSourcesCallWarnings.T_IS_TYPE_PARAMETER.message,
                         org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers.STRING,
                     )
                 }

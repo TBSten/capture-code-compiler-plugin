@@ -94,6 +94,8 @@ internal object K210CapturedSourcesCallChecker : FirExpressionChecker<FirFunctio
     private val diagnostics = object : ValidateCapturedSourcesCall.Diagnostics {
         override val capturedSourcesTNotCaptureCode: KtDiagnosticFactory1<String> =
             CompatContextImpl.K210Diagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE
+        override val capturedSourcesTIsTypeParameter: KtDiagnosticFactory1<String> =
+            CompatContextImpl.K210Diagnostics.CC_CAPTUREDSOURCES_T_IS_TYPE_PARAMETER
     }
 
     override fun check(

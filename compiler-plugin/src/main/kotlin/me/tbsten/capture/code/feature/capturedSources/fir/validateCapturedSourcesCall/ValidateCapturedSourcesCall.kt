@@ -14,6 +14,7 @@ import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.fir.types.ConeTypeParameterType
 import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
 
 /**
@@ -61,6 +62,17 @@ public class ValidateCapturedSourcesCall {
      */
     public interface Diagnostics {
         public val capturedSourcesTNotCaptureCode: KtDiagnosticFactory1<String>
+
+        /**
+         * task-148 (BUG-H provisional warn): emitted when `capturedSources<T>()` is
+         * called with `T` resolved to a type parameter (e.g. inside
+         * `inline fun <reified T : Annotation> ...`). The IR rewriter cannot bind
+         * such calls to a concrete marker class symbol, so the call would silently
+         * fall back to the runtime stub and throw `IllegalStateException` at
+         * execution time. Surfacing the situation at compile time turns the silent
+         * crash into a noisy compile-time signal.
+         */
+        public val capturedSourcesTIsTypeParameter: KtDiagnosticFactory1<String>
     }
 
     public operator fun invoke(
@@ -85,6 +97,22 @@ public class ValidateCapturedSourcesCall {
         }
 
         val typeArgument = expression.firstTypeArgumentOrNull(compat) ?: return
+
+        // task-148 (BUG-H provisional warn): T が type parameter のままだと IR rewriter が
+        // concrete marker class symbol に bind できず、 runtime stub fallback で
+        // `IllegalStateException("CaptureCode compiler plugin is not applied")` が throw
+        // される。 silent runtime crash を compile-time warning に格上げして user に通知。
+        if (typeArgument is ConeTypeParameterType) {
+            val paramName = typeArgument.lookupTag.name.asString()
+            reporter.reportOn(
+                source = expression.source,
+                factory = diagnostics.capturedSourcesTIsTypeParameter,
+                a = paramName,
+                context = context,
+            )
+            return
+        }
+
         val classSymbol = compat.toRegularClassSymbolOrNull(typeArgument, context.session) ?: return
 
         if (classSymbol.hasCaptureCodeMeta(context.session)) return

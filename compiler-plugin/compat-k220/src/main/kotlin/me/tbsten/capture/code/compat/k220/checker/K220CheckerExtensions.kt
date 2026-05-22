@@ -96,6 +96,8 @@ public object K220CapturedSourcesCallCheckerLogic {
     private val diagnostics = object : ValidateCapturedSourcesCall.Diagnostics {
         override val capturedSourcesTNotCaptureCode: KtDiagnosticFactory1<String> =
             CompatContextImpl.K220Diagnostics.CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE
+        override val capturedSourcesTIsTypeParameter: KtDiagnosticFactory1<String> =
+            CompatContextImpl.K220Diagnostics.CC_CAPTUREDSOURCES_T_IS_TYPE_PARAMETER
     }
 
     @JvmStatic
