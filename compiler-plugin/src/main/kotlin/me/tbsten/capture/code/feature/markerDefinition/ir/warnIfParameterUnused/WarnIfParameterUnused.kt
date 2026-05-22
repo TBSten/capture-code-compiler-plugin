@@ -126,6 +126,12 @@ public class WarnIfParameterUnused {
             if (parameters.isEmpty()) continue
 
             val sitesForMarker = allCollectedSites.filter { it.site.markerFqn == markerFqn }
+            // 0-site marker は `CC_CAPTUREDSOURCES_NO_MARKER_FOUND` が既に「marker が使われ
+            // ていない」 ことを通知するため、 param level の「unused」 指摘は冗長 noise になる。
+            // user は site を追加するか marker を削除するかを判断する段階で、 さらに細かい
+            // parameter 指摘は意思決定を妨げる。 site が 1 つ以上ある marker に限定して warning
+            // を出す。
+            if (sitesForMarker.isEmpty()) continue
 
             parameters.forEachIndexed { index, parameter ->
                 // default 値なし parameter は必須引数 (= site 側で必ず override される) なので
