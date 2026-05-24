@@ -232,6 +232,89 @@ internal class BuildMarkerInstance {
     }
 
     /**
+     * 単数版 `capturedSource<T>()` 用の builder。 1 site 分の `IrConstructorCall` (= `T(...)`) を
+     * 構築して返す。 caller は事前に site 件数 = 1 を保証してから呼ぶ責務 (0 件 / 複数件は IR phase の
+     * `MessageCollector.report(ERROR, ...)` を発火して原 call を残す経路)。 resolve fail 時の挙動は
+     * [invoke] と完全に同じ (marker / filler 不在 → 該当 warning + `null` 返却)。
+     *
+     * @param markerFqn 書き換え対象の marker class FQN
+     * @param site 当該 marker でフィルタ済の **唯一** の site
+     * @param pluginContext IrPluginContext
+     * @param compat IR primitive 委譲 SPI
+     * @param config global Gradle DSL config (現状は [invoke] と signature 整合のため受け取るだけ)
+     * @param messageCollector IR-phase MessageCollector
+     * @return `T(...)` を表す [IrConstructorCall]、 resolve 失敗時は `null`
+     */
+    internal fun buildOneInstance(
+        markerFqn: String,
+        site: CollectedSite,
+        pluginContext: IrPluginContext,
+        compat: CompatContext,
+        @Suppress("UNUSED_PARAMETER") config: CaptureCodePluginConfig,
+        messageCollector: MessageCollector = MessageCollector.NONE,
+    ): IrConstructorCall? {
+        require(markerFqn.isNotBlank()) {
+            // 文面は invoke 側と意図的に違える: Charter8RequireTripProbeTest が constant pool 文字列で
+            // BuildMarkerInstance の require を 2 か所に分けて区別するため (= 「ちょうど 1 つ」 invariant
+            // 保護)。 invariant 自体は invoke 側と同じ。
+            "BuildMarkerInstance.buildOneInstance: markerFqn is blank. " +
+                "Typical root cause: caller (= RewriteCapturedSourceCall) passed an empty string, " +
+                "bypassing the registered-marker filter."
+        }
+
+        val markerSymbol = pluginContext.referenceClass(ClassId.topLevel(FqName(markerFqn)))
+            ?: run {
+                reportWarning(messageCollector, RewriteFailureWarnings.REWRITE_FAILED, markerFqn)
+                return null
+            }
+        val markerConstructor = markerSymbol.primaryConstructorOrNull()
+            ?: error(
+                "Internal: marker class '$markerFqn' has no primary constructor; " +
+                    "ANNOTATION_CLASS should always have a primary constructor (Kotlin spec). " +
+                    "This is a compiler-plugin bug.",
+            )
+        val markerType = markerSymbol.typeWith()
+
+        val parameters = compat.valueParametersOf(markerConstructor.owner)
+        val fillerPlan = buildFillerPlan(parameters, pluginContext, markerFqn, messageCollector)
+            ?: return null
+
+        val fillSource = FillSource.resolveOrNull(pluginContext, compat)
+            ?: run {
+                reportWarning(messageCollector, RewriteFailureWarnings.FILLER_NOT_FOUND, markerFqn)
+                return null
+            }
+        val fillSourceLocation = FillSourceLocation.resolveOrNull(pluginContext, compat)
+            ?: run {
+                reportWarning(messageCollector, RewriteFailureWarnings.FILLER_NOT_FOUND, markerFqn)
+                return null
+            }
+        val fillCaptureKind = FillCaptureKind.resolveOrNull(pluginContext, compat)
+            ?: run {
+                reportWarning(messageCollector, RewriteFailureWarnings.FILLER_NOT_FOUND, markerFqn)
+                return null
+            }
+        val buildUserArg = BuildUserArg()
+        val buildUserArgPrimitive = BuildUserArgPrimitive()
+
+        return buildSingle(
+            markerType = markerType,
+            markerConstructor = markerConstructor,
+            parameters = parameters,
+            fillerPlan = fillerPlan,
+            site = site,
+            pluginContext = pluginContext,
+            compat = compat,
+            fillSource = fillSource,
+            fillSourceLocation = fillSourceLocation,
+            fillCaptureKind = fillCaptureKind,
+            buildUserArg = buildUserArg,
+            buildUserArgPrimitive = buildUserArgPrimitive,
+            messageCollector = messageCollector,
+        )
+    }
+
+    /**
      * marker constructor 1 つ分の `IrConstructorCall` (= `T(...)`) を組み立てる。
      *
      * constructor の各 parameter について:
