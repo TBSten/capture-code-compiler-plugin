@@ -71,6 +71,13 @@ public class RewriteCapturedSourceCall {
         // invariant: 「marker FqN ごとに ERROR 発火は最大 1 回 (NO_SITE / MULTIPLE_SITES の種別問わず)」。
         // 複数版 RewriteCapturedSourcesCall.warnedMarkerFqns と同じパターンを 1 set にまとめた。
         val reportedFqns = mutableSetOf<String>()
+        // `BuildMarkerInstance.buildOneInstance` 内部の resolve 失敗 warning
+        // (`CC_CAPTUREDSOURCES_REWRITE_FAILED` / `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND`) を
+        // marker FqN ごとに 1 度だけに dedupe するための set。 複数版
+        // `RewriteCapturedSourcesCall.rewriteFailureWarnedMarkerFqns` と同じパターン。
+        // 同一 marker を複数の `capturedSource<T>()` call で参照する場合、 build log の
+        // noisy duplicate を防ぐため 2 回目以降は `MessageCollector.NONE` を渡す。
+        val rewriteFailureWarnedMarkerFqns = mutableSetOf<String>()
 
         compat.transformCallsInModule(moduleFragment) { call ->
             if (!call.isCapturedSourceCall()) return@transformCallsInModule null
@@ -88,14 +95,19 @@ public class RewriteCapturedSourceCall {
                     }
                     null
                 }
-                1 -> buildMarker.buildOneInstance(
-                    markerFqn = markerFqn,
-                    site = sitesForMarker.single(),
-                    pluginContext = pluginContext,
-                    compat = compat,
-                    config = config,
-                    messageCollector = messageCollector,
-                ) as IrExpression?
+                1 -> {
+                    val collectorForBuildMarker =
+                        if (rewriteFailureWarnedMarkerFqns.add(markerFqn)) messageCollector
+                        else MessageCollector.NONE
+                    buildMarker.buildOneInstance(
+                        markerFqn = markerFqn,
+                        site = sitesForMarker.single(),
+                        pluginContext = pluginContext,
+                        compat = compat,
+                        config = config,
+                        messageCollector = collectorForBuildMarker,
+                    ) as IrExpression?
+                }
                 else -> {
                     if (reportedFqns.add(markerFqn)) {
                         val locations = sitesForMarker.joinToString(", ") { collected ->
