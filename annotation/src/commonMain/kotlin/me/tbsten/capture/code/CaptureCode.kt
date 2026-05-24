@@ -77,3 +77,17 @@ public annotation class CaptureKind(val value: Kind = Kind.UNKNOWN) {
  */
 public inline fun <reified T : Annotation> capturedSources(): List<T> =
     error("CaptureCode compiler plugin is not applied")
+
+/**
+ * Collect the single site in the current module marked with `T`.
+ *
+ * The compiler plugin rewrites this call to an inline constructor call for the
+ * one `@T`-annotated declaration found in the current compilation. If the module
+ * contains zero or more than one `@T` site, the plugin emits a compile error;
+ * use [capturedSources] instead when zero matches are acceptable or multiple
+ * matches should be collected as a list.
+ *
+ * Calling this function without the compiler plugin applied results in an error.
+ */
+public inline fun <reified T : Annotation> capturedSource(): T =
+    error("CaptureCode compiler plugin is not applied")
