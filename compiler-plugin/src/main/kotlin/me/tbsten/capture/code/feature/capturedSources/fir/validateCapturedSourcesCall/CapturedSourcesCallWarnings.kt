@@ -32,11 +32,11 @@ public object CapturedSourcesCallWarnings {
     public val T_IS_TYPE_PARAMETER: CaptureCodeCompilerPluginWarning = object : CaptureCodeCompilerPluginWarning {
         override val id: String = "CC_CAPTUREDSOURCES_T_IS_TYPE_PARAMETER"
         override val message: String =
-            "capturedSources<T>() cannot be rewritten when T is a type parameter ''{0}'' " +
+            "capturedSources<T>() / capturedSource<T>() cannot be rewritten when T is a type parameter ''{0}'' " +
                 "(e.g. inside `inline fun <reified T : Annotation> ...`). " +
                 "The call would fall back to the runtime stub and throw at execution time.\n" +
                 "Suggested fix: pass a concrete @CaptureCode marker class as T " +
-                "(e.g., capturedSources<MyMarker>()) at the outermost call site, " +
+                "(e.g., capturedSources<MyMarker>() or capturedSource<MyMarker>()) at the outermost call site, " +
                 "or restructure the helper so the marker class is known at compile time."
         override val reply: String? =
             "Pass a concrete @CaptureCode marker class as T at the outermost call site, " +

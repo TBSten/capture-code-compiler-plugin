@@ -25,7 +25,7 @@ public object CapturedSourcesCallErrors {
         // literal 化される (= placeholder 不展開 + 文字落ち)。 `''` 二重化で literal `'`
         // として render させる。 同種 fix は commit 3aa6a34 (warning 側) 参照。
         override val message: String =
-            "Type parameter T of capturedSources<T>() must be annotated with @CaptureCode. " +
+            "Type parameter T of capturedSources<T>() / capturedSource<T>() must be annotated with @CaptureCode. " +
                 "{0} does not have @CaptureCode.\n" +
                 "Suggested fix: add ''@CaptureCode'' meta-annotation to {0}, " +
                 "or pass a @CaptureCode-meta marker as T."
