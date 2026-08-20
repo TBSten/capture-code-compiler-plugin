@@ -1,5 +1,9 @@
 # CaptureCode
 
+> [!IMPORTANT]
+> このプロジェクトは実験的プロジェクトです。
+> バージョンが1.0.0 に達するまでは 破壊的変更・意図しない不具合 を多く含む可能性があります。
+
 自分で定義した annotation でコードをマークするだけで、**コンパイル時にソース文字列がキャプチャ**されて runtime にデータとして取り出せる Kotlin compiler plugin。reflection なし、runtime コストゼロ。
 
 ```kotlin

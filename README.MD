@@ -1,5 +1,9 @@
 # CaptureCode
 
+> [!IMPORTANT]
+> This project is experimental.
+> Until it reaches version 1.0.0, it may contain many breaking changes and unintended bugs.
+
 A Kotlin compiler plugin that **captures the source string at compile time** simply by marking code with an annotation you define yourself, then lets you read it back as data at runtime. No reflection, zero runtime cost.
 
 ```kotlin
@@ -156,7 +160,7 @@ pluginManagement {
 // build.gradle.kts
 plugins {
     kotlin("jvm") version "2.1.0"
-    id("me.tbsten.capture.code") version "0.1.2"
+    id("me.tbsten.capture.code") version "<plugin-version>"
 }
 
 captureCode {
@@ -179,7 +183,7 @@ need to apply the plugin.
 ```kotlin
 plugins {
     kotlin("multiplatform") version "2.1.0"
-    id("me.tbsten.capture.code") version "0.1.2"
+    id("me.tbsten.capture.code") version "<plugin-version>"
 }
 
 kotlin {
