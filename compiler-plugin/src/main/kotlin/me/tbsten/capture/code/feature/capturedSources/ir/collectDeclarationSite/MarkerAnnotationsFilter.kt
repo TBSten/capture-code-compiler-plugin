@@ -14,7 +14,7 @@ import org.jetbrains.kotlin.ir.types.classFqName
  * 返す (= 複数 marker 同時 capture をサポート、 各 marker ごとに 1 件ずつ [CollectedSite] が
  * 生成される)。
  *
- * Phase 3a 移植元: 各 `K{XXX}CapturedSourcesCollector.markerAnnotations()` (compat-k200 〜 k240rc
+ * Phase 3a 移植元: 各 `K{XXX}CapturedSourcesCollector.markerAnnotations()` (compat-k200 〜 k240
  * で重複)。
  *
  * ## Preconditions

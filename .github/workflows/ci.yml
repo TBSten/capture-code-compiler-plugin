@@ -55,7 +55,7 @@ jobs:
           - "2.3.10"
           - "2.3.20"
           - "2.3.21"
-          # === pre-release === (compat-k240rc baseline)
+          # === pre-release === (compat-k240 baseline)
           - "2.4.0-RC"
         include:
           # ------------------------------------------------------------------
@@ -201,8 +201,8 @@ jobs:
               plugin_tests=":compiler-plugin:compat-k230:test"
               ;;
             2.4.0-RC)
-              # task-089: K240Rc も同じ static init regression test を持つ。
-              plugin_tests=":compiler-plugin:compat-k240rc:test"
+              # task-089: K240 も同じ static init regression test を持つ。
+              plugin_tests=":compiler-plugin:compat-k240:test"
               ;;
             *)
               # 想定外の version (= 新 minor 等) は最寄りの compat-k210 で sanity。

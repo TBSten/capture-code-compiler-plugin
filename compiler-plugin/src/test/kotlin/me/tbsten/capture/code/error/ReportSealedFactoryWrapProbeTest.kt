@@ -11,7 +11,7 @@ import me.tbsten.capture.code.compat.k200.CompatContextImpl as K200CompatContext
 import me.tbsten.capture.code.compat.k202.CompatContextImpl as K202CompatContextImpl
 import me.tbsten.capture.code.compat.k210.CompatContextImpl as K210CompatContextImpl
 import me.tbsten.capture.code.compat.k220.CompatContextImpl as K220CompatContextImpl
-// k230 / k240rc are intentionally NOT imported here — instantiating their
+// k230 / k240 are intentionally NOT imported here — instantiating their
 // CompatContextImpl in a K2.0 unit-test classpath throws NoClassDefFoundError
 // (their nested K{XXX}Diagnostics extends KtDiagnosticsContainer which only
 // exists on K2.3+ runtimes). They are covered by the grep-based static probe
@@ -81,7 +81,7 @@ class ReportSealedFactoryWrapProbeTest : FunSpec({
 
     // K2.0.0 test classpath baseline limits which compat-kXXX modules we can
     // *instantiate* in a unit-test setting: k230 (KtDiagnosticsContainer
-    // ancestor) / k240rc (K240RcRendererMapShim) reach baseline-incompatible
+    // ancestor) / k240 (K240RendererMapShim) reach baseline-incompatible
     // API surfaces and throw NoClassDefFoundError on init. Those two modules
     // are verified by the grep-based static probe in
     // `.local/tmp/probe/exploratory-debug/charter-4-sealed-factory/` instead;
