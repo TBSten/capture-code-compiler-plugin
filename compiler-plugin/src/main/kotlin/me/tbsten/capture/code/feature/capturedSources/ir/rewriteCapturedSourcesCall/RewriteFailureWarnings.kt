@@ -31,10 +31,11 @@ import me.tbsten.capture.code.warning.CaptureCodeCompilerPluginWarning
 public object RewriteFailureWarnings {
 
     /**
-     * `CC_CAPTUREDSOURCES_REWRITE_FAILED` -- `capturedSources<T>()` references a
-     * marker FQN that was registered by the FIR phase but its `IrClassSymbol`
-     * cannot be looked up at IR phase, so the call is left as-is and the
-     * runtime stub returns an empty list.
+     * `CC_CAPTUREDSOURCES_REWRITE_FAILED` -- a `capturedSources<T>()` /
+     * `capturedSource<T>()` call references a marker FQN that was registered by
+     * the FIR phase but its `IrClassSymbol` cannot be looked up at IR phase, so
+     * the call is left as a runtime stub which will throw
+     * `IllegalStateException` at execution time when invoked.
      *
      * Typical cause: the marker class is declared in a different compilation
      * (KMP common module, separate Gradle module, etc.) and the registry
@@ -46,9 +47,10 @@ public object RewriteFailureWarnings {
         object : CaptureCodeCompilerPluginWarning {
             override val id: String = "CC_CAPTUREDSOURCES_REWRITE_FAILED"
             override val message: String =
-                "capturedSources<...>() rewrite failed for marker ''{0}''. " +
+                "capturedSources<T>() / capturedSource<T>() rewrite failed for marker ''{0}''. " +
                     "The marker class could not be resolved at IR phase, so the call " +
-                    "is left as a runtime stub that returns an empty list."
+                    "is left as a runtime stub which will throw IllegalStateException at " +
+                    "execution time when invoked."
             override val reply: String? =
                 "Ensure the marker class is on the current compilation classpath " +
                     "(check KMP source-set wiring or cross-module dependencies)."
@@ -58,7 +60,8 @@ public object RewriteFailureWarnings {
      * `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND` -- the marker resolved fine but one
      * of the three Capture Code filler classes (`Source` / `SourceLocation` /
      * `CaptureKind`) is missing from the consumer's classpath, so the rewrite
-     * for this marker is skipped and the runtime stub returns an empty list.
+     * for this marker is skipped and the call is left as a runtime stub which
+     * will throw `IllegalStateException` at execution time when invoked.
      *
      * Typical cause: the consumer applied the compiler plugin but forgot to
      * declare a dependency on the `:annotation` runtime module that ships the
@@ -70,7 +73,7 @@ public object RewriteFailureWarnings {
         object : CaptureCodeCompilerPluginWarning {
             override val id: String = "CC_CAPTUREDSOURCES_FILLER_NOT_FOUND"
             override val message: String =
-                "capturedSources<...>() rewrite skipped for marker ''{0}'' because " +
+                "capturedSources<T>() / capturedSource<T>() rewrite skipped for marker ''{0}'' because " +
                     "the Capture Code runtime filler classes (Source / SourceLocation / " +
                     "CaptureKind) are not on the classpath."
             override val reply: String? =

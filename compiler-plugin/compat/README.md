@@ -84,7 +84,9 @@ Each supported Kotlin version has its own module:
 - [`compat-k230/`](../compat-k230) — Kotlin 2.3.x (adds
   `K230RendererMapShim.java`; the nested `K230Diagnostics.MAP` is `by lazy`
   to avoid static-init NPE). 3 .kt + 5 .java.
-- [`compat-k240rc/`](../compat-k240rc) — Kotlin 2.4.0-RC{,N}. 4 .kt + 5 .java.
+- [`compat-k240/`](../compat-k240) — Kotlin 2.4.x (compile baseline `2.4.0`;
+  `Factory.minVersion = "2.4.0-RC"` so 2.4.0-RC / 2.4.0 / 2.4.10 /
+  2.4.20-RC all dispatch here). 4 .kt + 5 .java.
 
 ### Slim-down outcome (task-120-B Phase 6)
 
@@ -182,16 +184,16 @@ After generation, you still need to:
    under `src/main/java/.../compat/k<XXX>/checker/K<XXX>*Shim.java` that
    extends the corresponding Kotlin checker class and forwards `check(...)`
    with the argument order required by the new baseline. The K220 / K230 /
-   K240Rc shims in the existing `compat-k220` / `compat-k230` /
-   `compat-k240rc` modules serve as templates.
+   K240 shims in the existing `compat-k220` / `compat-k230` /
+   `compat-k240` modules serve as templates.
 9. If the new baseline changes a renderer / static-init shape (e.g.
    `KtDiagnosticFactoryToRendererMap` super-class swap in 2.3+), make the
    nested `K<XXX>Diagnostics.MAP` `by lazy` so the renderer chain does not
-   NPE during class init. See `K230RendererMapShim.java` for the K230 / K240Rc
+   NPE during class init. See `K230RendererMapShim.java` for the K230 / K240
    template.
 
 The expected final shape of the new module is **3–4 .kt + 0–5 .java**
-(matching `compat-k200` through `compat-k240rc`). Anything beyond that
+(matching `compat-k200` through `compat-k240`). Anything beyond that
 (IR walker / rewriter / filler / userargs) belongs in the main module's
 `feature/capturedSources/ir/` tree — those were migrated out of
 `compat-kXXX/` in task-120-B Phase 3–5.
@@ -207,6 +209,7 @@ minor track):
   Factory.minVersion level)
 - `2.1.0` → `k210`
 - `2.2.0` → `k220`
+- `2.4.0` → `k240` (2.4.0-RC / 2.4.10 / 2.4.20-RC も同 module)
 - `2.4.0-Beta1` → `k240_beta1`
 - `2.5.0-dev-1234` → `k250_dev_1234`
 

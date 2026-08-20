@@ -27,7 +27,7 @@ capture-code-compiler-plugin/
 │   ├── compat-k210/               # Kotlin 2.1.x implementation.
 │   ├── compat-k220/               # Kotlin 2.2.x implementation.
 │   ├── compat-k230/               # Kotlin 2.3.x implementation.
-│   ├── compat-k240rc/             # Kotlin 2.4.0-RC{,N} implementation.
+│   ├── compat-k240/             # Kotlin 2.4.x implementation (baseline 2.4.0).
 │   └── src/main/kotlin/.../       # Main module — Kotlin 2.0.0 baseline.
 │       ├── feature/markerDefinition/    # Marker meta-annotation domain
 │       │                                #   (Logic A discovery, Logic F
@@ -169,7 +169,8 @@ fleet of version-specific implementations:
   data class. **No domain knowledge** lives here.
 - `:compiler-plugin:compat-k200` (Kotlin 2.0.0), `compat-k202` (2.0.10..2.0.21),
   `compat-k210` (2.1.x), `compat-k220` (2.2.x), `compat-k230` (2.3.x), and
-  `compat-k240rc` (2.4.0-RC{,N}) are the version-specific implementations.
+  `compat-k240` (2.4.0-RC / 2.4.x stable) are the version-specific
+  implementations.
   Each ships an `@AutoService(CompatContext.Factory::class)` whose
   `minVersion` advertises the lowest Kotlin version it covers.
 - The main module ships **all** `compat-k*` modules inside a single ShadowJar

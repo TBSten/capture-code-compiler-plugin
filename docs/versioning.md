@@ -182,7 +182,7 @@ Compatibility notes:
   [compiler-plugin/compat/README.md](../compiler-plugin/compat/README.md)
   for the full checklist.
 - **Supported Kotlin baselines**: 2.0.0, 2.0.10–2.0.21, 2.1.x, 2.2.x,
-  2.3.x, 2.4.0-RC{,N}.
+  2.3.x, 2.4.x (2.4.0-RC 以降; compile baseline 2.4.0).
 
 ### 0.1.x
 

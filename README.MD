@@ -1,10 +1,15 @@
 # CaptureCode
 
+> [!IMPORTANT]
+> This project is experimental.
+> Until it reaches version 1.0.0, it may contain many breaking changes and unintended bugs.
+
 A Kotlin compiler plugin that **captures the source string at compile time** simply by marking code with an annotation you define yourself, then lets you read it back as data at runtime. No reflection, zero runtime cost.
 
 ```kotlin
 import me.tbsten.capture.code.*
 
+// 1. Define an annotation and mark it with @CaptureCode
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
@@ -12,13 +17,15 @@ internal annotation class Snippet(
     val source: Source = Source(),
 )
 
+// 2. Put that annotation on the code you want to capture
 @Snippet fun greet() = "Hello!"
 @Snippet fun farewell() = "Goodbye!"
 
 fun main() {
-    capturedSources<Snippet>().forEach { println(it.source.value) }
-    // → fun greet() = "Hello!"
-    // → fun farewell() = "Goodbye!"
+    // 3. Read the captured source back as a string with capturedSources
+    capturedSources<Snippet>().forEach { println("source: ${it.source.value}") }
+    // → source: fun greet() = "Hello!"
+    // → source: fun farewell() = "Goodbye!"
 }
 ```
 
@@ -156,7 +163,7 @@ pluginManagement {
 // build.gradle.kts
 plugins {
     kotlin("jvm") version "2.1.0"
-    id("me.tbsten.capture.code") version "0.1.2"
+    id("me.tbsten.capture.code") version "<plugin-version>"
 }
 
 captureCode {
@@ -179,7 +186,7 @@ need to apply the plugin.
 ```kotlin
 plugins {
     kotlin("multiplatform") version "2.1.0"
-    id("me.tbsten.capture.code") version "0.1.2"
+    id("me.tbsten.capture.code") version "<plugin-version>"
 }
 
 kotlin {
@@ -228,8 +235,12 @@ plugin and a compat layer that absorbs Kotlin compiler API drift.
 :annotation                     // @CaptureCode, filler types, capturedSources<T>() stub
 :compiler-plugin                // FIR + IR extensions
   :compiler-plugin:compat       // CompatContext interface
-  :compiler-plugin:compat-k200  // Kotlin 2.0.x impl
+  :compiler-plugin:compat-k200  // Kotlin 2.0.0 / 2.0.10 impl
+  :compiler-plugin:compat-k202  // Kotlin 2.0.20 / 2.0.21 impl
   :compiler-plugin:compat-k210  // Kotlin 2.1.x impl
+  :compiler-plugin:compat-k220  // Kotlin 2.2.x impl
+  :compiler-plugin:compat-k230  // Kotlin 2.3.x impl
+  :compiler-plugin:compat-k240  // Kotlin 2.4.x impl
 :gradle-plugin                  // KotlinCompilerPluginSupportPlugin
 ```
 
@@ -249,9 +260,13 @@ For the full design, see [docs/architecture.md](docs/architecture.md).
 
 | Kotlin | Status | Compat module |
 | ------ | ------ | ------------- |
-| 2.0.x  | Supported (verified in CI) | `compat-k200` |
+| 2.0.0 / 2.0.10 | Supported (verified in CI) | `compat-k200` |
+| 2.0.20 / 2.0.21 | Supported (verified in CI) | `compat-k202` |
 | 2.1.x  | Supported (verified in CI) | `compat-k210` |
-| 2.2.x  | Not yet verified — falls back to `compat-k210` with a warning | — |
+| 2.2.x  | Supported (verified in CI) | `compat-k220` |
+| 2.3.x  | Supported (verified in CI) | `compat-k230` |
+| 2.4.0 / 2.4.10 / 2.4.20-RC | Supported (verified in CI) | `compat-k240` |
+| ≥ 2.4.20 (stable) | Not yet verified — dispatches to `compat-k240` with a warning | — |
 | < 2.0  | **Not supported.** Build fails with a clear message. | — |
 
 The Gradle plugin reads `KotlinGradlePlugin.getKotlinPluginVersion()` from

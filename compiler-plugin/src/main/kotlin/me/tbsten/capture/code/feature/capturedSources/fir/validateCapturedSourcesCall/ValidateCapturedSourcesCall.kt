@@ -88,12 +88,12 @@ public class ValidateCapturedSourcesCall {
                 "Typical root cause: caller checker is registered in a phase that runs before name resolution."
         }
 
-        if (!expression.isCapturedSourcesCall()) return
+        if (!expression.isCapturedSourcesOrSourceCall()) return
 
         require(expression.typeArguments.isNotEmpty()) {
             "ValidateCapturedSourcesCall: expression.typeArguments must not be empty for " +
-                "capturedSources<T>() calls. Typical root cause: the runtime API signature " +
-                "(public fun <T : Any> capturedSources(): List<CapturedSource>) was changed in a non-backwards-compatible way."
+                "capturedSources<T>() / capturedSource<T>() calls. Typical root cause: the runtime API signature " +
+                "was changed in a non-backwards-compatible way."
         }
 
         val typeArgument = expression.firstTypeArgumentOrNull(compat) ?: return
@@ -126,10 +126,19 @@ public class ValidateCapturedSourcesCall {
         )
     }
 
-    private fun FirFunctionCall.isCapturedSourcesCall(): Boolean {
+    /**
+     * 当該 call が `capturedSources<T>()` (複数版) または `capturedSource<T>()` (単数版) のいずれかを
+     * 判定する。 両者は CallableId が異なる別 API だが、 T の型検査 (`@CaptureCode` 必須 / type
+     * parameter NG) は完全に共通なので、 1 つの checker でまとめて検査する。 単数版限定の件数検査
+     * (= 0 件 / 複数件 → compile error) は FIR phase では `CaptureCodeMarkerRegistry` の状態が
+     * 確定していないため IR phase ([me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourceCall.RewriteCapturedSourceCall])
+     * 側で行う。
+     */
+    private fun FirFunctionCall.isCapturedSourcesOrSourceCall(): Boolean {
         val reference = calleeReference as? FirResolvedNamedReference ?: return false
         val symbol = reference.resolvedSymbol as? FirCallableSymbol<*> ?: return false
-        return symbol.callableId == CaptureCodeCallableIds.capturedSources
+        return symbol.callableId == CaptureCodeCallableIds.capturedSources ||
+            symbol.callableId == CaptureCodeCallableIds.capturedSource
     }
 
     private fun FirFunctionCall.firstTypeArgumentOrNull(compat: CompatContext): ConeKotlinType? {

@@ -38,7 +38,7 @@ paths:
 
 **`compat/.../compat/` 配下にはこの 2 ファイル以外を置かない**。 holder / config data class / domain registry の追加は main module の `compiler-plugin/src/main/.../compat/` または `feature/` 配下で行う。
 
-# 置いてよいもの (`compiler-plugin/compat-k{200,202,210,220,230,240rc}/...`)
+# 置いてよいもの (`compiler-plugin/compat-k{200,202,210,220,230,240}/...`)
 
 各 module は Phase 6 後の slim 構造で、 以下のみを抱える:
 
@@ -52,7 +52,7 @@ paths:
 
 # 命名規約
 
-- `compat-k<major><minor><patch>/` ディレクトリ (例: `compat-k200`, `compat-k210`, `compat-k240rc`)。 patch 違いは Factory の `minVersion` で吸収するので新 module を作らない (`compat/README.md` 参照)
+- `compat-k<major><minor><patch>/` ディレクトリ (例: `compat-k200`, `compat-k210`, `compat-k240`)。 patch 違いは Factory の `minVersion` で吸収するので新 module を作らない (`compat/README.md` 参照)
 - パッケージは `me.tbsten.capture.code.compat.k<version>` (例: `me.tbsten.capture.code.compat.k200`)
 - AutoService + KSP で `META-INF/services/me.tbsten.capture.code.compat.CompatContext$Factory` を自動生成 (resources/ には書かない)
 - `compat/.../compat/` 配下は **plugin の domain 知識禁止**。 SPI 2 ファイル以外を置かない

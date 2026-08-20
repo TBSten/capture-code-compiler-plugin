@@ -4,6 +4,7 @@ import me.tbsten.capture.code.compat.CaptureCodeCompatHolder
 import me.tbsten.capture.code.compat.CaptureCodeMessageCollectorHolder
 import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.CollectDeclarationSite
+import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourceCall.RewriteCapturedSourceCall
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteCapturedSourcesCall
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.feature.markerDefinition.ir.warnIfDuplicateMarkerFqn.WarnIfDuplicateMarkerFqn
@@ -48,6 +49,7 @@ public class CaptureCodeIrExtension(
 ) : IrGenerationExtension {
     private val collectDeclarationSite = CollectDeclarationSite()
     private val rewriteCapturedSourcesCall = RewriteCapturedSourcesCall()
+    private val rewriteCapturedSourceCall = RewriteCapturedSourceCall()
     private val warnIfDuplicateMarkerFqn = WarnIfDuplicateMarkerFqn()
     private val warnIfParameterUnused = WarnIfParameterUnused()
 
@@ -72,6 +74,17 @@ public class CaptureCodeIrExtension(
             // `CC_CAPTUREDSOURCES_NO_MARKER_FOUND` warning を発火する。 そのための
             // MessageCollector は registrar 段階で CaptureCodeMessageCollectorHolder に publish 済。
             rewriteCapturedSourcesCall(
+                moduleFragment,
+                pluginContext,
+                compat,
+                config,
+                collectedSites,
+                CaptureCodeMessageCollectorHolder.get(),
+            )
+            // 経路 2': 単数版 `capturedSource<T>()` の rewrite。 複数版とは独立 logic で、
+            // 件数 = 1 のみ書き換え、 0 件 / 複数件は IR phase で `MessageCollector.report(ERROR, ...)`
+            // を発火する (= compile error)。 複数版とは CallableId が異なるため干渉しない。
+            rewriteCapturedSourceCall(
                 moduleFragment,
                 pluginContext,
                 compat,

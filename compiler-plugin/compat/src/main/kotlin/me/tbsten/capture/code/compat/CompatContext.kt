@@ -462,7 +462,7 @@ public interface CompatContext {
      * Absorbs drift D-IR-5: `putValueArgument` was deprecated in K2.2+ and
      * **removed entirely in K2.4-RC**. The K2.4-RC implementation routes
      * through `arguments[index] = value` semantics (the `putArgumentSafe`
-     * shim defined in `K240RcIrApiShims.kt` extends the underlying
+     * shim defined in `K240IrApiShims.kt` extends the underlying
      * `MutableList<IrExpression?>` with null-padding when needed).
      */
     public fun putCallValueArgument(

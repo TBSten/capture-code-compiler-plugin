@@ -1,10 +1,15 @@
 # CaptureCode
 
+> [!IMPORTANT]
+> このプロジェクトは実験的プロジェクトです。
+> バージョンが1.0.0 に達するまでは 破壊的変更・意図しない不具合 を多く含む可能性があります。
+
 自分で定義した annotation でコードをマークするだけで、**コンパイル時にソース文字列がキャプチャ**されて runtime にデータとして取り出せる Kotlin compiler plugin。reflection なし、runtime コストゼロ。
 
 ```kotlin
 import me.tbsten.capture.code.*
 
+// 1. @CaptureCode アノテーションをつけた annotation を定義します
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
@@ -12,13 +17,15 @@ internal annotation class Snippet(
     val source: Source = Source(),
 )
 
+// 2. annotation をコードをキャプチャしたいコードに付与します
 @Snippet fun greet() = "Hello!"
 @Snippet fun farewell() = "Goodbye!"
 
 fun main() {
-    capturedSources<Snippet>().forEach { println(it.source.value) }
-    // → fun greet() = "Hello!"
-    // → fun farewell() = "Goodbye!"
+    // 3. capturedSources でソースコードを文字列として取得します。
+    capturedSources<Snippet>().forEach { println("source: ${it.source.value}") }
+    // → source: fun greet() = "Hello!"
+    // → source: fun farewell() = "Goodbye!"
 }
 ```
 
@@ -226,8 +233,12 @@ runtime stub / compiler plugin / Gradle plugin / Kotlin compiler API drift
 :annotation                     // @CaptureCode, filler 型, capturedSources<T>() stub
 :compiler-plugin                // FIR + IR extension
   :compiler-plugin:compat       // CompatContext Interface
-  :compiler-plugin:compat-k200  // Kotlin 2.0.x 実装
+  :compiler-plugin:compat-k200  // Kotlin 2.0.0 / 2.0.10 実装
+  :compiler-plugin:compat-k202  // Kotlin 2.0.20 / 2.0.21 実装
   :compiler-plugin:compat-k210  // Kotlin 2.1.x 実装
+  :compiler-plugin:compat-k220  // Kotlin 2.2.x 実装
+  :compiler-plugin:compat-k230  // Kotlin 2.3.x 実装
+  :compiler-plugin:compat-k240  // Kotlin 2.4.x 実装
 :gradle-plugin                  // KotlinCompilerPluginSupportPlugin
 ```
 
@@ -247,9 +258,13 @@ inline 展開より前に走るので `@Marker run { ... }` のような式 anno
 
 | Kotlin | ステータス | Compat module |
 | ------ | ---------- | ------------- |
-| 2.0.x  | サポート (CI で検証) | `compat-k200` |
+| 2.0.0 / 2.0.10 | サポート (CI で検証) | `compat-k200` |
+| 2.0.20 / 2.0.21 | サポート (CI で検証) | `compat-k202` |
 | 2.1.x  | サポート (CI で検証) | `compat-k210` |
-| 2.2.x  | 未検証 — `compat-k210` に fallback + warn | — |
+| 2.2.x  | サポート (CI で検証) | `compat-k220` |
+| 2.3.x  | サポート (CI で検証) | `compat-k230` |
+| 2.4.0 / 2.4.10 / 2.4.20-RC | サポート (CI で検証) | `compat-k240` |
+| 2.4.20 (stable) 以降 | 未検証 — `compat-k240` に dispatch + warn | — |
 | < 2.0  | **非サポート**。 build 時に明示的にエラー。 | — |
 
 Gradle plugin は consumer project の Kotlin 版を

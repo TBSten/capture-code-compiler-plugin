@@ -19,7 +19,11 @@ kotlin-k202 = "2.0.21"
 kotlin-k210 = "2.1.0"
 kotlin-k220 = "2.2.0"
 kotlin-k230 = "2.3.0"
-kotlin-k240rc = "2.4.0-RC"
+# compat-k240 baseline。 2.4.0 stable release 済のため RC ではなく stable を pin する
+# (module 名も旧 `compat-k240rc` から `compat-k240` に rename 済)。 `Factory.minVersion` は
+# `"2.4.0-RC"` に据え置いており、 2.4.0-RC / 2.4.0 / 2.4.10 / 2.4.20-RC はすべて compat-k240
+# が dispatch される (CI core-matrix で 2.4.0 / 2.4.10 / 2.4.20-RC を実機検証)。
+kotlin-k240 = "2.4.0"
 agp = "8.5.2"
 maven-publish = "0.32.0"
 ksp = "2.0.0-1.0.24"
@@ -49,7 +53,7 @@ kotlin-compiler-embeddable-k202 = { module = "org.jetbrains.kotlin:kotlin-compil
 kotlin-compiler-embeddable-k210 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k210" }
 kotlin-compiler-embeddable-k220 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k220" }
 kotlin-compiler-embeddable-k230 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k230" }
-kotlin-compiler-embeddable-k240rc = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k240rc" }
+kotlin-compiler-embeddable-k240 = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin-k240" }
 auto-service-annotations = { module = "com.google.auto.service:auto-service-annotations", version.ref = "auto-service" }
 auto-service-ksp = { module = "dev.zacsweers.autoservice:auto-service-ksp", version.ref = "auto-service-ksp" }
 kctfork-core = { module = "dev.zacsweers.kctfork:core", version.ref = "kctfork" }

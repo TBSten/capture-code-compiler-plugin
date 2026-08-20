@@ -1,0 +1,110 @@
+package me.tbsten.capture.code.compat.k240
+
+import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldStartWith
+import io.kotest.matchers.types.shouldBeInstanceOf
+import java.util.ServiceLoader
+import me.tbsten.capture.code.compat.CompatContext
+import me.tbsten.capture.code.compat.DiagnosticFactoryRef
+
+/**
+ * task-076: `:compiler-plugin:compat-k240` 専用の最小 sanity test。
+ *
+ * ## なぜ kctfork を使わないか
+ *
+ * kctfork は `kotlin-compiler-embeddable` を **transitive runtime dependency** として
+ * 引き込むため、 baseline (Kotlin 2.0.0) と CI matrix の bumped Kotlin (2.4.x) を
+ * 同一 testClasspath で両立できない (NoSuchMethodError 多発)。 task-065 で
+ * `compat-kXXX` 各 module の test source set を独立化することで、 各々が
+ * **自身の baseline Kotlin (kotlin-compiler-embeddable-kXXX)** に固定された
+ * test classpath を持てる構造にした。
+ *
+ * `:compat-k240:test` は **CI matrix の 2.4.x cell (2.4.0 / 2.4.10 / 2.4.20-RC) でのみ実行**
+ * される設計 (ci.yml 側の case 文で切替)。 sanity の範囲では kctfork-based KotlinCompilation
+ * は走らせず、 ServiceLoader による factory discovery + minVersion 整合のみを
+ * 確認する。
+ *
+ * ## pre-release tier の動作確認
+ *
+ * 本 module の compile baseline は **Kotlin 2.4.0 (stable)** だが、 Factory は
+ * `minVersion = "2.4.0-RC"` を宣言したままにしている。 これは
+ * `KotlinToolingVersion` における **RC tier (Maturity.RC)** に分類される
+ * pre-release バージョンであり、 stable 2.3.x との比較では major.minor.patch
+ * が優先されるため `2.4.0-RC > 2.3.0` となる。 また `2.4.0-RC < 2.4.0` (STABLE)
+ * となる点も `CompatContext.Companion.resolveFactory()` の `findHighestCompatibleFactory`
+ * の選択ロジックで正しく扱われる前提。 結果として 2.4.0-RC / 2.4.0 / 2.4.10 /
+ * 2.4.20-RC のいずれも本 module が dispatch される。
+ */
+class K240CompatContextSanityTest : StringSpec({
+
+    "K240 CompatContext.Factory is discoverable via ServiceLoader" {
+        val k240Factory = ServiceLoader.load(CompatContext.Factory::class.java)
+            .firstOrNull { it::class.java.name.contains(".compat.k240.") }
+
+        k240Factory.shouldNotBeNull()
+    }
+
+    "K240 factory advertises minVersion = 2.4.0-RC (compat-k240 baseline SSOT)" {
+        val k240Factory = ServiceLoader.load(CompatContext.Factory::class.java)
+            .first { it::class.java.name.contains(".compat.k240.") }
+
+        // ここを bump する際は CompatContextImpl 側 minVersion も同時に bump する
+        // (SSOT は CompatContextImpl.Factory.minVersion)。
+        k240Factory.minVersion shouldStartWith "2.4"
+        k240Factory.minVersion shouldBe "2.4.0-RC"
+    }
+
+    "K240 factory creates a CompatContextImpl instance" {
+        val k240Factory = ServiceLoader.load(CompatContext.Factory::class.java)
+            .first { it::class.java.name.contains(".compat.k240.") }
+
+        val ctx = k240Factory.create()
+        ctx.shouldBeInstanceOf<CompatContextImpl>()
+    }
+
+    // task-132 (exploratory-debug Charter 4 follow-up): the sealed
+    // DiagnosticFactoryRef wrap must remain coherent across compat-kXXX. Main
+    // module's ReportSealedFactoryWrapProbeTest exercises k200/k202/k210/k220
+    // dynamically but cannot instantiate k240 in a K2.0 baseline classpath,
+    // so we verify the K240 MAP locally here (kctfork-free, K2.4-RC-only).
+    //
+    // Expected: 12 diagnostic ids, all OneString except CC_MARKER_IS_EXPECT
+    // which is Zero. ref.id always equals the lookup key.
+    val expectedIds: List<String> = listOf(
+        "CC_MARKER_PARAMETER_TYPE_INVALID",
+        "CC_MARKER_FILLER_REQUIRES_DEFAULT",
+        "CC_MARKER_IS_EXPECT",
+        "CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE",
+        "CC_CAPTUREDSOURCES_NO_MARKER_FOUND",
+        "CC_MARKER_OVERRIDE_NO_EFFECT",
+        "CC_CAPTUREDSOURCES_DUPLICATE_MARKER_FQN",
+        "CC_MARKER_PARAMETER_UNUSED",
+        "CC_CAPTUREDSOURCES_REWRITE_FAILED",
+        "CC_CAPTUREDSOURCES_FILLER_NOT_FOUND",
+        "CC_USERARG_ENUM_NOT_FOUND",
+        "CC_USERARG_CLASS_REF_UNSUPPORTED",
+    )
+
+    "K240 diagnosticFactory exposes the full 12-id set with matching wrap kinds" {
+        val ctx = CompatContextImpl()
+        val observed = expectedIds.filter { ctx.diagnosticFactory(it) != null }
+        observed.shouldContainExactlyInAnyOrder(expectedIds)
+        expectedIds.forEach { id ->
+            val ref = ctx.diagnosticFactory(id)
+                ?: error("K240 MAP missing id: $id")
+            ref.id shouldBe id
+            val expectedWrap: Class<out DiagnosticFactoryRef> =
+                if (id == "CC_MARKER_IS_EXPECT") DiagnosticFactoryRef.Zero::class.java
+                else DiagnosticFactoryRef.OneString::class.java
+            ref.javaClass shouldBe expectedWrap
+        }
+    }
+
+    "K240 diagnosticFactory returns null for unknown ids (silent no-op contract)" {
+        val ctx = CompatContextImpl()
+        ctx.diagnosticFactory("UNKNOWN_BOGUS_ID") shouldBe null
+    }
+})

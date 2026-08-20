@@ -193,7 +193,7 @@ compiler-plugin/
 ├── compat-k230/                                # Kotlin 2.3.x (3 .kt + 5 .java Shim)
 │   └── src/main/                               #   K230RendererMapShim.java は static init NPE 回避用 (by lazy 化)
 │
-└── compat-k240rc/                              # Kotlin 2.4.0-RC{,N} (4 .kt + 5 .java Shim)
+└── compat-k240/                                # Kotlin 2.4.x (4 .kt + 5 .java Shim)
 ```
 
 各 `compat-kXXX/` は task-118 で導入された `mainClassesOnly` outgoing variant 経由で main module の compile output を `compileOnly` 参照する (shadowJar を経由しないので循環依存を回避)。 さらに task-122 で `mainRuntimeClassesOnly` (`Usage.JAVA_RUNTIME` / `LibraryElements.JAR`) を追加し、 nested `K{XXX}Diagnostics` が `<clinit>` で main 側 `MarkerAnnotationErrors.IS_EXPECT.message` 等を読む test scenario を成立させている。
@@ -232,7 +232,7 @@ Kotlin Compiler Plugin API は **stable でなく minor / patch でも signature
 2. **共有 SPI** (`:compiler-plugin:compat`) — `CompatContext` interface 23 method で drift のあるメソッドを宣言:
     - 既存 12 method (FIR / message / config / drift D1-D3 / D10-D12): `firAdditionalCheckersExtensions` / `registerExtensions` / `literalValueOrNull` / `isLiteralExpression` / `toRegularClassSymbolOrNull` / `classIdOf` / `containingFilePathOf` / `fullyExpandedTypeOf` / `diagnosticFactory` 他
     - task-120-B Phase 2 で追加した 11 IR primitive method (drift D5-D8 / IR Visitor base class): `acceptIrVisitor` / `walkIrFileDeclarations` / `loadFileText` / `putValueArgument` / `createIrCall` / `setTypeArgument` / `valueParametersOf` / `irExpressionBodyOf` / `irConstString` / `irGetEnumValueOf` / `irGetClassReferenceOf`
-3. **バージョン別 impl** (`:compiler-plugin:compat-k200` / `compat-k202` / `compat-k210` / `compat-k220` / `compat-k230` / `compat-k240rc`) — それぞれ `kotlin-compiler-embeddable-k<XXX>` を `compileOnly` でピンし、 そのバージョン専用の FIR Checker (Logic A / F / G / B-fir) + nested `K{XXX}Diagnostics` + 11 IR primitive の actual 実装を持つ。 `@AutoService(CompatContext.Factory::class)` で自動的に `META-INF/services/me.tbsten.capture.code.compat.CompatContext$Factory` に登録。 task-120-B Phase 6 で IR logic 本体を main 側に集約したため、 各 compat-kXXX は **3-4 .kt + 0-5 .java** という slim 構造
+3. **バージョン別 impl** (`:compiler-plugin:compat-k200` / `compat-k202` / `compat-k210` / `compat-k220` / `compat-k230` / `compat-k240`) — それぞれ `kotlin-compiler-embeddable-k<XXX>` を `compileOnly` でピンし、 そのバージョン専用の FIR Checker (Logic A / F / G / B-fir) + nested `K{XXX}Diagnostics` + 11 IR primitive の actual 実装を持つ。 `@AutoService(CompatContext.Factory::class)` で自動的に `META-INF/services/me.tbsten.capture.code.compat.CompatContext$Factory` に登録。 task-120-B Phase 6 で IR logic 本体を main 側に集約したため、 各 compat-kXXX は **3-4 .kt + 0-5 .java** という slim 構造
 4. **IR phase は main 側集約** (task-120-B Phase 3-5) — IR logic 本体 (CollectDeclarationSite / RewriteCapturedSourcesCall / BuildMarkerInstance / filler 3 種 / userargs 2 種 / WarnIfNoMarkerFound) は main module の `feature/capturedSources/ir/` 配下に集約。 各 logic は CompatContext SPI 経由で drift を吸収しつつ Kotlin 2.0.0 baseline で compile される
 5. **mainClassesOnly variant** (task-118) — main module の `compileKotlin` output を専用 outgoing variant で expose し、 各 `compat-kXXX/` が `compileOnly` でこれを引く (shadowJar 経由の循環依存を避ける)。 runtime classpath は shadowJar に main の class が同梱されるため別ルートで解決
 6. **ShadowJar 同梱** — main module の `bundled` configuration に全 `compat-kXXX/` を入れ、 `tasks.shadowJar { mergeServiceFiles() }` で service file を結合。 publish される single artifact は全バージョンの impl を含む
@@ -245,7 +245,7 @@ Kotlin Compiler Plugin API は **stable でなく minor / patch でも signature
 - `build.gradle.kts` 主要設定:
     - `compileOnly(libs.kotlin.compiler.embeddable.k200)` — main は 2.0.0 baseline 固定
     - `compileOnly(project(":compiler-plugin:compat"))` + `bundled(project(":compiler-plugin:compat"))` — compat を POM に流出させず shadowJar に同梱
-    - `bundled(project(":compiler-plugin:compat-k{200,202,210,220,230,240rc}"))` — 全 compat-kXXX を shadow JAR で同梱。 新バージョン追加時はここに足す
+    - `bundled(project(":compiler-plugin:compat-k{200,202,210,220,230,240}"))` — 全 compat-kXXX を shadow JAR で同梱。 新バージョン追加時はここに足す
     - `mainClassesOnly` / `mainRuntimeClassesOnly` outgoing variant — task-118 / task-122 で導入。 compat-kXXX 側はこれを `compileOnly` / `testRuntimeOnly` で引いて main 側 domain SSoT (`<Logic>Errors.kt` / `feature/`) を参照
     - `tasks.shadowJar { mergeServiceFiles(); archiveClassifier.set("") }` — META-INF/services を結合し、 classifier なし main artifact 化
     - `tasks.named<Jar>("jar") { enabled = false }` — 通常 jar は無効化。 `runtimeElements` / `apiElements` の outgoing artifact も shadowJar に差し替え
