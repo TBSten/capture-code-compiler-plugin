@@ -10,7 +10,7 @@ jobs:
   # core-matrix: Kotlin × JDK の全 stable + 最新 pre-release を回す主要 matrix。
   #
   # task-082 で experimental tier を撤廃し、 全 cell を stable tier に統一した。
-  # 2.4.0-RC (pre-release) と JDK 21 cell も含めて全 cell が fail-on-error。
+  # 2.4.20-RC (pre-release) と JDK 21 cell も含めて全 cell が fail-on-error。
   # ある cell が fail すれば workflow も fail する。
   #
   # 構造解決済みの drift:
@@ -55,12 +55,15 @@ jobs:
           - "2.3.10"
           - "2.3.20"
           - "2.3.21"
-          # === pre-release === (compat-k240 baseline)
-          - "2.4.0-RC"
+          # === 2.4.x track === (compat-k240 baseline)
+          - "2.4.0"
+          - "2.4.10"
+          # === pre-release === (compat-k240 baseline、 next patch の先行検証)
+          - "2.4.20-RC"
         include:
           # ------------------------------------------------------------------
-          # 全 cell stable tier (task-082): 2.0.0 〜 2.3.21 全 stable patch +
-          # 2.4.0-RC pre-release を一律 fail-on-error で扱う。
+          # 全 cell stable tier (task-082): 2.0.0 〜 2.4.10 全 stable patch +
+          # 2.4.20-RC pre-release を一律 fail-on-error で扱う。
           #
           # 構造的に解決済の問題:
           #   - D1 drift (FirLiteralExpression<T> → FirLiteralExpression、
@@ -105,8 +108,12 @@ jobs:
             ksp: "2.3.8"  # KSP 2.3.20 native 未 release のため最新 2.3.x で代用
           - kotlin: "2.3.21"
             ksp: "2.3.8"
-          - kotlin: "2.4.0-RC"
-            ksp: "2.3.8"  # KSP 2.4.x 未 release のため最新 2.3.x で代用
+          - kotlin: "2.4.0"
+            ksp: "2.3.11"  # KSP 2.4.x 未 release のため最新 2.3.x で代用
+          - kotlin: "2.4.10"
+            ksp: "2.3.11"  # 同上
+          - kotlin: "2.4.20-RC"
+            ksp: "2.3.11"  # 同上
 
           # ------------------------------------------------------------------
           # JDK 21 の代表 cell (各 minor track の latest patch + pre-release)。
@@ -124,6 +131,10 @@ jobs:
             jdk: "21"
             kotlin: "2.3.21"
             ksp: "2.3.8"
+          - os: "ubuntu-latest"
+            jdk: "21"
+            kotlin: "2.4.10"
+            ksp: "2.3.11"
     steps:
       - uses: actions/checkout@v4
 
@@ -200,8 +211,10 @@ jobs:
               # `:compat-k230:test` を実行することで再発を即捕捉する。
               plugin_tests=":compiler-plugin:compat-k230:test"
               ;;
-            2.4.0-RC)
+            2.4.*)
               # task-089: K240 も同じ static init regression test を持つ。
+              # 2.4.0 / 2.4.10 (stable) と 2.4.20-RC (pre-release) はいずれも
+              # compat-k240 (Factory.minVersion = "2.4.0-RC") が dispatch される。
               plugin_tests=":compiler-plugin:compat-k240:test"
               ;;
             *)

@@ -228,8 +228,12 @@ plugin and a compat layer that absorbs Kotlin compiler API drift.
 :annotation                     // @CaptureCode, filler types, capturedSources<T>() stub
 :compiler-plugin                // FIR + IR extensions
   :compiler-plugin:compat       // CompatContext interface
-  :compiler-plugin:compat-k200  // Kotlin 2.0.x impl
+  :compiler-plugin:compat-k200  // Kotlin 2.0.0 / 2.0.10 impl
+  :compiler-plugin:compat-k202  // Kotlin 2.0.20 / 2.0.21 impl
   :compiler-plugin:compat-k210  // Kotlin 2.1.x impl
+  :compiler-plugin:compat-k220  // Kotlin 2.2.x impl
+  :compiler-plugin:compat-k230  // Kotlin 2.3.x impl
+  :compiler-plugin:compat-k240  // Kotlin 2.4.x impl
 :gradle-plugin                  // KotlinCompilerPluginSupportPlugin
 ```
 
@@ -249,9 +253,13 @@ For the full design, see [docs/architecture.md](docs/architecture.md).
 
 | Kotlin | Status | Compat module |
 | ------ | ------ | ------------- |
-| 2.0.x  | Supported (verified in CI) | `compat-k200` |
+| 2.0.0 / 2.0.10 | Supported (verified in CI) | `compat-k200` |
+| 2.0.20 / 2.0.21 | Supported (verified in CI) | `compat-k202` |
 | 2.1.x  | Supported (verified in CI) | `compat-k210` |
-| 2.2.x  | Not yet verified — falls back to `compat-k210` with a warning | — |
+| 2.2.x  | Supported (verified in CI) | `compat-k220` |
+| 2.3.x  | Supported (verified in CI) | `compat-k230` |
+| 2.4.0 / 2.4.10 / 2.4.20-RC | Supported (verified in CI) | `compat-k240` |
+| ≥ 2.4.20 (stable) | Not yet verified — dispatches to `compat-k240` with a warning | — |
 | < 2.0  | **Not supported.** Build fails with a clear message. | — |
 
 The Gradle plugin reads `KotlinGradlePlugin.getKotlinPluginVersion()` from
