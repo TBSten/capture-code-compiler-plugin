@@ -9,6 +9,7 @@
 ```kotlin
 import me.tbsten.capture.code.*
 
+// 1. @CaptureCode アノテーションをつけた annotation を定義します
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
@@ -16,13 +17,15 @@ internal annotation class Snippet(
     val source: Source = Source(),
 )
 
+// 2. annotation をコードをキャプチャしたいコードに付与します
 @Snippet fun greet() = "Hello!"
 @Snippet fun farewell() = "Goodbye!"
 
 fun main() {
-    capturedSources<Snippet>().forEach { println(it.source.value) }
-    // → fun greet() = "Hello!"
-    // → fun farewell() = "Goodbye!"
+    // 3. capturedSources でソースコードを文字列として取得します。
+    capturedSources<Snippet>().forEach { println("source: ${it.source.value}") }
+    // → source: fun greet() = "Hello!"
+    // → source: fun farewell() = "Goodbye!"
 }
 ```
 

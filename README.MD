@@ -9,6 +9,7 @@ A Kotlin compiler plugin that **captures the source string at compile time** sim
 ```kotlin
 import me.tbsten.capture.code.*
 
+// 1. Define an annotation and mark it with @CaptureCode
 @CaptureCode
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.SOURCE)
@@ -16,13 +17,15 @@ internal annotation class Snippet(
     val source: Source = Source(),
 )
 
+// 2. Put that annotation on the code you want to capture
 @Snippet fun greet() = "Hello!"
 @Snippet fun farewell() = "Goodbye!"
 
 fun main() {
-    capturedSources<Snippet>().forEach { println(it.source.value) }
-    // → fun greet() = "Hello!"
-    // → fun farewell() = "Goodbye!"
+    // 3. Read the captured source back as a string with capturedSources
+    capturedSources<Snippet>().forEach { println("source: ${it.source.value}") }
+    // → source: fun greet() = "Hello!"
+    // → source: fun farewell() = "Goodbye!"
 }
 ```
 
