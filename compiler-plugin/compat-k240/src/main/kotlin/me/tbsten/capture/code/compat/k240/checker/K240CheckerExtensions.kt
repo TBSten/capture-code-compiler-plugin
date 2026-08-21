@@ -7,6 +7,7 @@ import me.tbsten.capture.code.compat.CaptureCodePluginConfigHolder
 import me.tbsten.capture.code.compat.k240.CompatContextImpl
 import me.tbsten.capture.code.compat.k240.k240Compat
 import me.tbsten.capture.code.feature.capturedSources.fir.collectExpressionSite.CollectExpressionSite
+import me.tbsten.capture.code.feature.capturedSources.fir.collectRunWithCaptureCodeSite.CollectRunWithCaptureCodeSite
 import me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.ValidateCapturedSourcesCall
 import me.tbsten.capture.code.feature.markerDefinition.fir.discoverMarkerClass.DiscoverMarkerClass
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.ValidateMarkerAnnotation
@@ -113,6 +114,7 @@ public object K240CapturedSourcesCallCheckerLogic {
 /** Logic B-fir — expression site 収集 (file-level annotation も含む)。 */
 public object K240ExpressionSiteCollectorLogic {
     private val logic = CollectExpressionSite()
+    private val blockSiteLogic = CollectRunWithCaptureCodeSite()
 
     @JvmStatic
     public fun run(
@@ -121,6 +123,7 @@ public object K240ExpressionSiteCollectorLogic {
         expression: FirStatement,
     ) {
         logic(context, reporter, expression, k240Compat)
+        blockSiteLogic(context, reporter, expression, k240Compat)
     }
 }
 

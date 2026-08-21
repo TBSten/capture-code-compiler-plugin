@@ -189,8 +189,17 @@ internal fun extractExpressionSource(
     endOffset: Int,
     effective: CaptureCodePluginConfig,
     site: CollectDeclarationSite,
+    unwrapBlockBody: Boolean = false,
 ): String? {
     val raw = ExtractSourceText()(fullText, startOffset, endOffset) ?: return null
+    if (unwrapBlockBody) {
+        // task-150: `runWithCaptureCode(Marker::class) { ... }` 起源。 FIR は **呼び出し式全体** の
+        // range を push してくる (= lambda の AST 形 drift を避けるため) ので、 file text を持っている
+        // ここで最外殻の `{` `}` を落として body だけにする。 body の先頭は必ず改行または空白なので、
+        // 1 行目インデント復元 ([reattachOwnLeadingIndent]) は不要で、 素直に dedent すれば揃う。
+        val body = stripEnclosingBlock(raw) ?: return null
+        return NormalizeSource()(body, effective.toExpressionNormalizeOptions())
+    }
     val stripped = site.stripSurroundingParens(raw)
     // task-149 (BUG-J): expression の startOffset は **行頭ではなく式そのもの** を指すため、
     // 抽出した text の 1 行目だけ見かけ上のインデントが 0 になる。 そのまま dedent すると
@@ -201,6 +210,29 @@ internal fun extractExpressionSource(
     // 「この式だけを column 0 に持ってきた形」 に正しく揃うようにする。
     val withOwnIndent = reattachOwnLeadingIndent(fullText, startOffset, stripped)
     return NormalizeSource()(withOwnIndent, effective.toExpressionNormalizeOptions())
+}
+
+/**
+ * 最外殻の `{` `}` を落として block の body だけを返す。
+ *
+ * `runWithCaptureCode(Marker::class) { ... }` の **呼び出し式全体** から lambda body を取り出すために
+ * 使う。 呼び出しの signature は `(marker: KClass<out Annotation>, block: () -> R)` で、 marker 引数は
+ * `Foo::class` 形式しか取り得ない (= Kotlin の型引数は `<>`、 class literal に `{` は現れない) ため、
+ * **最初の `{` が lambda の開き括弧** であることが構文的に保証される。 同様に閉じ括弧は最後の `}`。
+ *
+ * - `"f(M::class) {\n  a()\n}"` → `"\n  a()\n"`
+ * - `"f(M::class) {}"` → `""` (空 block)
+ * - `"f(M::class)"` → `null` (`{` が無い)
+ * - `"}{"` → `null` (閉じが開きより前)
+ *
+ * 返り値は **正規化前** の raw body。 dedent / blank trim は呼び出し側の [NormalizeSource] が行う。
+ */
+internal fun stripEnclosingBlock(text: String): String? {
+    val open = text.indexOf('{')
+    if (open < 0) return null
+    val close = text.lastIndexOf('}')
+    if (close <= open) return null
+    return text.substring(open + 1, close)
 }
 
 /**

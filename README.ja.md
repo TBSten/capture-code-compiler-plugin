@@ -131,7 +131,50 @@ marker annotation のパラメータ型として宣言すれば plugin が値を
 // 式
 val r = @Marker (1 + 2 + 3)
 val block = @Marker run { ... }
+
+// 複数の文をまとめて (wrapper 行はキャプチャ結果に含まれない)
+runWithCaptureCode(Marker::class) {
+    println("hoge")
+    println("fuga")
+}
 ```
+
+### 複数の文をまとめてキャプチャする
+
+隣り合う 2 つの文は Kotlin の構文上 1 つの式ではないため、まとめて annotation を付けることはできません。
+`runWithCaptureCode(Marker::class) { ... }` は **block の body だけ** をキャプチャします
+(`runWithCaptureCode(...) {` の行と閉じ `}` は含まれません):
+
+```kotlin
+runWithCaptureCode(Snippet::class) {
+    println("hoge")
+    println("fuga")
+}
+
+capturedSources<Snippet>().single().source.value
+// => println("hoge")
+//    println("fuga")
+```
+
+`run { ... }` と同じように block を実行し、その値を返します:
+
+```kotlin
+val sum = runWithCaptureCode(Snippet::class) {
+    val a = 20
+    val b = 22
+    a + b
+} // => 42
+```
+
+式に annotation を付ける形と比べて、
+
+- marker に `@Target(AnnotationTarget.EXPRESSION)` が不要
+- ただの関数呼び出しなので、K2 parser が要求する `@Marker()` の空カッコ制約 (Known limitations 参照) を受けない
+- キャプチャ結果に `run { ... }` のような wrapper が残らない
+
+marker のパラメータは呼び出し側から渡せないため、この形で使う marker は filler 以外のパラメータすべてに
+デフォルト値を持たせてください。コンパイラプラグイン未適用でも block は普通に実行されます
+(キャプチャ site が登録されないだけです)。
 
 ---
 

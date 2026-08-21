@@ -4,6 +4,7 @@ import me.tbsten.capture.code.compat.CaptureCodePluginConfigHolder
 import me.tbsten.capture.code.compat.k200.CompatContextImpl
 import me.tbsten.capture.code.compat.k200.k200Compat
 import me.tbsten.capture.code.feature.capturedSources.fir.collectExpressionSite.CollectExpressionSite
+import me.tbsten.capture.code.feature.capturedSources.fir.collectRunWithCaptureCodeSite.CollectRunWithCaptureCodeSite
 import me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.ValidateCapturedSourcesCall
 import me.tbsten.capture.code.feature.markerDefinition.fir.discoverMarkerClass.DiscoverMarkerClass
 import me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation.ValidateMarkerAnnotation
@@ -112,9 +113,11 @@ internal object K200CapturedSourcesCallChecker : FirExpressionChecker<FirFunctio
 internal object K200ExpressionSiteCollector : FirBasicExpressionChecker(MppCheckerKind.Common) {
 
     private val logic = CollectExpressionSite()
+    private val blockSiteLogic = CollectRunWithCaptureCodeSite()
 
     override fun check(expression: FirStatement, context: CheckerContext, reporter: DiagnosticReporter) {
         logic(context, reporter, expression, k200Compat)
+        blockSiteLogic(context, reporter, expression, k200Compat)
     }
 }
 

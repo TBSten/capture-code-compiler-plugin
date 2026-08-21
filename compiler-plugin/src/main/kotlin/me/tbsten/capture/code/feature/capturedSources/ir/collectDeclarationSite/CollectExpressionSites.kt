@@ -75,6 +75,7 @@ internal fun collectExpressionSites(
             endOffset = site.endOffset,
             effective = effective,
             site = context.site,
+            unwrapBlockBody = site.unwrapBlockBody,
         ) ?: continue
         val startLine = context.file.fileEntry.getLineNumber(site.startOffset) + 1
         val endLine = context.file.fileEntry.getLineNumber(site.endOffset) + 1

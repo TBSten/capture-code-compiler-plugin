@@ -1,5 +1,7 @@
 package me.tbsten.capture.code
 
+import kotlin.reflect.KClass
+
 /**
  * Marker meta-annotation. Mark your own annotation class with `@CaptureCode`
  * to make it a Capture Code marker.
@@ -91,3 +93,38 @@ public inline fun <reified T : Annotation> capturedSources(): List<T> =
  */
 public inline fun <reified T : Annotation> capturedSource(): T =
     error("CaptureCode compiler plugin is not applied")
+
+/**
+ * Run [block], registering its **body** as a capture site for the marker annotation [marker].
+ *
+ * The captured source is the body of the lambda only — the `runWithCaptureCode(...) {` header
+ * and the closing `}` are not part of it:
+ *
+ * ```kotlin
+ * runWithCaptureCode(Snippet::class) {
+ *     println("hoge")
+ *     println("fuga")
+ * }
+ *
+ * capturedSources<Snippet>().single().source.value
+ * // => "println(\"hoge\")\nprintln(\"fuga\")"
+ * ```
+ *
+ * Compared with annotating an expression (`@Snippet() (expr)`), this form:
+ * - does not require `@Target(AnnotationTarget.EXPRESSION)` on the marker,
+ * - is a plain function call, so it is not subject to the `@Marker()` empty-argument-list
+ *   requirement forced by the K2 parser,
+ * - captures the block body without any wrapper such as `run { ... }`.
+ *
+ * Unlike [capturedSources] / [capturedSource], this function has real runtime behaviour: it
+ * simply invokes [block] and returns its value. Without the compiler plugin applied the block
+ * still runs — only the capture site is not registered.
+ *
+ * @param marker the marker annotation class (must be annotated with [CaptureCode]).
+ * @param block the block to run; its source text is captured.
+ * @return whatever [block] returns.
+ */
+public inline fun <R> runWithCaptureCode(
+    @Suppress("UNUSED_PARAMETER") marker: KClass<out Annotation>,
+    block: () -> R,
+): R = block()

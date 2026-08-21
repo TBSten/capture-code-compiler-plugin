@@ -33,4 +33,18 @@ public object CaptureCodeCallableIds {
         packageName = packageFqName,
         callableName = capturedSourceName,
     )
+
+    public val runWithCaptureCodeName: Name = Name.identifier("runWithCaptureCode")
+
+    /**
+     * `runWithCaptureCode(Marker::class) { ... }` (= block 起源 site) の identity。
+     *
+     * [capturedSources] / [capturedSource] と違い IR phase での **書き換えは不要** で、
+     * FIR phase の `CollectRunWithCaptureCodeSite` が site を登録するためだけに使う
+     * (runtime 実装は `block()` を呼ぶだけの実体を持つ)。
+     */
+    public val runWithCaptureCode: CallableId = CallableId(
+        packageName = packageFqName,
+        callableName = runWithCaptureCodeName,
+    )
 }
