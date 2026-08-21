@@ -95,7 +95,32 @@ public class CollectExpressionSite {
                 )
                 continue
             }
-            val filePath = source.containingFilePath() ?: contextFilePath ?: continue
+            // task-149: bare file name (= `psi.containingFile.name`) は
+            // `CollectDeclarationSite.matchesFile` が **完全一致でしか** 採用しない。
+            // 同名 file が別ディレクトリに複数ある実プロジェクトで、 file A の offset が
+            // file B の text に適用されて garbage を capture する事故を防ぐため。
+            // したがって解決順は 「PSI virtualFile の絶対パス → CheckerContext の file path →
+            // (最後の手段) bare file name」 とし、 bare name に落ちたことは verbose-log に残す。
+            val resolvedFilePath = source.containingFilePath() ?: contextFilePath
+            val filePath = if (resolvedFilePath != null) {
+                resolvedFilePath
+            } else {
+                val bareFileName = source.containingFileNameOrNull()
+                if (bareFileName == null) {
+                    CaptureCodeMessageCollectorHolder.reportLogging(
+                        "[CaptureCode] Expression annotated with marker '$markerFqn' has no " +
+                            "resolvable containing file path; skipping expression site.",
+                    )
+                    continue
+                }
+                CaptureCodeMessageCollectorHolder.reportLogging(
+                    "[CaptureCode] Could not resolve an absolute path for the file containing the " +
+                        "expression annotated with marker '$markerFqn'; falling back to the bare " +
+                        "file name '$bareFileName'. The expression site is matched only against an " +
+                        "exactly equal IR file path, so this capture may be skipped.",
+                )
+                bareFileName
+            }
             val startOffset = source.startOffset
             val endOffset = source.endOffset
             if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) {
@@ -132,14 +157,22 @@ public class CollectExpressionSite {
         return classId.asSingleFqName().asString()
     }
 
-    private fun KtSourceElement.containingFilePath(): String? {
-        if (this is KtPsiSourceElement) {
-            val path = psi.containingFile?.virtualFile?.path
-            if (path != null) return path
-            return psi.containingFile?.name
-        }
-        return null
-    }
+    /**
+     * PSI の `virtualFile` から取れる **絶対パス** のみを返す。
+     *
+     * task-149 以前は取得できない場合に `psi.containingFile.name` (= bare file name) へ
+     * fallback していたが、 bare name は同名 file の誤マッチを招くため呼び出し側で
+     * 明示的に段階分けする ([containingFileNameOrNull] 参照)。
+     */
+    private fun KtSourceElement.containingFilePath(): String? =
+        (this as? KtPsiSourceElement)?.psi?.containingFile?.virtualFile?.path
+
+    /**
+     * PSI の bare file name (= ディレクトリを含まない `Basic.kt` 形式) を返す。
+     * 絶対パスも `CheckerContext` 由来の path も取れなかった場合の最終 fallback。
+     */
+    private fun KtSourceElement.containingFileNameOrNull(): String? =
+        (this as? KtPsiSourceElement)?.psi?.containingFile?.name
 
     private fun FirAnnotation.collectUserArgs(compat: CompatContext): Map<String, UserArgValue> {
         val mapping = argumentMapping.mapping

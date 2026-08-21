@@ -192,7 +192,37 @@ internal fun extractExpressionSource(
 ): String? {
     val raw = ExtractSourceText()(fullText, startOffset, endOffset) ?: return null
     val stripped = site.stripSurroundingParens(raw)
-    return NormalizeSource()(stripped, effective.toExpressionNormalizeOptions())
+    // task-149 (BUG-J): expression の startOffset は **行頭ではなく式そのもの** を指すため、
+    // 抽出した text の 1 行目だけ見かけ上のインデントが 0 になる。 そのまま dedent すると
+    // 「非空行の最小インデント = 0」 と判定されて 2 行目以降が元 file の絶対インデントの
+    // まま取り残される (`run {` / `        println(..)` / `    }` のような崩れた形になる)。
+    // 式が行頭から始まる (= 行頭から startOffset までが whitespace のみ) 場合に限り、
+    // その whitespace を 1 行目に戻してから normalize することで、 dedent が
+    // 「この式だけを column 0 に持ってきた形」 に正しく揃うようにする。
+    val withOwnIndent = reattachOwnLeadingIndent(fullText, startOffset, stripped)
+    return NormalizeSource()(withOwnIndent, effective.toExpressionNormalizeOptions())
+}
+
+/**
+ * [text] (= [startOffset] から抽出した expression の raw source) の先頭に、
+ * **その式が元 file で持っていた行頭インデント** を復元して返す。
+ *
+ * 復元するのは以下をすべて満たす場合のみ:
+ * - [text] が複数行 (= 1 行なら dedent の最小値計算に影響しないので no-op)
+ * - 行頭から [startOffset] までが space / tab のみ (= 式が行頭から始まっている)
+ *
+ * `val x = @Marker() run { ... }` のように **行の途中** から始まる式は、 行頭までの文字列が
+ * 式と無関係 (`val x = @Marker() `) なのでインデント扱いできない。 この場合は [text] を
+ * そのまま返し、 従来どおりの挙動 (= 1 行目 0 インデント基準) を維持する。
+ */
+private fun reattachOwnLeadingIndent(fullText: String, startOffset: Int, text: String): String {
+    if (!text.contains('\n')) return text
+    if (startOffset <= 0 || startOffset > fullText.length) return text
+    val lineStart = fullText.lastIndexOf('\n', startOffset - 1) + 1
+    if (lineStart >= startOffset) return text
+    val indent = fullText.substring(lineStart, startOffset)
+    if (indent.any { it != ' ' && it != '\t' }) return text
+    return indent + text
 }
 
 /**
