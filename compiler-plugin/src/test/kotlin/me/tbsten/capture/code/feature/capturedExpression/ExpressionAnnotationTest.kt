@@ -32,6 +32,7 @@ import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
  * 6. 同一ファイル内の複数式 annotation
  * 7. ネストラムダ内の式
  * 8. 同じ marker が宣言と式の両方に付くケース — kind で識別できる
+ * 9. 関数 body 内 (= インデントされた位置) の複数行式 — dedent が式自身のインデント基準になる
  *
  * 非対象 (本ファイル scope 外):
  * - 1 行に複数式 annotation: integration-test の ExpressionCasesTest 側で確認
@@ -445,5 +446,57 @@ class ExpressionAnnotationTest : FunSpec({
         (annotationProperty(psSrc, "value") as String) shouldContain "val decl = 1"
         // declaration 起源で式起源データが pollute されていないことの簡易確認
         (annotationProperty(psSrc, "value") as String) shouldNotContain "@CaptureE"
+    }
+
+    // ----------------------------------------------------------------
+    // 9. インデントされた位置の複数行式 (BUG-J regression)
+    //
+    // expression の startOffset は **式そのもの** を指すため、 抽出 text の 1 行目は
+    // 見かけ上インデント 0 になる。 これを基準に dedent すると 2 行目以降が元 file の
+    // 絶対インデントのまま残り、 貼り戻せない崩れた source になっていた。
+    // ----------------------------------------------------------------
+    test("expression annotation: multi-line expression inside a function body is dedented to its own indent") {
+        val result = compile(
+            SourceFile.kotlin(
+                "IndentedBlock.kt",
+                """
+                package example.expr_indent
+
+                import me.tbsten.capture.code.CaptureCode
+                import me.tbsten.capture.code.Source
+                import me.tbsten.capture.code.capturedSources
+
+                @CaptureCode
+                @Target(AnnotationTarget.EXPRESSION)
+                @Retention(AnnotationRetention.SOURCE)
+                internal annotation class CaptureIndented(val source: Source = Source())
+
+                internal fun indentedHost(): Int {
+                    @CaptureIndented()
+                    run {
+                        val a = 1
+                        val b = 2
+                        return a + b
+                    }
+                }
+
+                internal object Main {
+                    fun captured(): List<CaptureIndented> = capturedSources<CaptureIndented>()
+                }
+                """.trimIndent(),
+            ),
+        )
+        result.exitCode shouldBe KotlinCompilation.ExitCode.OK
+        val captured = loadCaptured(result, mainFqn = "example.expr_indent.Main")
+        captured shouldHaveSize 1
+        val src = fillerAnnotation(captured[0] as Annotation, "source")
+        annotationProperty(src, "value") shouldBe
+            """
+            run {
+                val a = 1
+                val b = 2
+                return a + b
+            }
+            """.trimIndent()
     }
 })

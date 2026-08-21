@@ -498,18 +498,55 @@ public class CollectDeclarationSite {
      * registry に登録された site の filePath が IR file path に一致するかを判定する。
      *
      * 一致条件 (いずれか):
-     * 1. site.filePath == irFilePath (= 絶対パス完全一致)
-     * 2. site.filePath が irFilePath の末尾要素と一致 (= ファイル名のみで一致)
-     * 3. irFilePath が site.filePath の末尾要素と一致 (= 逆方向)
+     * 1. path separator 正規化後の完全一致 (= 通常経路。 FIR / IR とも絶対パスを返す)
+     * 2. 一方が他方の **path segment 境界に沿った suffix** (= 片方が絶対パス、 もう片方が
+     *    source root 相対パスで返ってきた場合の吸収)。 suffix 側は 1 段以上のディレクトリを
+     *    含む必要がある。
+     *
+     * ## BUG-I (task-149): bare file name 一致は誤マッチの温床
+     *
+     * 以前は上記に加えて
+     *
+     * - 「file 名 (leaf) だけの一致」 (`a/Basic.kt` vs `b/Basic.kt` → **一致扱い**)
+     * - 「segment 境界を見ない `String.endsWith`」 (`Basic.kt` vs `MyBasic.kt` → **一致扱い**)
+     *
+     * を許していた。 expression site は `(filePath, startOffset, endOffset)` の 3 つ組で
+     * source を切り出すため、 誤マッチした file では **同じ offset が別 file の text に適用され、
+     * 無関係な位置の文字列が capture される** (offset が range 外なら silent skip、 range 内なら
+     * garbage を掴む)。 feature ごとに `Basic.kt` を置くような実プロジェクトでは同名 file が
+     * 何個も並ぶため、 1 個の `@Marker run { ... }` から複数の garbage site が生まれていた。
+     *
+     * bare file name しか持たない site は **完全一致のみ** を許す (= 誤って別 file の text を
+     * 掴むくらいなら capture されない方が安全) 方針に倒している。
      */
     public fun matchesFile(site: CaptureCodeExpressionSiteRegistry.Site, irFilePath: String): Boolean {
-        val sitePath = site.filePath
-        if (sitePath == irFilePath) return true
-        val siteLeaf = sitePath.substringAfterLast('/').substringAfterLast('\\')
-        val irLeaf = irFilePath.substringAfterLast('/').substringAfterLast('\\')
-        if (siteLeaf == irLeaf && siteLeaf.isNotEmpty()) return true
-        if (irFilePath.endsWith(sitePath) || sitePath.endsWith(irFilePath)) return true
-        return false
+        val sitePath = site.filePath.normalizePathSeparators()
+        val irPath = irFilePath.normalizePathSeparators()
+        if (sitePath.isEmpty() || irPath.isEmpty()) return false
+        if (sitePath == irPath) return true
+        return sitePath.isPathSuffixOf(irPath) || irPath.isPathSuffixOf(sitePath)
+    }
+
+    /**
+     * Windows 形式の `\\` 区切りを `/` に寄せて比較可能な形にする。
+     */
+    private fun String.normalizePathSeparators(): String =
+        if (indexOf('\\') < 0) this else replace('\\', '/')
+
+    /**
+     * この文字列が [full] の **path segment 境界に沿った** 真の suffix かどうか。
+     *
+     * - `"featureA/Basic.kt".isPathSuffixOf("/tmp/src/featureA/Basic.kt")` → `true`
+     * - `"featureB/Basic.kt".isPathSuffixOf("/tmp/src/featureA/Basic.kt")` → `false`
+     * - `"Basic.kt".isPathSuffixOf("/tmp/src/featureA/Basic.kt")` → `false`
+     *   (bare file name は同名 file を巻き込むため受け付けない。 上位 [matchesFile] の KDoc 参照)
+     * - `"asic.kt".isPathSuffixOf("/tmp/src/Basic.kt")` → `false` (segment 途中で切れている)
+     */
+    private fun String.isPathSuffixOf(full: String): Boolean {
+        if (indexOf('/') < 0) return false
+        if (length >= full.length) return false
+        if (!full.endsWith(this)) return false
+        return full[full.length - length - 1] == '/'
     }
 
     public companion object {
