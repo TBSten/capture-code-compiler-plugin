@@ -98,7 +98,7 @@ internal fun extractDeclarationSource(
         SkipMarkerResult(sourceStart = startOffset, markerRanges = emptyList())
     } else {
         site.skipLeadingMarkerAnnotations(
-            fullText, startOffset, endOffset, markerSimpleNames(),
+            fullText, startOffset, endOffset, markerSimpleNames(fullText),
         )
     }
     val rawBody = ExtractSourceText()(fullText, skipResult.sourceStart, endOffset) ?: return null
@@ -303,10 +303,22 @@ internal fun stripMarkerClassDeclarations(file: IrFile, text: String): String {
 }
 
 /**
- * marker registry から「marker FqN の simpleName 集合 (= class 名のみ抜き出したもの)」を返す。
+ * marker registry から「marker FqN の simpleName 集合 (= class 名のみ抜き出したもの)」に、
+ * 当該 file の import alias (`import <markerFqn> as <alias>` の `<alias>`) を union した集合を返す。
  *
- * 各 collect 経路で `skipLeadingAnnotationLines` に渡す `markerSimpleNames` 引数のため、
- * 都度計算 (= 1 declaration 1 回呼び出し) で問題ない (marker 数は通常 数件 〜 十数件)。
+ * bug-005: alias import された marker は当該 file 内で `@<alias>` として書かれるため、
+ * simple name だけの集合では marker 行を識別できず capture に leak していた。 file text から
+ * [markerImportAliases] で alias を解析して追加することで、 `@Snip` (alias) 記法の marker 行も
+ * drop できるようにする。
+ *
+ * 各 collect 経路で `skipLeadingMarkerAnnotations` に渡す `markerSimpleNames` 引数のため、
+ * 都度計算 (= 1 declaration 1 回呼び出し、 alias 解析は file header 走査のみ) で問題ない
+ * (marker 数は通常 数件 〜 十数件)。
+ *
+ * @param fileText 当該 file の全文 (= import alias 解析用)
  */
-internal fun markerSimpleNames(): Set<String> =
-    CaptureCodeMarkerRegistry.markerFqns.mapTo(mutableSetOf()) { it.substringAfterLast('.') }
+internal fun markerSimpleNames(fileText: String): Set<String> {
+    val names = CaptureCodeMarkerRegistry.markerFqns.mapTo(mutableSetOf()) { it.substringAfterLast('.') }
+    names += markerImportAliases(fileText)
+    return names
+}

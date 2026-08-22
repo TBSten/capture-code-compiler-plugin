@@ -286,16 +286,14 @@ public class CollectDeclarationSite {
                 return lineStart
             }
             val nameStart = cursor + 1
-            var nameEnd = nameStart
-            while (nameEnd < endOffset) {
-                val ch = text[nameEnd]
-                if (ch.isLetterOrDigit() || ch == '_') nameEnd++ else break
-            }
-            val simpleName = if (nameEnd > nameStart) text.substring(nameStart, nameEnd) else ""
+            // bug-005: `@example.Snippet` のような FQN 記法に対応するため、 `.` 区切りの
+            // qualified name として読み進め、 末尾 segment を simple name として照合する。
+            val nameScan = readQualifiedAnnotationName(text, nameStart, endOffset)
+            val simpleName = nameScan.simpleName
             if (simpleName !in markerSimpleNames) {
                 return lineStart
             }
-            cursor = nameEnd
+            cursor = nameScan.nameEnd
             if (cursor < endOffset && text[cursor] == '(') {
                 var depth = 0
                 while (cursor < endOffset) {
@@ -343,7 +341,9 @@ public class CollectDeclarationSite {
      * extractDeclarationSource は [SkipMarkerResult.sourceStart] で substring した上で、
      * [SkipMarkerResult.markerRanges] の range を **降順** で drop すれば leak を防げる。
      *
-     * @param markerSimpleNames marker FqN の simple name 集合 (= class 名のみ抜き出したもの)
+     * @param markerSimpleNames marker FqN の simple name 集合 (= class 名のみ抜き出したもの)。
+     *   import alias で marker を書ける file では alias も含める ([markerSimpleNames] が
+     *   [markerImportAliases] を union して構築する)
      */
     public fun skipLeadingMarkerAnnotations(
         text: String,
@@ -380,16 +380,14 @@ public class CollectDeclarationSite {
                 }
                 break
             }
-            // 行頭が '@'。 simpleName を読む
+            // 行頭が '@'。 simpleName を読む。 bug-005: `@example.Snippet` のような FQN 記法に
+            // 対応するため、 `.` 区切りの qualified name として読み進め、 末尾 segment を
+            // simple name として照合する。
             val nameStart = lineContentStart + 1
-            var nameEnd = nameStart
-            while (nameEnd < endOffset) {
-                val ch = text[nameEnd]
-                if (ch.isLetterOrDigit() || ch == '_') nameEnd++ else break
-            }
-            val simpleName = if (nameEnd > nameStart) text.substring(nameStart, nameEnd) else ""
+            val nameScan = readQualifiedAnnotationName(text, nameStart, endOffset)
+            val simpleName = nameScan.simpleName
             // annotation argument `(...)` を skip (depth-balanced)
-            var afterArgs = nameEnd
+            var afterArgs = nameScan.nameEnd
             if (afterArgs < endOffset && text[afterArgs] == '(') {
                 var depth = 0
                 while (afterArgs < endOffset) {
