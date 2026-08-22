@@ -79,11 +79,10 @@ class NestedMarkerCaptureTest : FunSpec({
 
         val captured = loadCaptured(result)
         captured.size shouldBe 1
-        // TODO qualified 参照 (`@Ns.Snippet`) の marker 行は simpleName ベースの
-        //  skipLeadingMarkerAnnotations が識別できず source に残る (別 issue のスコープ)。
-        //  ここでは bug-002 の本題である「rewrite が成功して capture が返る」ことを固定する。
+        // bug-005 (qualified name の末尾 segment 照合) と組み合わさることで、
+        // `@Ns.Snippet` の qualified 参照でも marker 行は capture から除去される。
         captureSourceValue(captured[0] as Annotation) shouldBe
-            "@Ns.Snippet\ninternal fun target() = \"target body\""
+            "internal fun target() = \"target body\""
     }
 
     test("object 内の nested marker を direct import (@Snippet) で使っても capture できる") {

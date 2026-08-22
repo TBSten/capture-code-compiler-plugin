@@ -105,6 +105,38 @@ plan.
   missing from the current compilation unit (e.g. a stale IC round), instead
   of silently leaving the runtime stub behind.
 
+## 7. Markers on non-capturable positions
+
+- **Symptom**: A marker attached to a position the collector does not visit
+  is never captured. `capturedSources<T>()` simply returns fewer (or zero)
+  entries for that marker.
+- **Diagnosed cases**: getter / setter use-site targets (`@get:Marker` /
+  `@set:Marker`) and enum entries (`@Marker RED,`) now emit the
+  `CC_MARKER_ON_NON_CAPTURABLE_TARGET` warning so the silent zero-capture is
+  visible at compile time.
+- **Still silent** (not reachable from the IR declaration walk without
+  compat-layer changes): `@field:Marker`, `@param:Marker`,
+  `@setparam:Marker`, and markers on local variables inside function bodies.
+  These positions are not captured and no warning is emitted — avoid them.
+- **Workaround**: Put the marker on the declaration itself (property /
+  function / class) instead of an accessor, field, or parameter use-site
+  target.
+
+## 8. Marker misuse now fails the build (MessageCollector-based diagnostics)
+
+Two misuses that previously failed silently (zero captures, or a runtime
+`IllegalStateException`) are reported as compile **errors** via the
+`MessageCollector` (with `file:line:column` when available):
+
+- A marker annotation class declared `public` / `protected` — markers must
+  be `internal` or `private` (capture is module-confined by design).
+- `runWithCaptureCode(NotAMarker::class) { … }` where the class is not
+  meta-annotated with `@CaptureCode`.
+
+These reports appear as build errors but not as IDE inline diagnostics
+(the diagnostic-factory path would require per-Kotlin-version compat
+changes; see the KDoc of `ReportError.kt` for the trade-off).
+
 ---
 
 For the full internal reasoning, ticket references and source-of-truth

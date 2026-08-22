@@ -146,7 +146,7 @@ class QualifiedAndAliasedMarkerLineTest : FunSpec({
                 @CaptureCode
                 @Target(AnnotationTarget.FUNCTION)
                 @Retention(AnnotationRetention.SOURCE)
-                annotation class Snippet(val source: Source = Source())
+                internal annotation class Snippet(val source: Source = Source())
                 """.trimIndent(),
             ),
             SourceFile.kotlin(
