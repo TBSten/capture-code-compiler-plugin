@@ -10,17 +10,22 @@ import me.tbsten.capture.code.capturedSources
 // task-135: `CC_CAPTUREDSOURCES_REWRITE_FAILED` warning の発火ドキュメント。
 //
 // 本 warning は **registered marker FqN が IR phase で resolve 不能** な場合に発火する
-// (= FIR phase の marker registry には乗ったが、 `IrPluginContext.referenceClass(...)`
-// が `null` を返すケース)。 これは典型的に KMP cross-module setup で、 marker class
+// (= FIR phase の marker registry には乗ったが、 `referenceMarkerClass(...)` (flatten FqN
+// の分割候補総当たり) でも `null` になるケース)。 これは典型的に KMP cross-module
+// setup で、 marker class
 // が `commonMain` 側にあって `jvmMain` の IR phase からは class symbol が見えない、
 // あるいは別 module の class が registry snapshot 経由でだけ伝わっている、 という
 // 状況で起こる。
 //
-// 同一 single-module compilation では発火条件を再現できない (= marker が registry に
-// 乗るためには `@CaptureCode` annotated class が同一 module 内に declared されており、
-// その class symbol は IR phase でも resolve できるため)。 そのため本 sample は
-// **「正常系: marker resolve が成功して空でない list が返る」 ことを runtime で
-// assert する sanity check** + **発火条件の documentation** という構成にする。
+// かつては nested marker (`object Ns { @CaptureCode ... annotation class Snippet }`) が
+// 同一 single-module compilation でも本 warning を発火させる既知ケースだった (registry の
+// flatten FqN `example.Ns.Snippet` を `ClassId.topLevel` 固定で resolve していたため)。
+// bug-002 修正 (`referenceMarkerClass` による flatten FqN の分割候補総当たり) で解消し、
+// 現在の発火条件は「classpath 越しの marker 等、 IR phase で marker class symbol が
+// resolve できないケース」 に限られる (同一 module 内に declared された marker は nested
+// でも resolve できる)。 そのため本 sample は **「正常系: marker resolve が成功して空で
+// ない list が返る」 ことを runtime で assert する sanity check** + **発火条件の
+// documentation** という構成にする。
 //
 // 真の発火 verify は KMP integration-test module (将来追加予定) または
 // `:compiler-plugin` の kctfork unit test で外部からの artifact resolve を mock する
