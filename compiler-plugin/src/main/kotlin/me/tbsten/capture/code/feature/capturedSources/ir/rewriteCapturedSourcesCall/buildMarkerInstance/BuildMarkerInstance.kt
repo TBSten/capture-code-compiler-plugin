@@ -11,6 +11,7 @@ import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesC
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.userargs.BuildUserArg
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.userargs.BuildUserArgPrimitive
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
+import me.tbsten.capture.code.feature.markerDefinition.referenceMarkerClass
 import me.tbsten.capture.code.warning.CaptureCodeCompilerPluginWarning
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
@@ -28,7 +29,6 @@ import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.types.typeWith
 import org.jetbrains.kotlin.ir.util.constructors
 import org.jetbrains.kotlin.name.CallableId
-import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 import java.text.MessageFormat
@@ -82,8 +82,9 @@ import java.text.MessageFormat
  *   typical root cause: caller が空文字列を渡している (= [RewriteCapturedSourcesCall] の
  *   `markerFqnOf` は registered marker fqn のみ採用するため、 空文字列は来ないはず = caller bug)。
  * - `markerFqn` は [CaptureCodeMarkerRegistry][me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry]
- *   に登録済 (= FIR phase の `DiscoverMarkerClass` 経由)。 `pluginContext.referenceClass` で
- *   marker class symbol が解決可能。 違反時は task-135 で `CC_CAPTUREDSOURCES_REWRITE_FAILED`
+ *   に登録済 (= FIR phase の `DiscoverMarkerClass` 経由)。 [referenceMarkerClass] で
+ *   marker class symbol が解決可能 (nested marker の flatten FqN も分割候補の総当たりで
+ *   解決)。 違反時は task-135 で `CC_CAPTUREDSOURCES_REWRITE_FAILED`
  *   warning + `null` 返却 (= user 環境依存)。
  * - marker class は `ANNOTATION_CLASS` で primary constructor を持つ (Kotlin spec で保証)。
  *   違反時は task-137 で internal `error()` で fail-fast (= plugin bug、 絶対起きない)。
@@ -143,7 +144,7 @@ internal class BuildMarkerInstance {
                 "string or whitespace-only string, bypassing the registered-marker filter."
         }
 
-        val markerSymbol = pluginContext.referenceClass(ClassId.topLevel(FqName(markerFqn)))
+        val markerSymbol = pluginContext.referenceMarkerClass(markerFqn)
             ?: run {
                 reportWarning(messageCollector, RewriteFailureWarnings.REWRITE_FAILED, markerFqn)
                 return null
@@ -262,7 +263,7 @@ internal class BuildMarkerInstance {
                 "bypassing the registered-marker filter."
         }
 
-        val markerSymbol = pluginContext.referenceClass(ClassId.topLevel(FqName(markerFqn)))
+        val markerSymbol = pluginContext.referenceMarkerClass(markerFqn)
             ?: run {
                 reportWarning(messageCollector, RewriteFailureWarnings.REWRITE_FAILED, markerFqn)
                 return null
