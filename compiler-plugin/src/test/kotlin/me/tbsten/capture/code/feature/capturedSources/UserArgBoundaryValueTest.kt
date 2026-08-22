@@ -764,7 +764,7 @@ class UserArgBoundaryValueTest : FunSpec({
         (annotationProperty(captured[2] as Annotation, "v") as Enum<*>).name shouldBe "DELETE"
     }
 
-    test("C02 ClassRef expr: 未対応 warning + default fallback") {
+    test("C02 ClassRef expr: user 指定の ::class が実値で入る") {
         val result = compile(
             SourceFile.kotlin(
                 "ClassRefExpr.kt",
@@ -798,10 +798,11 @@ class UserArgBoundaryValueTest : FunSpec({
         result.exitCode shouldBe KotlinCompilation.ExitCode.OK
         val captured = loadCaptured(result)
         captured.size shouldBe 1
-        // ClassRef は IR 再構築未対応のため、 user-specified CustomSvc::class は warning で握り潰され、
-        // marker の default value `DefaultSvc::class` に倒れる (= silent fallback)。
+        // bug-004: ClassRef の IR 再構築 (`IrClassReferenceShim` 経由) に対応したため、
+        // user-specified `CustomSvc::class` が default (`DefaultSvc::class`) を override して
+        // 実値で入る (旧挙動: warning + default fallback)。
         val target = annotationProperty(captured[0] as Annotation, "target") as Class<*>
-        target.name shouldBe "example.DefaultSvc"
+        target.name shouldBe "example.CustomSvc"
     }
 
     test("C03 NullValue (argMapping 空): annotation 引数なし expression marker") {
