@@ -40,7 +40,9 @@ public sealed class UserArgValue {
 
     /**
      * `SomeClass::class` の class FqN (例: `com.example.MySnippet`)。 IR phase で
-     * `IrGetClass` に再構築する候補 (現状未対応 → `BuildUserArgPrimitive` が `null` IR を返す)。
+     * `IrClassReference` に再構築する (bug-004: `BuildUserArgPrimitive` の
+     * `IrClassReferenceShim` 経由。 全 baseline で bytecode signature が同一であることを
+     * javap で確認済)。
      */
     public data class ClassRef(public val classFqn: String) : UserArgValue()
 
@@ -50,7 +52,40 @@ public sealed class UserArgValue {
      */
     public data class EnumRef(public val entryFqn: String) : UserArgValue()
 
-    // 将来 nested annotation / Array の case はここに追加。
+    /**
+     * 配列 literal (`["a", "b"]` / `[1, 2]`) の要素列。 IR phase で
+     * [me.tbsten.capture.code.compat.CompatContext.newIrVararg] に再構築。
+     *
+     * bug-004: 従来 branch 自体が存在せず silent に default `[]` へ落ちていた経路を
+     * expression 起源でも実値化する。
+     */
+    public data class ArrayValue(public val elements: List<UserArgValue>) : UserArgValue()
+
+    /**
+     * nested annotation (`meta = Meta(note = "hello")`) の class FqN と引数 map。 IR phase で
+     * [me.tbsten.capture.code.compat.CompatContext.newIrConstructorCall] +
+     * `putCallValueArgument` に再構築。 [args] の value は再帰的に [UserArgValue]。
+     *
+     * bug-004: 従来 `FirQualifiedAccessExpression` branch が constructor call を enum 扱いして
+     * `Could not resolve enum entry 'example.Meta.Meta'` という誤 warning + default fallback に
+     * なっていた経路を expression 起源でも実値化する。
+     */
+    public data class AnnotationValue(
+        public val classFqn: String,
+        public val args: Map<String, UserArgValue>,
+    ) : UserArgValue()
+
+    /**
+     * FIR phase で [UserArgValue] に変換できなかった引数式。 IR phase
+     * (`BuildUserArgPrimitive`) で `CC_USERARG_EXPRESSION_UNSUPPORTED` warning を発火して
+     * default fallback する。
+     *
+     * bug-004: 従来は「解決できない enum entry」 という誤 warning (もしくは Array の
+     * silent fallback) になっていた複合定数式 (`BASE * 2 + 1` 等) / 非 const 参照を、
+     * 実態に合った文面の warning に昇格するための branch。 [description] は warning の
+     * `{0}` に埋める source snippet (PSI text が取れない場合は FIR node 名)。
+     */
+    public data class UnsupportedExpression(public val description: String) : UserArgValue()
 
     public companion object Companion {
         /**
