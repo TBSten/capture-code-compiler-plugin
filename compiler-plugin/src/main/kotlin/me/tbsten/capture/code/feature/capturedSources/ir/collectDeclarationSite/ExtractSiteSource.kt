@@ -126,12 +126,31 @@ internal fun extractDeclarationSource(
             .forEach { (start, endExclusive) -> builder.delete(start, endExclusive) }
         builder.toString()
     }
+    // bug-010: 同一行に `;` 区切りで次の宣言が続く場合 (`@Marker val a = 1; val b = 2`)、
+    // IR 上の endOffset が `;` を含むため capture 末尾に `;` が残る。 normalize 前の
+    // rawBody 末尾処理として `;` を 1 つだけ strip する (文中の `;` は触らない)。
+    val rawBodyWithoutTrailingSemicolon = stripTrailingSemicolon(rawBodyWithoutMarkerLeak)
     val rawText = if (kdocPrefix.isNotEmpty()) {
-        kdocPrefix + "\n" + rawBodyWithoutMarkerLeak
+        kdocPrefix + "\n" + rawBodyWithoutTrailingSemicolon
     } else {
-        rawBodyWithoutMarkerLeak
+        rawBodyWithoutTrailingSemicolon
     }
     return NormalizeSource()(rawText, effective.toDeclarationNormalizeOptions())
+}
+
+/**
+ * declaration 起源の rawBody 末尾に残った statement separator (`;`) を 1 つだけ取り除く。
+ *
+ * `internal val a = 1; internal val b = 2` のような同一行 multi-declaration では、 1 番目の
+ * declaration の IR endOffset が `;` を含むため、 そのままだと capture が `internal val a = 1;`
+ * になる (bug-010)。 末尾の trailing whitespace を挟んで最後の非空白文字が `;` の場合のみ
+ * その 1 文字を取り除き、 文中の `;` (statement 区切りや string literal 内) には触らない。
+ */
+private fun stripTrailingSemicolon(rawBody: String): String {
+    var i = rawBody.length - 1
+    while (i >= 0 && rawBody[i].isWhitespace()) i--
+    if (i < 0 || rawBody[i] != ';') return rawBody
+    return rawBody.removeRange(i, i + 1)
 }
 
 /**

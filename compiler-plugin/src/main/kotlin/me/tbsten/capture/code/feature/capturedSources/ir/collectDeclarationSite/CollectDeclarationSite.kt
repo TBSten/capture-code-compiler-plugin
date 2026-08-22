@@ -314,6 +314,13 @@ public class CollectDeclarationSite {
             while (cursor < endOffset && (text[cursor] == ' ' || text[cursor] == '\t')) {
                 cursor++
             }
+            // bug-010: 行末までの line comment (`// ...`) も annotation 行として吸収する
+            // ([skipLeadingMarkerAnnotations] と同じ挙動)。
+            if (cursor + 1 < endOffset && text[cursor] == '/' && text[cursor + 1] == '/') {
+                while (cursor < endOffset && text[cursor] != '\n') {
+                    cursor++
+                }
+            }
             if (cursor < endOffset && text[cursor] == '\n') {
                 cursor++
             }
@@ -418,6 +425,16 @@ public class CollectDeclarationSite {
                 (text[afterTrailing] == ' ' || text[afterTrailing] == '\t')
             ) {
                 afterTrailing++
+            }
+            // bug-010: annotation token の後が行末までの line comment (`// ...`) のみなら、
+            // コメントも annotation 行の一部として吸収する。 これをしないと marker 行 drop 時に
+            // `// ...` の残骸だけが capture 先頭に leak する (`@Marker // why` → `// why`)。
+            if (afterTrailing + 1 < endOffset &&
+                text[afterTrailing] == '/' && text[afterTrailing + 1] == '/'
+            ) {
+                while (afterTrailing < endOffset && text[afterTrailing] != '\n') {
+                    afterTrailing++
+                }
             }
             val lineEndAfterNewline = if (afterTrailing < endOffset && text[afterTrailing] == '\n') {
                 afterTrailing + 1
