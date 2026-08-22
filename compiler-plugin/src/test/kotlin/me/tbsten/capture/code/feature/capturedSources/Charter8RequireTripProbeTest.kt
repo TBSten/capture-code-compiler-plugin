@@ -18,14 +18,14 @@ import java.io.PrintStream
 import java.lang.reflect.InvocationTargetException
 
 /**
- * Charter 8 (exploratory-debug-plan §4) — fault injection probe for the 5
+ * Charter 8 (exploratory-debug-plan §4) — fault injection probe for the
  * `require(...)` preconditions added in commit a56507c (task-139) and
  * eb839df (task-140):
  *
  * | site | location | guard |
  * | --- | --- | --- |
- * | R1 | `ValidateCapturedSourcesCall.kt:73` | `expression.calleeReference is FirResolvedNamedReference` |
- * | R2 | `ValidateCapturedSourcesCall.kt:81` | `expression.typeArguments.isNotEmpty()` |
+ * | ~~R1~~ | ~~`ValidateCapturedSourcesCall`~~ | **removed in task-151** — see below |
+ * | R2 | `ValidateCapturedSourcesCall` | `expression.typeArguments.isNotEmpty()` |
  * | R3 | `RewriteCapturedSourcesCall.kt:125` | `collectedSites.all { it.site.markerFqn.isNotBlank() }` |
  * | R4 | `BuildMarkerInstance.kt:140` | `markerFqn.isNotBlank()` |
  * | R5 | `BuildMarkerInstance.kt:289` | `fillerPlan.bindings.keys.all { it in parameters.indices }` |
@@ -38,9 +38,18 @@ import java.lang.reflect.InvocationTargetException
  * - **fault injection (F1-F4)** — call the IR-side logic objects directly via
  *   reflection with bad arguments to confirm each `require()` trips with a
  *   message that points the plugin developer at the root cause.
- * - **L1** — FIR-side R1 / R2 are reachable only through FIR Checker
- *   registration, which the user cannot bend without modifying the plugin
- *   source itself. They are verified indirectly by A1 / A5 baseline.
+ * - **L1** — FIR-side R2 is reachable only through FIR Checker registration,
+ *   which the user cannot bend without modifying the plugin source itself. It is
+ *   verified indirectly by A1 / A5 baseline.
+ *
+ * **task-151 correction**: this charter originally listed R1
+ * (`calleeReference is FirResolvedNamedReference`) under the same "only reachable by a
+ * plugin-internal caller bug" assumption. That assumption was **wrong**. FIR checkers also
+ * run over files that contain resolution errors, so a single typo anywhere in user code gave
+ * the call an unresolved callee and tripped R1 — turning a normal "unresolved reference"
+ * `COMPILATION_ERROR` into an `INTERNAL_ERROR`. R1 sat *before* the CallableId guard, so this
+ * happened even in files that never touch the CaptureCode API. R1 has been removed; the
+ * behaviour is now pinned by `UnresolvedCalleeCrashTest`.
  *
  * Reflection caveat: `BuildMarkerInstance` is `internal` and `buildSingle` /
  * `FillerPlan` are `private`. We use `getDeclaredMethod` /
@@ -381,23 +390,23 @@ class Charter8RequireTripProbeTest : FunSpec({
         r3 shouldContain "CollectDeclarationSite"
     }
 
-    test("F3b detect-ability (R1 / R2: ValidateCapturedSourcesCall bytecode contains both FIR require messages)") {
-        // R1 + R2 live in ValidateCapturedSourcesCall.invoke as the first
-        // two statements (R1 before the isCapturedSourcesCall guard, R2
-        // immediately after it). Both must surface their preconditions +
-        // root causes.
+    test("F3b detect-ability (R2: ValidateCapturedSourcesCall bytecode contains the FIR require message)") {
+        // R2 lives in ValidateCapturedSourcesCall.invoke right after the
+        // isCapturedSourcesCall guard, and must surface its precondition +
+        // root cause.
         val cls = Class.forName(
             "me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.ValidateCapturedSourcesCall",
         )
         val bytecode = readClassBytes(cls)
         val literals = extractUtf8Literals(bytecode)
 
-        val r1 = literals.singleOrNull { it.contains("must be FirResolvedNamedReference") }
-            ?: error("expected exactly one constant pool string for R1 require, got: ${literals.filter { it.contains("FirResolved") }}")
-        r1 shouldContain "ValidateCapturedSourcesCall"
-        r1 shouldContain "after FIR resolution"
-        r1 shouldContain "Typical root cause"
-        r1 shouldContain "before name resolution"
+        // task-151 regression guard: R1 (`calleeReference is FirResolvedNamedReference`) was
+        // removed because it was unreachable as a guard and reachable only as a crash — any
+        // unresolved callee in *any* user file tripped it and turned a normal
+        // "unresolved reference" COMPILATION_ERROR into an INTERNAL_ERROR. If someone
+        // reintroduces it, this assertion fails. See UnresolvedCalleeCrashTest for the
+        // behavioural counterpart.
+        literals.filter { it.contains("must be FirResolvedNamedReference") } shouldBe emptyList()
 
         val r2 = literals.singleOrNull { it.contains("typeArguments must not be empty") }
             ?: error("expected exactly one constant pool string for R2 require, got: ${literals.filter { it.contains("typeArguments") }}")
@@ -465,27 +474,27 @@ class Charter8RequireTripProbeTest : FunSpec({
     }
 
     // ------------------------------------------------------------------
-    // L1 limitation: R1 / R2 FIR-side require() cannot be tripped via
-    // user code or via direct invoke (the heavy CheckerContext /
-    // DiagnosticReporter / Diagnostics inputs are FIR-private). We
-    // verify their absence via the baselines A1 / A5 above and document
-    // here why no F-* probe exists for R1 / R2.
+    // L1 limitation: the FIR-side R2 require() cannot be tripped via user
+    // code or via direct invoke (the heavy CheckerContext /
+    // DiagnosticReporter / Diagnostics inputs are FIR-private). We verify
+    // its absence via the baselines A1 / A5 above and document here why no
+    // F-* probe exists for R2.
     // ------------------------------------------------------------------
 
-    test("L1 limitation note: R1 / R2 are FIR-internal, only baseline verification") {
-        // This test is intentionally a documentation marker. R1 verifies
-        // that the FIR Checker registration happens after name resolution
-        // (a phase contract guaranteed by Kotlin compiler internals), and
-        // R2 verifies that capturedSources<T>() always has a type argument
-        // (a runtime API signature contract). Tripping either from user
-        // code would require:
-        //   - R1: registering CaptureCodeFirCheckersExtension to run at
-        //         CHECK_NAMES or earlier (requires plugin source edit).
-        //   - R2: changing the runtime API to drop the <T> type parameter
-        //         (requires :annotation module edit + plugin rebuild).
-        // Both are caller-bug paths only reachable when an outside party
-        // modifies plugin internals, which our probe charter excludes.
-        // Hence: no F-* test for R1 / R2.
+    test("L1 limitation note: R2 is FIR-internal, only baseline verification") {
+        // This test is intentionally a documentation marker. R2 verifies that
+        // capturedSources<T>() always has a type argument (a runtime API
+        // signature contract). Tripping it from user code would require
+        // changing the runtime API to drop the <T> type parameter (= an
+        // :annotation module edit + plugin rebuild), which our probe charter
+        // excludes. Hence: no F-* test for R2.
+        //
+        // task-151: R1 used to be listed here under the same assumption, and the
+        // assumption was wrong — a plain user typo tripped it and crashed the
+        // compiler. The lesson is that "only a plugin-internal caller can violate
+        // this" must be *verified against error-recovery inputs*, not assumed:
+        // FIR checkers run over files with resolution errors too. R1 is gone and
+        // UnresolvedCalleeCrashTest now pins the behaviour from the user's side.
         true shouldBe true
     }
 }) {

@@ -35,10 +35,11 @@ import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
  * Caller (= 各 `compat-kXXX` の `K{XXX}CapturedSourcesCallChecker`) は以下を保証する責務がある。
  *
  * - `expression: FirFunctionCall` は FIR-resolved な call (= `FirFunctionCallChecker`
- *   を継承した caller checker が `Common` phase の resolution 完了後に invoke
- *   を呼ぶ)。 `expression.calleeReference` は `FirResolvedNamedReference` で
- *   なければならない。 違反時は invoke 冒頭の `require(...)` で fail-fast (=
- *   typical root cause: caller checker が resolution 完了前の phase に登録されている)。
+ *   を継承した caller checker が `Common` phase の resolution 完了後に invoke を呼ぶ)。
+ *   ただし `expression.calleeReference` が **resolved である必要はない**。 FIR checker は
+ *   resolution error を含む file にも走るため、 未解決 callee (`FirErrorNamedReference`) は
+ *   plugin の precondition 違反ではなく user コードの通常の状態として扱い、
+ *   [isCapturedSourcesOrSourceCall] の safe cast で early return する (task-151)。
  * - `expression.isCapturedSourcesCall()` (= callee の `callableId` が
  *   `me.tbsten.capture.code.capturedSources` と一致) を pass した場合のみ、
  *   `expression.typeArguments` は 1 個以上であることが Kotlin compiler 側で保証される
@@ -82,12 +83,21 @@ public class ValidateCapturedSourcesCall {
         compat: CompatContext,
         diagnostics: Diagnostics,
     ) {
-        require(expression.calleeReference is FirResolvedNamedReference) {
-            "ValidateCapturedSourcesCall: expression.calleeReference must be FirResolvedNamedReference " +
-                "after FIR resolution, got ${expression.calleeReference::class.simpleName}. " +
-                "Typical root cause: caller checker is registered in a phase that runs before name resolution."
-        }
-
+        // task-151: ここに `require(expression.calleeReference is FirResolvedNamedReference)`
+        // (旧 R1) があったが、 **guard として到達不能・crash としてのみ到達可能** だったため撤去した。
+        //
+        // - FIR checker は resolution error を含む file にも走る。 その file の function call は
+        //   `FirErrorNamedReference` を持つので、 R1 は **user の typo 1 つで必ず trip** する。
+        //   しかも R1 は CallableId による絞り込み **より前** にあったため、 CaptureCode API を
+        //   一切使っていない file の typo でも trip した。 結果、 本来 `COMPILATION_ERROR`
+        //   ("unresolved reference") で終わるべき build が `INTERNAL_ERROR` (compiler crash) に
+        //   化けていた (= plugin を適用しただけでコンパイルエラー体験が壊れる)。
+        // - 一方 [isCapturedSourcesOrSourceCall] は `calleeReference as? FirResolvedNamedReference
+        //   ?: return false` で自前に safe cast している。 つまり同関数が `true` を返した時点で
+        //   reference が resolved であることは構文上保証されており、 R1 が守れるものは何も無い。
+        //
+        // 未解決 callee は「plugin の precondition 違反」 ではなく「user コードの通常の状態」 なので、
+        // fail-fast ではなく safe cast + early return で扱う。
         if (!expression.isCapturedSourcesOrSourceCall()) return
 
         require(expression.typeArguments.isNotEmpty()) {
