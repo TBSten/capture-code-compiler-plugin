@@ -14,8 +14,13 @@ import java.util.concurrent.CopyOnWriteArrayList
  * ## ライフサイクル
  *
  * [me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry] と同じく
- * **1 回のコンパイル単位** で生存する compilation-scoped mutable holder。
- * `CaptureCodeIrExtension.generate` 完了時に [reset] でクリアする。
+ * **1 回のコンパイル単位** で生存する compilation-scoped mutable holder。 [reset] は
+ * compile 入口 (`CaptureCodeCompilerPluginRegistrar.registerExtensions`, bug-007: 前回
+ * compile が IR phase に到達しなかった場合の残骸除去) と `CaptureCodeIrExtension.generate`
+ * 完了時 (try/finally) の 2 箇所で呼ばれる。
+ *
+ * 既知の制約: process-global object のため、 同一 ClassLoader での **並行** compile 同士の
+ * 汚染は上記 reset では解消しない (registry の compile 単位化は将来 task)。
  *
  * ## なぜ FIR session ではなく main module の object か
  *
@@ -98,8 +103,12 @@ public object CaptureCodeExpressionSiteRegistry {
             .sortedBy { it.startOffset }
 
     /**
-     * registry を空にする。`CaptureCodeIrExtension.generate` 完了時 (try/finally) に呼ぶ。
+     * registry を空にする。 compile 入口 (`CaptureCodeCompilerPluginRegistrar.registerExtensions`)
+     * と `CaptureCodeIrExtension.generate` 完了時 (try/finally) に呼ぶ。
      * テストでも各テストの境界で reset すること。
+     *
+     * IR phase に到達せず finally を通らなかった compile の残骸 site は、 次の compile の
+     * 入口 reset が除去する (bug-007)。
      */
     public fun reset() {
         sites.clear()

@@ -4,6 +4,8 @@ import com.google.auto.service.AutoService
 import me.tbsten.capture.code.compat.CaptureCodeCompatHolder
 import me.tbsten.capture.code.compat.CaptureCodeMessageCollectorHolder
 import me.tbsten.capture.code.compat.CaptureCodePluginConfigHolder
+import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
 
@@ -50,6 +52,26 @@ public class CaptureCodeCompilerPluginRegistrar : CompilerPluginRegistrar() {
     // `kotlin-compiler-embeddable-kXXX` でビルドされているため、 ここを通せば
     // 各 Kotlin runtime で正しい signature が解決される。
     override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
+        // bug-007: registry を compile の入口で必ず reset する。
+        //
+        // CaptureCodeMarkerRegistry / CaptureCodeExpressionSiteRegistry は process-global object
+        // で、 従来は `CaptureCodeIrExtension.generate` の finally でのみ reset していた。 しかし
+        // **FIR error で IR phase に到達しなかった compile は finally を通らず**、 marker FqN /
+        // expression site の残骸が registry に残る。 同一 ClassLoader で次の compile が走ると
+        // (kctfork の連続 compile 等)、 同一 file path の残骸 site による二重 capture や
+        // duplicate marker FQN warning の false positive を引き起こす。
+        //
+        // `registerExtensions` は 1 compile につき 1 回、 FIR phase 開始前に呼ばれる compile の
+        // 入口なので、 ここで reset すれば前回 compile の残骸は必ず消える。
+        //
+        // 既知の制約: registry は依然 process-global のため、 同一 JVM (= 同一 ClassLoader) 内での
+        // **並行** compile 同士の汚染 (相手の registry を消してしまう / 相手の site を読んでしまう)
+        // はこの reset では解消しない。 実 Gradle build では Kotlin daemon が compile ごとに plugin
+        // ClassLoader を分離するため顕在化しないが、 compiler を embed する環境で並行 compile を
+        // 行う場合は注意 (registry の compile 単位化は将来 task)。
+        CaptureCodeMarkerRegistry.reset()
+        CaptureCodeExpressionSiteRegistry.reset()
+
         val config = configuration.captureCodePluginConfig
         // task-123: FIR checkers (specifically the WarnIfOverrideNoEffect logic
         // in Logic F) need read access to the plugin config but there is no FIR-

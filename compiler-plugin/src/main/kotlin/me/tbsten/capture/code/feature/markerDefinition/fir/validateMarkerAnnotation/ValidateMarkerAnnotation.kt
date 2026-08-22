@@ -1,9 +1,12 @@
 package me.tbsten.capture.code.feature.markerDefinition.fir.validateMarkerAnnotation
 
+import me.tbsten.capture.code.compat.CaptureCodeMessageCollectorHolder
 import me.tbsten.capture.code.compat.CompatContext
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMetaAnnotation
+import me.tbsten.capture.code.utils.fir.compilerMessageLocationOf
 import org.jetbrains.kotlin.descriptors.ClassKind
+import org.jetbrains.kotlin.descriptors.Visibilities
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory0
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory1
@@ -14,6 +17,7 @@ import org.jetbrains.kotlin.fir.declarations.FirRegularClass
 import org.jetbrains.kotlin.fir.declarations.primaryConstructorIfAny
 import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
 import org.jetbrains.kotlin.fir.declarations.utils.isExpect
+import org.jetbrains.kotlin.fir.declarations.utils.visibility
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.types.ConeKotlinTypeProjection
 import org.jetbrains.kotlin.fir.types.ConeLookupTagBasedType
@@ -21,6 +25,7 @@ import org.jetbrains.kotlin.fir.types.isNonPrimitiveArray
 import org.jetbrains.kotlin.fir.types.isPrimitiveOrNullablePrimitive
 import org.jetbrains.kotlin.fir.types.isUnsignedTypeOrNullableUnsignedType
 import org.jetbrains.kotlin.name.StandardClassIds
+import java.text.MessageFormat
 
 /**
  * Logic F: marker annotation constraint validation.
@@ -33,10 +38,24 @@ import org.jetbrains.kotlin.name.StandardClassIds
  *    classes → reports [Diagnostics.markerParameterTypeInvalid] (per-parameter).
  * 3. Annotation parameter has a [filler][CaptureCodeFillerClassIds] type but no
  *    default value → reports [Diagnostics.markerFillerRequiresDefault].
+ * 4. Marker class is declared `public` (no-modifier default を含む) / `protected` →
+ *    [MarkerAnnotationErrors.NOT_INTERNAL_OR_PRIVATE] を
+ *    [CaptureCodeMessageCollectorHolder.reportError] 経由で error 報告 (bug-008)。
  *
  * task-091: visibility / retention / target の 3 制約は 0.1.x まで強制していたが
- * 「不便なだけ」 という判断で撤廃。 残った check は marker parameter
- * の correctness のみ (型 / filler default / isExpect)。
+ * 「不便なだけ」 という判断で撤廃。 その後 bug-008 で **visibility のみ復活**:
+ * README の Constraints (「Marker annotations must be internal or private」) が enforce
+ * されておらず、 public marker は下流 module から参照可能 → 下流の `@Marker` は silent に
+ * capture されず `capturedSources<T>()` が runtime IllegalStateException になるため。
+ * retention / target の撤廃は維持。
+ *
+ * bug-008 の visibility check は `KtDiagnosticFactory*` ではなく
+ * [CaptureCodeMessageCollectorHolder.reportError] (MessageCollector ERROR) で報告する。
+ * 新 factory の追加は全 compat-kXXX の diagnostics object に波及するため
+ * (`CompatContext.diagnosticFactory(id)` は未登録 id に null を返す)、 compat 変更なしで
+ * error を出せる IR phase と同じ機構を使う。 判定は **宣言上の visibility**
+ * (`FirDeclarationStatus.visibility`) で行うため、 internal object 内の no-modifier
+ * (= declared public) nested marker も error になる (= `internal` の明示が必要)。
  *
  * task-119: 各 `compat-kXXX/checker/K{XXX}MarkerAnnotationChecker.kt` に分散
  * していたロジック本体を main module に統一した版。 K2.0 baseline で書き、
@@ -100,7 +119,41 @@ public class ValidateMarkerAnnotation {
             reporter.reportOn(source, diagnostics.markerIsExpect, context)
         }
 
+        checkVisibility(declaration, context, compat)
+
         checkParameters(declaration, session, context, reporter, compat, diagnostics)
+    }
+
+    /**
+     * bug-008: marker class の宣言 visibility が `public` (no-modifier default を含む) /
+     * `protected` なら [MarkerAnnotationErrors.NOT_INTERNAL_OR_PRIVATE] を error 報告する。
+     *
+     * 報告経路は [CaptureCodeMessageCollectorHolder.reportError] (MessageCollector ERROR)。
+     * `KtDiagnosticFactory*` を使わない理由は class KDoc 参照 (compat-kXXX 変更なしで
+     * 追加できる経路がこれしか無い)。 collector が未設定 (= registrar を通らない unit test)
+     * の場合は silent no-op に degrade する。
+     */
+    private fun checkVisibility(
+        declaration: FirRegularClass,
+        context: CheckerContext,
+        compat: CompatContext,
+    ) {
+        val visibility = declaration.visibility
+        if (visibility != Visibilities.Public && visibility != Visibilities.Protected) return
+
+        // drift D3: `FirRegularClassSymbol.classId` は SPI 経由で dispatch。
+        val markerFqn = compat.classIdOf(declaration.symbol)?.asSingleFqName()?.asString()
+            ?: declaration.name.asString()
+        CaptureCodeMessageCollectorHolder.reportError(
+            message = MessageFormat.format(
+                MarkerAnnotationErrors.NOT_INTERNAL_OR_PRIVATE.message,
+                markerFqn,
+            ),
+            location = compilerMessageLocationOf(
+                source = declaration.source,
+                fallbackFilePath = compat.containingFilePathOf(context),
+            ),
+        )
     }
 
     private fun FirRegularClass.hasCaptureCodeMeta(session: FirSession): Boolean =
