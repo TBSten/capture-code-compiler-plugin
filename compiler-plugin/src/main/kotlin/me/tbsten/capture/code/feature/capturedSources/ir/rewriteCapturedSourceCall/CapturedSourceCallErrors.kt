@@ -43,4 +43,27 @@ public object CapturedSourceCallErrors {
             "Remove the excess marker annotations so exactly one site remains, " +
                 "or switch to capturedSources<T>() to collect all."
     }
+
+    /**
+     * `CC_CAPTUREDSOURCE_MARKER_NOT_REGISTERED` — type argument T が `@CaptureCode`
+     * meta-annotated (= marker のはず) なのに、 その declaration が今回の compilation unit に
+     * 含まれておらず marker registry に登録されていない時に発火する compile error (bug-001)。
+     * 複数版の
+     * [me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.CapturedSourcesErrors.MARKER_NOT_REGISTERED]
+     * と対称 (文面は capturedSource<T>() 用)。
+     * Argument `{0}` は marker class FQN。
+     */
+    public val MARKER_NOT_REGISTERED: CaptureCodeCompilerPluginError = object : CaptureCodeCompilerPluginError {
+        override val id: String = "CC_CAPTUREDSOURCE_MARKER_NOT_REGISTERED"
+        override val message: String =
+            "Marker class ''{0}'' is annotated with @CaptureCode, but its declaration is not part of " +
+                "this compilation unit, so capturedSource<{0}>() cannot be rewritten and would fail at runtime.\n" +
+                "Typical causes: a stale incremental build that passed only a subset of source files to " +
+                "the compiler, or a marker declared in another module / compilation.\n" +
+                "Suggested fix: run a clean build (e.g. ./gradlew clean), or move the marker, its use site " +
+                "and the capturedSource<...>() call into the same compilation."
+        override val reply: String? =
+            "Run a clean build, or move the marker, its use site and the capturedSource<...>() call " +
+                "into the same compilation."
+    }
 }
