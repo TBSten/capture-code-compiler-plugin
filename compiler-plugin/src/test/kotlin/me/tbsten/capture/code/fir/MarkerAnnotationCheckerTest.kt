@@ -34,9 +34,13 @@ class MarkerAnnotationCheckerTest : FunSpec({
         }.compile()
 
     // ----------------------------------------------------------------
-    // (1) public marker → 制約撤廃後は正常 compile (task-091)
+    // (1) visibility 制約 (bug-008 で復活): public / protected marker は error、
+    //     internal / private は OK。
+    //     task-091 で一度撤廃されたが、 README の Constraints (internal or private) が
+    //     enforce されず、 public marker が下流 module から silent に参照できてしまう
+    //     ため error として復活した。
     // ----------------------------------------------------------------
-    test("public marker annotation compiles (visibility constraint dropped in task-091)") {
+    test("public な marker annotation は error になる") {
         val result = compile(
             SourceFile.kotlin(
                 "PublicMarker.kt",
@@ -51,7 +55,60 @@ class MarkerAnnotationCheckerTest : FunSpec({
                 @Retention(AnnotationRetention.SOURCE)
                 annotation class PublicMarker(val source: Source = Source())
 
-                @PublicMarker val x: String = "x"
+                @PublicMarker internal val x: String = "x"
+                """.trimIndent(),
+            ),
+        )
+        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+        result.messages shouldContain "must be 'internal' or 'private'"
+        result.messages shouldContain "example.PublicMarker"
+    }
+
+    test("protected な nested marker annotation は error になる") {
+        val result = compile(
+            SourceFile.kotlin(
+                "ProtectedMarker.kt",
+                """
+                package example
+
+                import me.tbsten.capture.code.CaptureCode
+                import me.tbsten.capture.code.Source
+
+                internal abstract class Host {
+                    @CaptureCode
+                    @Target(AnnotationTarget.PROPERTY)
+                    @Retention(AnnotationRetention.SOURCE)
+                    protected annotation class ProtectedMarker(val source: Source = Source())
+                }
+                """.trimIndent(),
+            ),
+        )
+        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+        result.messages shouldContain "must be 'internal' or 'private'"
+    }
+
+    test("internal / private な marker annotation は visibility error にならない") {
+        val result = compile(
+            SourceFile.kotlin(
+                "VisibleMarkers.kt",
+                """
+                package example
+
+                import me.tbsten.capture.code.CaptureCode
+                import me.tbsten.capture.code.Source
+
+                @CaptureCode
+                @Target(AnnotationTarget.PROPERTY)
+                @Retention(AnnotationRetention.SOURCE)
+                internal annotation class InternalMarker(val source: Source = Source())
+
+                @CaptureCode
+                @Target(AnnotationTarget.PROPERTY)
+                @Retention(AnnotationRetention.SOURCE)
+                private annotation class PrivateMarker(val source: Source = Source())
+
+                @InternalMarker internal val x: String = "x"
+                @PrivateMarker internal val y: String = "y"
                 """.trimIndent(),
             ),
         )

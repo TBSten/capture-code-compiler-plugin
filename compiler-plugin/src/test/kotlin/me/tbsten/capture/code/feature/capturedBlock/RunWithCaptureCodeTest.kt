@@ -6,6 +6,7 @@ import com.tschuchort.compiletesting.SourceFile
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import me.tbsten.capture.code.CaptureCodeCompilerPluginRegistrar
 import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
@@ -188,15 +189,15 @@ class RunWithCaptureCodeTest : FunSpec({
 
                 @CaptureCode
                 @Retention(AnnotationRetention.SOURCE)
-                annotation class DupBlockMarker(val source: Source = Source())
+                internal annotation class DupBlockMarker(val source: Source = Source())
 
-                fun host() {
+                internal fun host() {
                     runWithCaptureCode(DupBlockMarker::class) {
                         println("only this")
                     }
                 }
 
-                object Main {
+                internal object Main {
                     fun captured(): List<DupBlockMarker> = capturedSources<DupBlockMarker>()
                 }
                 """.trimIndent(),
@@ -224,10 +225,11 @@ class RunWithCaptureCodeTest : FunSpec({
     }
 
     // ----------------------------------------------------------------
-    // 5. @CaptureCode の付いていない annotation を渡しても site にならない
-    //    (compile は通り、 単に何も capture されない)
+    // 5. @CaptureCode の付いていない annotation class を渡すと compile error (bug-008)。
+    //    旧挙動は silent に 0 件 capture だったが、 「付けたのに何も起きない」 誤用を
+    //    error に格上げした (capturedSources<T>() の T 検査と同じ方針)。
     // ----------------------------------------------------------------
-    test("passing a non-CaptureCode annotation class captures nothing") {
+    test("runWithCaptureCode に @CaptureCode の無い annotation class を渡すと error になる") {
         val result = compile(
             SourceFile.kotlin(
                 "NonMarker.kt",
@@ -257,7 +259,44 @@ class RunWithCaptureCodeTest : FunSpec({
                 """.trimIndent(),
             ),
         )
+        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+        result.messages shouldContain "must be annotated with @CaptureCode"
+        result.messages shouldContain "example.block_nonmarker.NotAMarker"
+    }
+
+    // ----------------------------------------------------------------
+    // 6. @CaptureCode meta のある marker なら bug-008 の検査を pass して従来通り capture される
+    //    (regression 確認は test 1-4 の既存 OK ケースも兼ねる)
+    // ----------------------------------------------------------------
+    test("runWithCaptureCode に @CaptureCode 付き marker を渡した場合は error にならず capture される") {
+        val result = compile(
+            SourceFile.kotlin(
+                "MarkerOk.kt",
+                """
+                package example.block_marker_ok
+
+                import me.tbsten.capture.code.CaptureCode
+                import me.tbsten.capture.code.Source
+                import me.tbsten.capture.code.capturedSources
+                import me.tbsten.capture.code.runWithCaptureCode
+
+                @CaptureCode
+                @Retention(AnnotationRetention.SOURCE)
+                internal annotation class OkMarker(val source: Source = Source())
+
+                internal fun host() {
+                    runWithCaptureCode(OkMarker::class) {
+                        println("captured")
+                    }
+                }
+
+                internal object Main {
+                    fun captured(): List<OkMarker> = capturedSources<OkMarker>()
+                }
+                """.trimIndent(),
+            ),
+        )
         result.exitCode shouldBe KotlinCompilation.ExitCode.OK
-        loadCaptured(result, mainFqn = "example.block_nonmarker.Main") shouldHaveSize 0
+        loadCaptured(result, mainFqn = "example.block_marker_ok.Main") shouldHaveSize 1
     }
 })

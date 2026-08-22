@@ -8,6 +8,7 @@ import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourceCa
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteCapturedSourcesCall
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.feature.markerDefinition.ir.warnIfDuplicateMarkerFqn.WarnIfDuplicateMarkerFqn
+import me.tbsten.capture.code.feature.markerDefinition.ir.warnIfNonCapturableMarkerUse.WarnIfNonCapturableMarkerUse
 import me.tbsten.capture.code.feature.markerDefinition.ir.warnIfParameterUnused.WarnIfParameterUnused
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
@@ -51,6 +52,7 @@ public class CaptureCodeIrExtension(
     private val rewriteCapturedSourcesCall = RewriteCapturedSourcesCall()
     private val rewriteCapturedSourceCall = RewriteCapturedSourceCall()
     private val warnIfDuplicateMarkerFqn = WarnIfDuplicateMarkerFqn()
+    private val warnIfNonCapturableMarkerUse = WarnIfNonCapturableMarkerUse()
     private val warnIfParameterUnused = WarnIfParameterUnused()
 
     override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
@@ -65,6 +67,15 @@ public class CaptureCodeIrExtension(
             // warning を発火する。 これは CollectDeclarationSite よりも前に呼ぶ (= 後段の
             // marker FqN 解決が ambiguous な状態でもログに残るようにする)。
             warnIfDuplicateMarkerFqn(CaptureCodeMessageCollectorHolder.get())
+            // bug-008 (3): 経路 0b。 登録済 marker が capture 対象外の位置 (property accessor
+            // = `@get:` / `@set:` use-site target、 enum entry) に付いている場合に
+            // `CC_MARKER_ON_NON_CAPTURABLE_TARGET` warning を発火する。 marker registry
+            // (FIR phase 確定済) にのみ依存するので CollectDeclarationSite より前で走らせる。
+            warnIfNonCapturableMarkerUse(
+                moduleFragment,
+                compat,
+                CaptureCodeMessageCollectorHolder.get(),
+            )
             // 経路 1: Logic B-ir。 declaration + file annotation + expression site を全 file 走査して
             // CollectedSite として収集する。 K{XXX}CapturedSourcesCollector の置換 (Phase 3a)。
             val collectedSites = collectDeclarationSite(moduleFragment, pluginContext, compat, config)
