@@ -79,3 +79,17 @@ dependencies {
     // compilation に plugin が乗る (test-kmp と同等の方式)。
     kotlinCompilerPluginClasspath(project(":compiler-plugin"))
 }
+
+// ----------------------------------------------------------------------------
+// bug-001: incremental compilation の無効化
+//
+// 本 module は `kotlinCompilerPluginClasspath(project(":compiler-plugin"))` で
+// compiler plugin を直接 attach しており、 `:gradle-plugin` の IC 無効化
+// (CaptureCodeGradlePlugin.disableIncrementalCompilation) を通らない。 IC round で
+// marker / site file が compile 対象から外れると capture が壊れる (今は
+// CC_*_MARKER_NOT_REGISTERED の compile error で検知される) ため、 module 側で
+// incremental compilation を無効化する。 詳細: docs/known-limitations.md §6。
+// ----------------------------------------------------------------------------
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile::class.java).configureEach {
+    incremental = false
+}
