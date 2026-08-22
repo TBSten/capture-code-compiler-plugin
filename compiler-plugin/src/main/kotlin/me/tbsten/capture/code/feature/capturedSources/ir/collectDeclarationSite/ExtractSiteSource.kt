@@ -21,7 +21,9 @@ import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
  * 2. declaration の `startOffset..endOffset` 範囲 + offset validity 確認
  * 3. `includeKdoc = true` なら直前 KDoc を抽出 ([CollectDeclarationSite.extractKdocPrefix])
  * 4. 先頭の marker / 非 marker annotation 行を 1 pass 走査 ([CollectDeclarationSite.skipLeadingMarkerAnnotations])
- *    で「source 開始 offset」 と 「中間 marker range のリスト」 を取得
+ *    で「source 開始 offset」 と 「中間 marker range のリスト」 を取得。
+ *    ただし `includeAnnotationLines = true` の場合は marker 行も capture に含めるため
+ *    本 step 全体を skip する (= sourceStart は補正後 startOffset のまま)
  * 5. raw substring 抽出 ([ExtractSourceText]) → marker range を **降順** で drop
  * 6. KDoc prefix と body を結合
  * 7. [NormalizeSource] で dedent / blank trim 等を適用 ([toDeclarationNormalizeOptions])
@@ -88,9 +90,17 @@ internal fun extractDeclarationSource(
     // (走査関数は連続する annotation / blank 行のみ走査するため、 KDoc 行で中断する)。
     // そこで KDoc 抽出と body 抽出を **分離** し、 後で連結する戦略を採る。
     val kdocPrefix = if (effective.includeKdoc) site.extractKdocPrefix(fullText, startOffset) else ""
-    val skipResult = site.skipLeadingMarkerAnnotations(
-        fullText, startOffset, endOffset, markerSimpleNames(),
-    )
+    // `includeAnnotationLines = true` (global もしくは per-marker override) の場合は `@Marker` 行も
+    // capture に含める仕様のため、 marker 行の skip / drop を一切行わない (= sourceStart は補正後
+    // startOffset のまま、 markerRanges は空)。 false (デフォルト) の場合のみ従来通り
+    // skipLeadingMarkerAnnotations で marker 行を除去する。
+    val skipResult = if (effective.includeAnnotationLines) {
+        SkipMarkerResult(sourceStart = startOffset, markerRanges = emptyList())
+    } else {
+        site.skipLeadingMarkerAnnotations(
+            fullText, startOffset, endOffset, markerSimpleNames(),
+        )
+    }
     val rawBody = ExtractSourceText()(fullText, skipResult.sourceStart, endOffset) ?: return null
     // sourceStart 以降に位置する marker annotation 行を drop。
     // rawBody は `fullText.substring(sourceStart, endOffset)` なので、 marker range の offset を

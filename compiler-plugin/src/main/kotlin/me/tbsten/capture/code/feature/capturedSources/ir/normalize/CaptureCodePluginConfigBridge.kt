@@ -18,10 +18,12 @@ import me.tbsten.capture.code.CaptureCodePluginConfig
  * - `dedent` は config のまま反映
  * - `trimBlankEdges` は常に `true` (design §5 Logic D 仕様)
  * - `stripPackageAndImport` は declaration には不要なので常に `false`
- * - `stripLeadingAnnotationLines` は **`false`**。compat-kXXXX 側で IR offset を annotation
- *   行を含まないよう既に補正している (Kotlin 2.0.0 の `skipLeadingAnnotationLines`) ため、
+ * - `stripLeadingAnnotationLines` は **`false`**。declaration 起源では marker 行の除去は
+ *   collector 側 (`skipLeadingMarkerAnnotations` + markerRanges drop) が担っており、
  *   後段の normalize で重ねて strip する必要はない。`includeAnnotationLines = true` の場合は
- *   collector 側で offset 補正をスキップする (TODO: 現状は未実装の polish item)。
+ *   collector 側 (`extractDeclarationSource`) が marker 行の skip / drop 自体をスキップするため、
+ *   `@Marker` 行がそのまま capture に含まれる。 非 marker annotation 行 (`@JvmInline` 等) は
+ *   semantic に意味を持つため、 この flag と無関係に常に capture に残る。
  */
 public fun CaptureCodePluginConfig.toDeclarationNormalizeOptions(): NormalizeOptions =
     NormalizeOptions(
