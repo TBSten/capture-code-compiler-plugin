@@ -51,10 +51,15 @@ public fun CaptureCodePluginConfig.toFileNormalizeOptions(): NormalizeOptions =
 
 /**
  * 式起源 (`@Marker (expr)`) のための [NormalizeOptions] を返す。
+ *
+ * - `dedentIgnoreFirstLine` は **式起源のみ `true`** (bug-006)。 式の抽出 text は 1 行目が
+ *   行の途中から始まり得てインデント情報を持たないため、 最小インデント幅の計算から
+ *   1 行目を除外する ([dedentLines] の KDoc 参照)。
  */
 public fun CaptureCodePluginConfig.toExpressionNormalizeOptions(): NormalizeOptions =
     NormalizeOptions(
         dedent = dedent,
+        dedentIgnoreFirstLine = true,
         trimBlankEdges = true,
         stripPackageAndImport = false,
         stripLeadingAnnotationLines = false,

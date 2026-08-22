@@ -370,6 +370,46 @@ class SourceNormalizerHelpersTest : StringSpec({
         dedentLines(listOf("    a", "  ", "    b")) shouldBe listOf("a", "", "b")
     }
 
+    // -----------------------------------------------------------------
+    // ignoreFirstLine (bug-006): 式起源用の 1 行目除外 dedent
+    // -----------------------------------------------------------------
+    "dedentLines(ignoreFirstLine): 行の途中から始まる式は 2 行目以降だけ dedent される" {
+        // property 初期化子のような行の途中から始まる式。 1 行目 (indent 0) を
+        // 最小幅計算に含めると minIndent = 0 になり 2 行目以降が崩れる (bug-006 の再現形)。
+        dedentLines(
+            listOf("run {", "        val a = 1", "        a", "    }"),
+            ignoreFirstLine = true,
+        ) shouldBe listOf("run {", "    val a = 1", "    a", "}")
+    }
+
+    "dedentLines(ignoreFirstLine): 1 行目にインデントが復元されている場合は従来と同じ結果になる" {
+        // 行頭開始式 (reattachOwnLeadingIndent 経路)。 1 行目の indent と残り行の最小幅が
+        // 一致するため、 ignoreFirstLine でも従来の全行 dedent と同一出力。
+        dedentLines(
+            listOf("        run {", "            val x = 1", "        }"),
+            ignoreFirstLine = true,
+        ) shouldBe dedentLines(listOf("        run {", "            val x = 1", "        }"))
+    }
+
+    "dedentLines(ignoreFirstLine): 1 行目は自身の indent の範囲を超えて削られない" {
+        // 1 行目 indent (2) < 残り行の最小幅 (4) のケース。 1 行目は 2 文字だけ削られる。
+        dedentLines(
+            listOf("  run {", "        val a = 1", "    }"),
+            ignoreFirstLine = true,
+        ) shouldBe listOf("run {", "    val a = 1", "}")
+    }
+
+    "dedentLines(ignoreFirstLine): 2 行目以降が全 blank なら従来どおり全行から計算する" {
+        dedentLines(
+            listOf("    expr", "   ", ""),
+            ignoreFirstLine = true,
+        ) shouldBe listOf("expr", "", "")
+    }
+
+    "dedentLines(ignoreFirstLine): 1 行入力ではフラグは無効で従来どおり dedent される" {
+        dedentLines(listOf("    val x = 1"), ignoreFirstLine = true) shouldBe listOf("val x = 1")
+    }
+
     "trimBlankEdgeLines: 前後 blank 行 drop / 中間維持" {
         trimBlankEdgeLines(listOf("", "a", "", "b", "")) shouldBe listOf("a", "", "b")
     }
