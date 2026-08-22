@@ -25,7 +25,8 @@ import org.jetbrains.kotlin.gradle.plugin.getKotlinPluginVersion
  */
 public class CaptureCodeGradlePlugin : KotlinCompilerPluginSupportPlugin {
     override fun apply(target: Project) {
-        target.extensions.create(CaptureCodeExtension.EXTENSION_NAME, CaptureCodeExtension::class.java)
+        val extension =
+            target.extensions.create(CaptureCodeExtension.EXTENSION_NAME, CaptureCodeExtension::class.java)
 
         // ## IC fallback: marker set hash を KotlinCompile task input に attach
         //
@@ -38,6 +39,15 @@ public class CaptureCodeGradlePlugin : KotlinCompilerPluginSupportPlugin {
         // 直接参照する。 KGP 必須の plugin なので runtime に kotlin-gradle-plugin が乗っている
         // 前提。 KGP 未 apply の場合は task type 自体が無いので何も attach されない (no-op)。
         attachMarkerHashTaskInput(target)
+
+        // ## IC 無効化 (bug-001): marker registry は「今回の compile 単位」しか見えない
+        //
+        // Kotlin IC は変更 file (+ ABI 依存 file) だけを compiler に渡す。 caller file
+        // (`capturedSources<T>()` を呼ぶ file) だけが再 compile される round では marker
+        // registry / site 収集が空になり、 rewrite が乗らない runtime stub や stale capture
+        // が class file に残る。 MarkerSetHasher は marker world の変化しか検知できないため、
+        // 既定では compile task の incremental compilation 自体を無効化して正しさを優先する。
+        disableIncrementalCompilation(target, extension)
 
         target.afterEvaluate {
             // ## Kotlin version guard
@@ -71,6 +81,53 @@ public class CaptureCodeGradlePlugin : KotlinCompilerPluginSupportPlugin {
         val hashProvider = target.providers.provider { MarkerSetHasher.hashFor(target) }
         target.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java).configureEach { task ->
             task.inputs.property(MARKER_HASH_INPUT_KEY, hashProvider)
+        }
+    }
+
+    /**
+     * plugin を apply した module の Kotlin compile task の incremental compilation (IC) を
+     * 無効化する ([CaptureCodeExtension.disableIncrementalCompilation] = true の既定時)。
+     *
+     * ## なぜ IC を殺すのか (bug-001)
+     *
+     * Kotlin IC は **変更された file (+ その ABI 依存 file) だけ** を compiler に渡す。 この
+     * plugin の marker registry (FIR) / site 収集 (IR) は「今回 compiler に渡された source」
+     * しか見えないため、 例えば `capturedSources<T>()` を呼ぶ file に空行を 1 行足しただけの
+     * round では marker registry が空になり、 rewrite されなかった runtime stub が class file
+     * に残って実行時に `IllegalStateException` になる (site 編集だけの round では stale capture)。
+     * [MarkerSetHasher] (R5 fallback) は marker world の変化しか hash に反映しないので、
+     * caller file 単独の編集はすり抜ける。 そのため task 単位で `incremental = false` を強制する。
+     *
+     * ## 対象 task
+     *
+     * `AbstractKotlinCompile` (JVM の `KotlinCompile` / JS の `Kotlin2JsCompile` が継承) の
+     * `incremental` var を落とす。 Native (`KotlinNativeCompile`) は `AbstractKotlinCompile`
+     * 系でなく該当 var も無いため対象外 (Kotlin/Native の compile は per-module 全量 compile)。
+     *
+     * ## 登録タイミング
+     *
+     * KGP は task 登録時の `taskProvider.configure { task.incremental = ... }` で default を
+     * 代入する。 configure action は登録順に実行されるため、
+     *
+     * - apply 時の `configureEach` — 通常の plugins 順 (`kotlin("jvm")` → 本 plugin) では
+     *   KGP の default 代入より後に並ぶのでこれだけで足りる
+     * - `afterEvaluate` での再登録 — 本 plugin を `kotlin("jvm")` より先に書いた場合でも
+     *   KGP の default 代入より後に並ぶことを保証する (idempotent な二重代入なので無害)
+     *
+     * の 2 段構えにする。 flag は configure action 実行時に読むので、 `captureCode { }` DSL
+     * での opt-out (`disableIncrementalCompilation = false`) が反映される。
+     */
+    private fun disableIncrementalCompilation(target: Project, extension: CaptureCodeExtension) {
+        val disableIfEnabled: (org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile<*>) -> Unit = { task ->
+            if (extension.disableIncrementalCompilation) {
+                task.incremental = false
+            }
+        }
+        target.tasks.withType(org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile::class.java)
+            .configureEach(disableIfEnabled)
+        target.afterEvaluate {
+            target.tasks.withType(org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile::class.java)
+                .configureEach(disableIfEnabled)
         }
     }
 

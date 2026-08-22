@@ -23,6 +23,8 @@ import kotlin.io.path.createTempDirectory
  *   B. `@Snippet` 付き宣言を **削除** → caller 側出力から消えること
  *   C. `@Snippet` 付き宣言の **本文を編集 (source range の文字列のみ変化)** →
  *      caller 側出力が新しいソースに更新されること
+ *   D. `capturedSources<T>()` を呼ぶ **caller file (Main.kt) だけを編集** →
+ *      runtime stub にならず capture が生きていること (bug-001 regression guard)
  *
  * ## 検証手法
  *   1. `jvm-sample` fixture を JUnit/Kotest 経由の一時ディレクトリにコピー
@@ -48,8 +50,19 @@ import kotlin.io.path.createTempDirectory
  * あれば task は強制的に non-up-to-date 扱いになり、 caller を含む module 全体が
  * 再 compile される。 本テストの 3 シナリオはこの fallback の効果を確認する。
  *
+ * ## bug-001 (IC 無効化): caller file 単独編集は MarkerSetHasher をすり抜ける
+ *
+ * marker hash は marker world (marker class + use site) の変化しか反映しないため、
+ * `capturedSources<T>()` を呼ぶ caller file だけを編集した round では task は rerun される
+ * ものの、 Kotlin IC が変更 file (= caller) しか compiler に渡さず、 marker registry が空の
+ * まま rewrite がスキップされて runtime stub が class file に残っていた (実行時
+ * `IllegalStateException`)。 このため gradle-plugin は plugin を apply した module の
+ * `KotlinCompile` 系 task の `incremental` を既定で false に落とす (opt-out:
+ * `captureCode { disableIncrementalCompilation = false }`)。 シナリオ A-C は full recompile
+ * になっても引き続き成立し、 シナリオ D がこの無効化の regression guard になる。
+ *
  * ## 速度
- * TestKit は 1 build あたり数十秒。3 シナリオ × 2 build = 約 2-5 分を想定。
+ * TestKit は 1 build あたり数十秒。4 シナリオ × 2 build = 約 2-6 分を想定。
  */
 class IncrementalCompileTest : StringSpec({
 
@@ -281,5 +294,33 @@ class IncrementalCompileTest : StringSpec({
 
         mainLastModified(projectDir) shouldBe mainMtimeBefore
         secondBlock shouldNotBe firstBlock
+    }
+
+    "シナリオ D: capturedSources を呼ぶ Main.kt だけを編集 → runtime stub にならず capture が生きている" {
+        val projectDir = copyFixture()
+        writeUsage(projectDir, baselineUsage)
+
+        val firstResult = newRunner(projectDir, ":run").build()
+        successOutcomes.contains(firstResult.task(":run")?.outcome) shouldBe true
+        val firstBlock = extractCapturedBlock(firstResult.output)
+        firstBlock shouldContain "fun greet()"
+        firstBlock shouldContain "fun farewell()"
+
+        // caller file (Main.kt) にコメントを 1 行足すだけ。 Usage.kt / Marker.kt は触らない。
+        // bug-001: IC 有効だとこの round は Main.kt しか compiler に渡らず、 marker registry
+        // が空のまま rewrite がスキップされて runtime stub が class file に残り、 :run が
+        // `IllegalStateException: CaptureCode compiler plugin is not applied` で落ちていた。
+        // gradle-plugin が incremental compilation を無効化したことで full recompile になる。
+        val main = File(projectDir, "src/main/kotlin/me/tbsten/capture/code/sample/Main.kt")
+        main.appendText("\n// touch caller file only (bug-001 regression guard)\n")
+
+        // 2 回目 build: `.build()` は build 失敗 (= runtime 例外で :run が fail) なら throw する。
+        val secondResult = newRunner(projectDir, ":run").build()
+        successOutcomes.contains(secondResult.task(":run")?.outcome) shouldBe true
+        val secondBlock = extractCapturedBlock(secondResult.output)
+        secondBlock shouldContain "fun greet()"
+        secondBlock shouldContain "\"Hello!\""
+        secondBlock shouldContain "fun farewell()"
+        secondBlock shouldContain "\"Goodbye!\""
     }
 })

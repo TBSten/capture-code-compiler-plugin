@@ -8,6 +8,7 @@ import io.kotest.matchers.string.shouldContain
 import org.gradle.testfixtures.ProjectBuilder
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilerPluginSupportPlugin
 import org.jetbrains.kotlin.gradle.plugin.SubpluginOption
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 /**
  * `:gradle-plugin` の sanity test。
@@ -126,6 +127,42 @@ class CaptureCodeGradlePluginTest : StringSpec({
         project.plugins.apply("me.tbsten.capture.code")
 
         project.extensions.findByName(CaptureCodeExtension.EXTENSION_NAME) shouldNotBe null
+    }
+
+    // ## IC 無効化 (bug-001)
+    //
+    // Kotlin IC は変更 file だけを compiler に渡すため、 caller file 単独の編集 round で
+    // marker registry が空になり rewrite が乗らない (runtime stub / stale capture)。
+    // plugin は既定で KotlinCompile 系 task の `incremental` を false に落とす。
+    // ProjectBuilder では afterEvaluate は発火しないが、 apply 時に登録される
+    // `configureEach` 経路 (通常の plugins 順で効く方) はそのまま verify できる。
+
+    "apply すると KotlinCompile task の incremental compilation が無効化される" {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("org.jetbrains.kotlin.jvm")
+        project.plugins.apply("me.tbsten.capture.code")
+
+        // getByName で task を realize した時点で KGP の default 代入 → plugin の
+        // configureEach の順に configure action が走る。
+        val compileKotlin = project.tasks.getByName("compileKotlin") as KotlinCompile
+        compileKotlin.incremental shouldBe false
+    }
+
+    "disableIncrementalCompilation = false で opt-out すると incremental には触らない" {
+        // KGP default (= plugin が触らなかった場合の期待値) を KGP 単独 project から取る。
+        // 現行 KGP 2.0 の JVM default は true だが、 定数直書きより default 変化に強い。
+        val kgpOnlyProject = ProjectBuilder.builder().build()
+        kgpOnlyProject.plugins.apply("org.jetbrains.kotlin.jvm")
+        val kgpDefault = (kgpOnlyProject.tasks.getByName("compileKotlin") as KotlinCompile).incremental
+
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("org.jetbrains.kotlin.jvm")
+        project.plugins.apply("me.tbsten.capture.code")
+        val ext = project.extensions.getByType(CaptureCodeExtension::class.java)
+        ext.disableIncrementalCompilation = false
+
+        val compileKotlin = project.tasks.getByName("compileKotlin") as KotlinCompile
+        compileKotlin.incremental shouldBe kgpDefault
     }
 
     // ## Kotlin version guard

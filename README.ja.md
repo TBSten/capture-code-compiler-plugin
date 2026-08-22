@@ -339,6 +339,9 @@ K2 compiler 由来の制約は plugin 側では吸収せず、 既知の挙動�
 4. marker / use site / `capturedSources<T>()` は同一 Kotlin compilation
    invocation 内に置く必要がある。
 5. Apple native target は `-PenableAppleTargets=true` の opt-in。
+6. Gradle plugin を apply した module では incremental compilation が無効化
+   される (stale な IC round が rewrite を壊すため。
+   `captureCode { disableIncrementalCompilation = false }` で opt-out 可)。
 
 完全な一覧と root-cause 解説は
 [docs/known-limitations.md](docs/known-limitations.md)。

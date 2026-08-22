@@ -276,8 +276,8 @@ class CapturedSourceSingleTest : FunSpec({
         result.exitCode shouldBe KotlinCompilation.ExitCode.OK
         result.messages shouldContain "cannot be rewritten when T is a type parameter"
         // 単数版固有の compile error (NO_SITE / MULTIPLE_SITES) は type-parameter ケースでは
-        // marker FqN を抽出できないため一切発火しない。 IR phase が `markerFqnOf` の null fallback
-        // で silent skip する経路の保護網。
+        // marker FqN を抽出できないため一切発火しない。 IR phase が type argument の
+        // `classFqName` null fallback で silent skip する経路の保護網。
         result.messages shouldNotContain "No site found"
         result.messages shouldNotContain "Multiple sites"
     }

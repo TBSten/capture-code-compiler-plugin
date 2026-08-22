@@ -343,6 +343,9 @@ not paper over:
 4. Markers, use sites and `capturedSources<T>()` must live in the same
    Kotlin compilation invocation.
 5. Apple-native targets are opt-in via `-PenableAppleTargets=true`.
+6. Incremental compilation is disabled in modules that apply the Gradle
+   plugin (a stale IC round would break the rewrite; opt out via
+   `captureCode { disableIncrementalCompilation = false }`).
 
 Full list with reproductions and root-cause analysis:
 [docs/known-limitations.md](docs/known-limitations.md).
