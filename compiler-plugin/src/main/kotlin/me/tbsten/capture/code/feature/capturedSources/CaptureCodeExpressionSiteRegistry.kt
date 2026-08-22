@@ -50,6 +50,10 @@ public object CaptureCodeExpressionSiteRegistry {
      * @property endOffset annotation 対象 expression の endOffset。
      * @property markerFqn marker annotation class の完全修飾名
      *                    ([me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry] と整合)。
+     * @property unwrapBlockBody `true` なら [startOffset]..[endOffset] は **block を含む式全体**
+     *                            (= `runWithCaptureCode(Marker::class) { ... }` の呼び出し全体) を指し、
+     *                            IR phase で最外殻の `{` `}` を落として body だけを取り出す。
+     *                            `false` (既定) は expression annotation 起源で、 範囲がそのまま source。
      * @property userArgs filler 以外のパラメータの名前 → 値 ([UserArgValue] sealed の各 branch) の map。
      *                    primitive (`Int`/`String`/`Boolean` 等)、 enum FqN ([UserArgValue.EnumRef])、
      *                    class FqN ([UserArgValue.ClassRef]) を表現できる。 task-133 で旧 `Any?`
@@ -61,6 +65,7 @@ public object CaptureCodeExpressionSiteRegistry {
         val endOffset: Int,
         val markerFqn: String,
         val userArgs: Map<String, UserArgValue> = emptyMap(),
+        val unwrapBlockBody: Boolean = false,
     )
 
     private val sites: MutableList<Site> = CopyOnWriteArrayList()

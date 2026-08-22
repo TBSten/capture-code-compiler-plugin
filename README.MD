@@ -131,7 +131,51 @@ Declare any of these as a parameter type on your marker annotation and the plugi
 // expressions
 val r = @Marker (1 + 2 + 3)
 val block = @Marker run { ... }
+
+// a block of statements, without any wrapper in the captured text
+runWithCaptureCode(Marker::class) {
+    println("hoge")
+    println("fuga")
+}
 ```
+
+### Capturing a block of statements
+
+Two adjacent statements are not a single Kotlin expression, so they cannot be annotated as one.
+`runWithCaptureCode(Marker::class) { ... }` captures the **body of the block only** — the
+`runWithCaptureCode(...) {` header and the closing `}` are not part of the captured text:
+
+```kotlin
+runWithCaptureCode(Snippet::class) {
+    println("hoge")
+    println("fuga")
+}
+
+capturedSources<Snippet>().single().source.value
+// => println("hoge")
+//    println("fuga")
+```
+
+It runs the block and returns its value, just like `run { ... }`:
+
+```kotlin
+val sum = runWithCaptureCode(Snippet::class) {
+    val a = 20
+    val b = 22
+    a + b
+} // => 42
+```
+
+Compared with annotating an expression, this form:
+
+- does not require `@Target(AnnotationTarget.EXPRESSION)` on the marker,
+- is a plain function call, so it is not subject to the `@Marker()` empty-argument-list
+  requirement forced by the K2 parser (see Known limitations),
+- leaves no `run { ... }` wrapper in the captured text.
+
+Marker parameters cannot be supplied at the call site; markers used this way should have a
+default value for every non-filler parameter. Without the compiler plugin applied the block
+still runs — only the capture site is not registered.
 
 ---
 
