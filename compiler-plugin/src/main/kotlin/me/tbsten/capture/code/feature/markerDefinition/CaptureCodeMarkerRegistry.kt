@@ -13,7 +13,16 @@ import java.util.concurrent.CopyOnWriteArraySet
  * ## ライフサイクル
  *
  * 1 回のコンパイル (= 1 `IrGenerationExtension.generate` 呼び出し) の間だけデータを保持する
- * **compilation-scoped mutable holder**。次のコンパイルが始まる前に [reset] で必ずクリアする。
+ * **compilation-scoped mutable holder**。 [reset] は 2 箇所から呼ばれる:
+ *
+ * - **compile 入口** (`CaptureCodeCompilerPluginRegistrar.registerExtensions`, bug-007):
+ *   前回 compile が FIR error 等で IR phase に到達しなかった場合の残骸を、 次の compile の
+ *   開始前に必ず除去する。
+ * - **IR phase 完了時** (`CaptureCodeIrExtension.generate` の finally): 正常経路のクリーンアップ。
+ *
+ * 既知の制約: 本 registry は process-global object のため、 同一 ClassLoader での **並行**
+ * compile 同士の汚染 (相手の reset に消される / 相手の登録を読む) は上記 reset では解消しない
+ * (registry の compile 単位化は将来 task)。
  *
  * - **FIR phase**: `CaptureCodeFirExtensionRegistrar` が登録する FIR session component
  *   (`CaptureCodeFirMarkerService`) と declaration checker (`CaptureCodeMarkerClassChecker`) が
@@ -181,10 +190,14 @@ public object CaptureCodeMarkerRegistry {
         registrationsList.filter { it.fqn == fqn }
 
     /**
-     * registry を空にする。テストおよび `IrGenerationExtension.generate` 完了時に呼ぶ。
+     * registry を空にする。テスト、 compile 入口
+     * (`CaptureCodeCompilerPluginRegistrar.registerExtensions`)、 および
+     * `IrGenerationExtension.generate` 完了時 (try/finally) に呼ぶ。
      *
      * 1 つの ClassLoader で複数コンパイル (例: kctfork で連続 compile) を行う場合、
-     * 前回コンパイルの marker FqN が次回に漏れないようにするために必要。
+     * 前回コンパイルの marker FqN が次回に漏れないようにするために必要。 IR phase に
+     * 到達せず finally を通らなかった compile の残骸は、 次の compile の入口 reset が除去する
+     * (bug-007)。
      */
     public fun reset() {
         markers.clear()
