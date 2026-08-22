@@ -55,7 +55,9 @@ plan.
   sites in `commonMain` while the `capturedSources<T>()` call lives in
   `jvmTest` (or any other test source set whose compilation is a separate
   Kotlin invocation) results in
-  `IllegalStateException: CaptureCode compiler plugin is not applied`,
+  a compile error (`CC_CAPTUREDSOURCES_MARKER_NOT_REGISTERED` — before the
+  bug-001 fix this surfaced only at runtime as
+  `IllegalStateException: CaptureCode compiler plugin is not applied`),
   because the in-memory registry is empty in the test compilation.
 - **Cause**: The plugin's in-process registries
   (`CaptureCodeMarkerRegistry`, `CaptureCodeExpressionSiteRegistry`) only
@@ -75,6 +77,65 @@ plan.
   on Linux / Windows local-dev machines and the default Linux CI runner.
 - **Workaround**: Pass `-PenableAppleTargets=true` to Gradle when building
   on a macOS host with Xcode installed.
+
+## 6. Incremental compilation is disabled in modules applying the Gradle plugin
+
+- **Symptom**: With Kotlin incremental compilation (IC) enabled, editing only
+  the file that calls `capturedSources<T>()` (even adding a blank line) used
+  to leave the runtime stub in the class file and throw
+  `IllegalStateException: CaptureCode compiler plugin is not applied` at
+  runtime; editing only marker use sites produced stale captures. No warning
+  was emitted in either case, and only `./gradlew clean` recovered.
+- **Cause**: Kotlin IC passes only the changed files (and their ABI
+  dependents) to the compiler. The plugin's in-process marker registry (FIR)
+  and site collection (IR) can only see the sources of the current compiler
+  invocation, so an IC round that omits the marker / site files rewrites
+  against an empty or partial marker world. The `MarkerSetHasher` task-input
+  fallback only reacts to changes in the marker world and cannot catch
+  caller-only edits.
+- **Workaround / current behaviour**: The Gradle plugin disables IC
+  (`incremental = false`) on the Kotlin compile tasks of every module it is
+  applied to — correctness over incremental build speed. Opt out with
+  `captureCode { disableIncrementalCompilation = false }` at your own risk.
+  When attaching the compiler plugin manually via
+  `kotlinCompilerPluginClasspath` (without the Gradle plugin), set
+  `kotlin.incremental=false` yourself. In addition, the IR phase now fails
+  the build with `CC_CAPTUREDSOURCES_MARKER_NOT_REGISTERED` /
+  `CC_CAPTUREDSOURCE_MARKER_NOT_REGISTERED` when the marker declaration is
+  missing from the current compilation unit (e.g. a stale IC round), instead
+  of silently leaving the runtime stub behind.
+
+## 7. Markers on non-capturable positions
+
+- **Symptom**: A marker attached to a position the collector does not visit
+  is never captured. `capturedSources<T>()` simply returns fewer (or zero)
+  entries for that marker.
+- **Diagnosed cases**: getter / setter use-site targets (`@get:Marker` /
+  `@set:Marker`) and enum entries (`@Marker RED,`) now emit the
+  `CC_MARKER_ON_NON_CAPTURABLE_TARGET` warning so the silent zero-capture is
+  visible at compile time.
+- **Still silent** (not reachable from the IR declaration walk without
+  compat-layer changes): `@field:Marker`, `@param:Marker`,
+  `@setparam:Marker`, and markers on local variables inside function bodies.
+  These positions are not captured and no warning is emitted — avoid them.
+- **Workaround**: Put the marker on the declaration itself (property /
+  function / class) instead of an accessor, field, or parameter use-site
+  target.
+
+## 8. Marker misuse now fails the build (MessageCollector-based diagnostics)
+
+Two misuses that previously failed silently (zero captures, or a runtime
+`IllegalStateException`) are reported as compile **errors** via the
+`MessageCollector` (with `file:line:column` when available):
+
+- A marker annotation class declared `public` / `protected` — markers must
+  be `internal` or `private` (capture is module-confined by design).
+- `runWithCaptureCode(NotAMarker::class) { … }` where the class is not
+  meta-annotated with `@CaptureCode`.
+
+These reports appear as build errors but not as IDE inline diagnostics
+(the diagnostic-factory path would require per-Kotlin-version compat
+changes; see the KDoc of `ReportError.kt` for the trade-off).
 
 ---
 

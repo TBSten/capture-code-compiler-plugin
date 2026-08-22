@@ -5,9 +5,11 @@ import me.tbsten.capture.code.compat.CompatContext
 import me.tbsten.capture.code.feature.capturedSources.CaptureCodeCallableIds
 import me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.CollectedSite
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.buildMarkerInstance.BuildMarkerInstance
+import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.hasCaptureCodeMetaAnnotation
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
+import me.tbsten.capture.code.utils.ir.compilerMessageLocationOf
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.expressions.IrCall
@@ -39,6 +41,15 @@ import java.text.MessageFormat
  * `warnedMarkerFqns` パターンと対称。 同じ message を call 数分だけ繰り返す build log は noisy
  * なので、 1 度発火すれば user は問題を認識できる。
  *
+ * ## 未登録 marker は error (bug-001)
+ *
+ * T の class が `@CaptureCode` meta annotation を持つ (= marker のはず) のに registry 未登録の
+ * 場合は `CC_CAPTUREDSOURCE_MARKER_NOT_REGISTERED` を ERROR report して skip する (複数版
+ * [me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.RewriteCapturedSourcesCall]
+ * と対称)。 典型原因は stale な incremental build か、 marker を別 module / compilation に置いた
+ * 構成。 meta annotation を持たない T は FIR phase (Logic G) が既に error 済なので silent skip。
+ * この error も invoke 内の `reportedFqns` dedupe 対象 (= marker FqN ごとに最大 1 ERROR の invariant を保つ)。
+ *
  * Preconditions: caller (= [me.tbsten.capture.code.CaptureCodeIrExtension.generate]) は
  * `collectedSites` の各 site が `markerFqn != ""` を満たすことを保証する。 違反時は invoke 冒頭の
  * `require(...)` で fail-fast (複数版と同等)。
@@ -67,8 +78,9 @@ public class RewriteCapturedSourceCall {
         }
 
         val buildMarker = BuildMarkerInstance()
-        // 同一 marker FqN について 0 件 / 複数件 error を call 数分繰り返さないための dedupe set。
-        // invariant: 「marker FqN ごとに ERROR 発火は最大 1 回 (NO_SITE / MULTIPLE_SITES の種別問わず)」。
+        // 同一 marker FqN について error を call 数分繰り返さないための dedupe set。
+        // invariant: 「marker FqN ごとに ERROR 発火は最大 1 回 (NO_SITE / MULTIPLE_SITES /
+        // MARKER_NOT_REGISTERED の種別問わず)」。
         // 複数版 RewriteCapturedSourcesCall.warnedMarkerFqns と同じパターンを 1 set にまとめた。
         val reportedFqns = mutableSetOf<String>()
         // `BuildMarkerInstance.buildOneInstance` 内部の resolve 失敗 warning
@@ -79,55 +91,87 @@ public class RewriteCapturedSourceCall {
         // noisy duplicate を防ぐため 2 回目以降は `MessageCollector.NONE` を渡す。
         val rewriteFailureWarnedMarkerFqns = mutableSetOf<String>()
 
-        compat.transformCallsInModule(moduleFragment) { call ->
-            if (!call.isCapturedSourceCall()) return@transformCallsInModule null
-            val markerFqn = call.markerFqnOf(compat) ?: return@transformCallsInModule null
-            val sitesForMarker = collectedSites.filter { it.site.markerFqn == markerFqn }
+        // bug-001 follow-up: file 単位で回して diagnostic に `file:line:column` を付ける
+        // (`IrCall` は parent pointer を持たず、 module 単位の transform では file を辿れない)。
+        for (file in moduleFragment.files) {
+            compat.transformCallsInFile(file) { call ->
+                if (!call.isCapturedSourceCall()) return@transformCallsInFile null
+                val typeArg = compat.getCallTypeArgument(call, 0) ?: return@transformCallsInFile null
+                val markerFqn = typeArg.classFqName?.asString() ?: return@transformCallsInFile null
+                if (!CaptureCodeMarkerRegistry.isMarker(markerFqn)) {
+                    // bug-001: marker のはずの T が registry に居ない = declaration が今回の
+                    // compilation unit に含まれていない (stale IC / 別 module 配置)。 silent skip だと
+                    // runtime stub が残って実行時 IllegalStateException になるため ERROR に格上げする。
+                    // 複数版 RewriteCapturedSourcesCall と対称。 dedupe は reportedFqns に相乗りして
+                    // 「marker FqN ごとに最大 1 ERROR」 invariant を保つ。
+                    if (typeArg.hasCaptureCodeMetaAnnotation() && reportedFqns.add(markerFqn)) {
+                        val text = MessageFormat.format(
+                            CapturedSourceCallErrors.MARKER_NOT_REGISTERED.message,
+                            markerFqn,
+                        )
+                        messageCollector.report(
+                            CompilerMessageSeverity.ERROR,
+                            text,
+                            compilerMessageLocationOf(file, call.startOffset),
+                        )
+                    }
+                    return@transformCallsInFile null
+                }
+                val sitesForMarker = collectedSites.filter { it.site.markerFqn == markerFqn }
 
-            when (sitesForMarker.size) {
-                0 -> {
-                    if (reportedFqns.add(markerFqn)) {
-                        val text = MessageFormat.format(
-                            CapturedSourceCallErrors.NO_SITE.message,
-                            markerFqn,
+                when (sitesForMarker.size) {
+                    0 -> {
+                        if (reportedFqns.add(markerFqn)) {
+                            val text = MessageFormat.format(
+                                CapturedSourceCallErrors.NO_SITE.message,
+                                markerFqn,
+                            )
+                            messageCollector.report(
+                            CompilerMessageSeverity.ERROR,
+                            text,
+                            compilerMessageLocationOf(file, call.startOffset),
                         )
-                        messageCollector.report(CompilerMessageSeverity.ERROR, text, null)
-                    }
-                    null
-                }
-                1 -> {
-                    val collectorForBuildMarker =
-                        if (rewriteFailureWarnedMarkerFqns.add(markerFqn)) messageCollector
-                        else MessageCollector.NONE
-                    buildMarker.buildOneInstance(
-                        markerFqn = markerFqn,
-                        site = sitesForMarker.single(),
-                        pluginContext = pluginContext,
-                        compat = compat,
-                        config = config,
-                        messageCollector = collectorForBuildMarker,
-                    ) as IrExpression?
-                }
-                else -> {
-                    if (reportedFqns.add(markerFqn)) {
-                        val locations = sitesForMarker.joinToString(", ") { collected ->
-                            val fp = collected.site.filePath
-                            val ln = collected.site.startLine
-                            when {
-                                fp.isBlank() && ln == 0 -> "<unknown location>"
-                                fp.isBlank() -> "<unknown>:$ln"
-                                ln == 0 -> "$fp:<unknown line>"
-                                else -> "$fp:$ln"
-                            }
                         }
-                        val text = MessageFormat.format(
-                            CapturedSourceCallErrors.MULTIPLE_SITES.message,
-                            markerFqn,
-                            locations,
-                        )
-                        messageCollector.report(CompilerMessageSeverity.ERROR, text, null)
+                        null
                     }
-                    null
+                    1 -> {
+                        val collectorForBuildMarker =
+                            if (rewriteFailureWarnedMarkerFqns.add(markerFqn)) messageCollector
+                            else MessageCollector.NONE
+                        buildMarker.buildOneInstance(
+                            markerFqn = markerFqn,
+                            site = sitesForMarker.single(),
+                            pluginContext = pluginContext,
+                            compat = compat,
+                            config = config,
+                            messageCollector = collectorForBuildMarker,
+                        ) as IrExpression?
+                    }
+                    else -> {
+                        if (reportedFqns.add(markerFqn)) {
+                            val locations = sitesForMarker.joinToString(", ") { collected ->
+                                val fp = collected.site.filePath
+                                val ln = collected.site.startLine
+                                when {
+                                    fp.isBlank() && ln == 0 -> "<unknown location>"
+                                    fp.isBlank() -> "<unknown>:$ln"
+                                    ln == 0 -> "$fp:<unknown line>"
+                                    else -> "$fp:$ln"
+                                }
+                            }
+                            val text = MessageFormat.format(
+                                CapturedSourceCallErrors.MULTIPLE_SITES.message,
+                                markerFqn,
+                                locations,
+                            )
+                            messageCollector.report(
+                            CompilerMessageSeverity.ERROR,
+                            text,
+                            compilerMessageLocationOf(file, call.startOffset),
+                        )
+                        }
+                        null
+                    }
                 }
             }
         }
@@ -139,16 +183,6 @@ public class RewriteCapturedSourceCall {
      */
     private fun IrCall.isCapturedSourceCall(): Boolean =
         symbol.owner.fqNameWhenAvailable?.asString() == CAPTURED_SOURCE_FQN
-
-    /**
-     * type argument 0 (= `capturedSource<T>()` の T) を取り出し、 [CaptureCodeMarkerRegistry] に
-     * 登録された marker FqN ならそれを返し、 そうでなければ null。
-     */
-    private fun IrCall.markerFqnOf(compat: CompatContext): String? {
-        val typeArg = compat.getCallTypeArgument(this, 0) ?: return null
-        val fqn = typeArg.classFqName?.asString() ?: return null
-        return fqn.takeIf { CaptureCodeMarkerRegistry.isMarker(it) }
-    }
 
     private companion object {
         // 書き換え対象 `capturedSource<T>()` の完全修飾名 (SSoT: [CaptureCodeCallableIds.capturedSource])。

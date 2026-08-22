@@ -4,16 +4,23 @@ import me.tbsten.capture.code.compat.CaptureCodeMessageCollectorHolder
 import me.tbsten.capture.code.compat.CompatContext
 import me.tbsten.capture.code.feature.capturedSources.CaptureCodeCallableIds
 import me.tbsten.capture.code.feature.capturedSources.CaptureCodeExpressionSiteRegistry
+import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMetaAnnotation
+import me.tbsten.capture.code.utils.fir.compilerMessageLocationOf
 import org.jetbrains.kotlin.KtPsiSourceElement
 import org.jetbrains.kotlin.KtSourceElement
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
+import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
+import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
 import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
 import org.jetbrains.kotlin.fir.expressions.FirGetClassCall
 import org.jetbrains.kotlin.fir.expressions.FirStatement
 import org.jetbrains.kotlin.fir.expressions.arguments
 import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
+import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import java.text.MessageFormat
 
 /**
  * Logic B-block: `runWithCaptureCode(Marker::class) { ... }` の site 収集。
@@ -46,6 +53,17 @@ import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
  * - marker 引数 (`Marker::class`) が `FirGetClassCall` として解決済。 解決できない場合は skip
  *   (= IR phase の [me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry]
  *   filter でも弾かれるため二重に安全)。
+ *
+ * ## bug-008 (2): 非 marker class は error
+ *
+ * marker 引数の class が解決できて **`@CaptureCode` meta を持たない** 場合、 旧実装は site を
+ * push するだけで IR phase の registry filter に silent に弾かれていた (= capture 0 件の
+ * silent no-op)。 bug-008 で [RunWithCaptureCodeCallErrors.MARKER_NOT_CAPTURE_CODE] を
+ * [CaptureCodeMessageCollectorHolder.reportError] (MessageCollector ERROR = compile 失敗)
+ * で報告するように変更。 `KtDiagnosticFactory*` を使わないのは、 新 factory の追加が全
+ * compat-kXXX の diagnostics object に波及するため (詳細は
+ * [RunWithCaptureCodeCallErrors] の KDoc)。 class symbol 自体が解決できない場合は従来通り
+ * silent skip (別の compiler error が主因のはずで、 二重報告を避ける)。
  */
 public class CollectRunWithCaptureCodeSite {
 
@@ -58,10 +76,35 @@ public class CollectRunWithCaptureCodeSite {
         if (expression !is FirFunctionCall) return
         if (!expression.isRunWithCaptureCodeCall()) return
 
-        val markerFqn = expression.markerFqnOrNull(compat) ?: run {
+        val markerType = expression.markerConeTypeOrNull(compat) ?: run {
             CaptureCodeMessageCollectorHolder.reportLogging(
                 "[CaptureCode] runWithCaptureCode(...) call has no resolvable marker class " +
                     "argument; skipping block site.",
+            )
+            return
+        }
+        val markerFqn = compat.classIdOfType(markerType)?.asSingleFqName()?.asString() ?: run {
+            CaptureCodeMessageCollectorHolder.reportLogging(
+                "[CaptureCode] runWithCaptureCode(...) call has no resolvable marker class " +
+                    "argument; skipping block site.",
+            )
+            return
+        }
+
+        // bug-008 (2): marker class が解決できて @CaptureCode meta を持たない場合は error。
+        // silent 0 件 capture ではなく compile error として誤用を通知する。 symbol 未解決
+        // (= 別の compiler error が主因) は従来通り silent skip。
+        val markerClassSymbol = compat.toRegularClassSymbolOrNull(markerType, context.session)
+        if (markerClassSymbol != null && !markerClassSymbol.hasCaptureCodeMeta(context.session)) {
+            CaptureCodeMessageCollectorHolder.reportError(
+                message = MessageFormat.format(
+                    RunWithCaptureCodeCallErrors.MARKER_NOT_CAPTURE_CODE.message,
+                    markerFqn,
+                ),
+                location = compilerMessageLocationOf(
+                    source = expression.source,
+                    fallbackFilePath = compat.containingFilePathOf(context),
+                ),
             )
             return
         }
@@ -111,20 +154,27 @@ public class CollectRunWithCaptureCodeSite {
     }
 
     /**
-     * `runWithCaptureCode(Marker::class) { ... }` の第 1 引数 (`Marker::class`) から marker FqN を取り出す。
+     * `runWithCaptureCode(Marker::class) { ... }` の第 1 引数 (`Marker::class`) から marker class の
+     * [ConeKotlinType] を取り出す。
      *
      * 引数位置ではなく **`FirGetClassCall` である最初の引数** を探すので、 named argument で
-     * 順序が入れ替わっていても拾える。
+     * 順序が入れ替わっていても拾える。 FqN の取り出し (`classIdOfType`) と `@CaptureCode` meta
+     * 検査 (`toRegularClassSymbolOrNull`, bug-008) の両方が同じ型を起点にするため、 型のまま返す。
      */
-    private fun FirFunctionCall.markerFqnOrNull(compat: CompatContext): String? {
+    private fun FirFunctionCall.markerConeTypeOrNull(compat: CompatContext): ConeKotlinType? {
         val getClassCall = arguments.filterIsInstance<FirGetClassCall>().firstOrNull() ?: return null
         val classArgument = getClassCall.arguments.firstOrNull() ?: return null
         // drift D13/D14: `FirExpression.resolvedType` + `ConeKotlinType.classId` は SPI 経由で dispatch。
         return compat.resolvedTypeOrNullOf(classArgument)
-            ?.let { compat.classIdOfType(it) }
-            ?.asSingleFqName()
-            ?.asString()
     }
+
+    /**
+     * bug-008 (2): marker class symbol が `@CaptureCode` meta を持つかを判定する。
+     * [me.tbsten.capture.code.feature.capturedSources.fir.validateCapturedSourcesCall.ValidateCapturedSourcesCall]
+     * の同名 private extension と同じ実装 (logic ローカルに閉じるため意図的に重複)。
+     */
+    private fun FirRegularClassSymbol.hasCaptureCodeMeta(session: FirSession): Boolean =
+        annotations.any { it.toAnnotationClassId(session) == CaptureCodeMetaAnnotation.classId }
 
     /**
      * site の file path を「PSI virtualFile の絶対パス → CheckerContext の file path →

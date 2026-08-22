@@ -457,7 +457,7 @@ class Charter7InternalFailFastProbeTest : FunSpec({
                     @CaptureCode
                     @Target(AnnotationTarget.FUNCTION)
                     @Retention(AnnotationRetention.SOURCE)
-                    annotation class D2Inner(val source: Source = Source())
+                    internal annotation class D2Inner(val source: Source = Source())
                 }
 
                 @Outer.D2Inner

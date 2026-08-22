@@ -27,27 +27,36 @@ Kotlin version.
 ### Core Interface
 
 The [`CompatContext`](src/main/kotlin/me/tbsten/capture/code/compat/CompatContext.kt)
-interface defines the contract for version-specific operations. As of
-task-120-B Phase 2 the SPI hosts **23 methods**:
+interface defines the contract for version-specific operations. The current
+SPI hosts **31 methods** (the exhaustive list lives in `CompatContext.kt`
+itself — regenerate with
+`grep -oE 'public fun [a-zA-Z]+' compat/src/main/.../CompatContext.kt`):
 
-- **FIR / message / config / classId drift (12 methods, baseline 0.1.x):**
+- **FIR / message / config / classId drift (baseline 0.1.x):**
   `firAdditionalCheckersExtensions(...)`, `registerExtensions(...)`,
   `literalValueOrNull(expression)`, `isLiteralExpression(expression)`,
   `toRegularClassSymbolOrNull(type, session)`, `classIdOf(symbol)`,
+  `coneTypeOrNullOf` / `coneTypeOrErrorOf` / `resolvedTypeOrNullOf` /
+  `classIdOfType`,
   `containingFilePathOf(checkerContext)`, `fullyExpandedTypeOf(type, session)`,
-  `diagnosticFactory(id)` and friends.
-- **IR primitive (11 methods, added in task-120-B Phase 2):**
-  `acceptIrVisitor(moduleFragment, visitor)`,
+  `diagnosticFactory(id)`.
+- **IR primitive (added in task-120-B Phase 2):**
+  `walkIrTree(...)`,
   `walkIrFileDeclarations(file, onClass, onSimpleFunction, onProperty, onTypeAlias)`,
+  `transformCallsInModule(...)` / `transformCallsInFile(...)`,
   `loadFileText(file)`,
-  `putValueArgument(call, index, expr)`,
-  `createIrCall(symbol, type, ...)`,
-  `setTypeArgument(call, index, type)`,
+  `putCallValueArgument` / `getCallValueArgument`,
+  `setCallTypeArgument` / `getCallTypeArgument`,
   `valueParametersOf(function)`,
-  `irExpressionBodyOf(expr)`,
-  `irConstString(value)`,
-  `irGetEnumValueOf(symbol, ...)`,
-  `irGetClassReferenceOf(classifier, ...)`.
+  `newIrCall` / `newIrConstructorCall` / `newIrVararg`,
+  `newIrConstString` / `newIrConstInt` / `newIrConstPrimitive`,
+  `newIrGetEnumValue`,
+  `deepCopyExpression`.
+
+Note: there is **no** class-reference builder in the SPI. `IrClassReference`
+construction for `KClass` user args goes through the main-module Java shim
+(`IrClassReferenceShim.java`), whose target constructor was verified stable
+across all supported baselines.
 
 The IR primitive methods absorb drift D5–D8 (IR builder / `IrConstructorCall`
 / `IrConst` / `IrFactory` shape changes) and IR Visitor base-class drift

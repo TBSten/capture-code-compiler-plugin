@@ -70,11 +70,11 @@ class ExpressionSiteFileMatchTest : FunSpec({
                 @CaptureCode
                 @Target(AnnotationTarget.EXPRESSION)
                 @Retention(AnnotationRetention.SOURCE)
-                annotation class DupMarker(val source: Source = Source())
+                internal annotation class DupMarker(val source: Source = Source())
 
-                val sum = @DupMarker() (1 + 2 + 3)
+                internal val sum = @DupMarker() (1 + 2 + 3)
 
-                object Main {
+                internal object Main {
                     fun captured(): List<DupMarker> = capturedSources<DupMarker>()
                 }
                 """.trimIndent(),

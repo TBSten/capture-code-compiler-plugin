@@ -1,6 +1,7 @@
 package me.tbsten.capture.code.compat
 
 import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageLocation
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.config.CompilerConfiguration
@@ -80,5 +81,31 @@ public object CaptureCodeMessageCollectorHolder {
     public fun reportLogging(message: String) {
         if (current === MessageCollector.NONE) return
         current.report(CompilerMessageSeverity.LOGGING, message, null)
+    }
+
+    /**
+     * Emits a [CompilerMessageSeverity.ERROR]-level diagnostic via the currently
+     * registered collector, failing the compilation.
+     *
+     * bug-008: FIR checker 側で新しい diagnostic を追加する場合、 本来は
+     * `KtDiagnosticFactory*` を使うが、 factory の宣言 + renderer MAP 登録は各
+     * `compat-kXXX/CompatContextImpl.kt` の nested diagnostics object に閉じており
+     * (`CompatContext.diagnosticFactory(id)` は未登録 id に `null` を返す)、 新 factory の
+     * 追加は 6 つの compat module すべてに波及する。 compat module を変更せずに error を
+     * 出す経路として、 IR phase の error 報告
+     * ([me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourceCall.RewriteCapturedSourceCall]
+     * の `MessageCollector.report(ERROR, ...)`) と同じ機構を FIR phase にも開放する。
+     *
+     * ERROR severity の report は `GroupingMessageCollector.hasErrors()` を true にするため、
+     * CLI compile は `COMPILATION_ERROR` で終了する (= compile は失敗する)。 collector が
+     * [MessageCollector.NONE] の場合 (registrar を通らない unit test 等) は silent no-op に
+     * degrade する。
+     *
+     * @param message 表示する error 文面 (feature ローカル `*Errors.kt` の SSoT を
+     *   `MessageFormat.format` で展開したもの)
+     * @param location error の位置。 `null` なら位置情報なしで報告
+     */
+    public fun reportError(message: String, location: CompilerMessageLocation? = null) {
+        current.report(CompilerMessageSeverity.ERROR, message, location)
     }
 }

@@ -21,7 +21,9 @@ import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
  * 2. declaration の `startOffset..endOffset` 範囲 + offset validity 確認
  * 3. `includeKdoc = true` なら直前 KDoc を抽出 ([CollectDeclarationSite.extractKdocPrefix])
  * 4. 先頭の marker / 非 marker annotation 行を 1 pass 走査 ([CollectDeclarationSite.skipLeadingMarkerAnnotations])
- *    で「source 開始 offset」 と 「中間 marker range のリスト」 を取得
+ *    で「source 開始 offset」 と 「中間 marker range のリスト」 を取得。
+ *    ただし `includeAnnotationLines = true` の場合は marker 行も capture に含めるため
+ *    本 step 全体を skip する (= sourceStart は補正後 startOffset のまま)
  * 5. raw substring 抽出 ([ExtractSourceText]) → marker range を **降順** で drop
  * 6. KDoc prefix と body を結合
  * 7. [NormalizeSource] で dedent / blank trim 等を適用 ([toDeclarationNormalizeOptions])
@@ -88,9 +90,17 @@ internal fun extractDeclarationSource(
     // (走査関数は連続する annotation / blank 行のみ走査するため、 KDoc 行で中断する)。
     // そこで KDoc 抽出と body 抽出を **分離** し、 後で連結する戦略を採る。
     val kdocPrefix = if (effective.includeKdoc) site.extractKdocPrefix(fullText, startOffset) else ""
-    val skipResult = site.skipLeadingMarkerAnnotations(
-        fullText, startOffset, endOffset, markerSimpleNames(),
-    )
+    // `includeAnnotationLines = true` (global もしくは per-marker override) の場合は `@Marker` 行も
+    // capture に含める仕様のため、 marker 行の skip / drop を一切行わない (= sourceStart は補正後
+    // startOffset のまま、 markerRanges は空)。 false (デフォルト) の場合のみ従来通り
+    // skipLeadingMarkerAnnotations で marker 行を除去する。
+    val skipResult = if (effective.includeAnnotationLines) {
+        SkipMarkerResult(sourceStart = startOffset, markerRanges = emptyList())
+    } else {
+        site.skipLeadingMarkerAnnotations(
+            fullText, startOffset, endOffset, markerSimpleNames(fullText),
+        )
+    }
     val rawBody = ExtractSourceText()(fullText, skipResult.sourceStart, endOffset) ?: return null
     // sourceStart 以降に位置する marker annotation 行を drop。
     // rawBody は `fullText.substring(sourceStart, endOffset)` なので、 marker range の offset を
@@ -116,12 +126,31 @@ internal fun extractDeclarationSource(
             .forEach { (start, endExclusive) -> builder.delete(start, endExclusive) }
         builder.toString()
     }
+    // bug-010: 同一行に `;` 区切りで次の宣言が続く場合 (`@Marker val a = 1; val b = 2`)、
+    // IR 上の endOffset が `;` を含むため capture 末尾に `;` が残る。 normalize 前の
+    // rawBody 末尾処理として `;` を 1 つだけ strip する (文中の `;` は触らない)。
+    val rawBodyWithoutTrailingSemicolon = stripTrailingSemicolon(rawBodyWithoutMarkerLeak)
     val rawText = if (kdocPrefix.isNotEmpty()) {
-        kdocPrefix + "\n" + rawBodyWithoutMarkerLeak
+        kdocPrefix + "\n" + rawBodyWithoutTrailingSemicolon
     } else {
-        rawBodyWithoutMarkerLeak
+        rawBodyWithoutTrailingSemicolon
     }
     return NormalizeSource()(rawText, effective.toDeclarationNormalizeOptions())
+}
+
+/**
+ * declaration 起源の rawBody 末尾に残った statement separator (`;`) を 1 つだけ取り除く。
+ *
+ * `internal val a = 1; internal val b = 2` のような同一行 multi-declaration では、 1 番目の
+ * declaration の IR endOffset が `;` を含むため、 そのままだと capture が `internal val a = 1;`
+ * になる (bug-010)。 末尾の trailing whitespace を挟んで最後の非空白文字が `;` の場合のみ
+ * その 1 文字を取り除き、 文中の `;` (statement 区切りや string literal 内) には触らない。
+ */
+private fun stripTrailingSemicolon(rawBody: String): String {
+    var i = rawBody.length - 1
+    while (i >= 0 && rawBody[i].isWhitespace()) i--
+    if (i < 0 || rawBody[i] != ';') return rawBody
+    return rawBody.removeRange(i, i + 1)
 }
 
 /**
@@ -293,10 +322,22 @@ internal fun stripMarkerClassDeclarations(file: IrFile, text: String): String {
 }
 
 /**
- * marker registry から「marker FqN の simpleName 集合 (= class 名のみ抜き出したもの)」を返す。
+ * marker registry から「marker FqN の simpleName 集合 (= class 名のみ抜き出したもの)」に、
+ * 当該 file の import alias (`import <markerFqn> as <alias>` の `<alias>`) を union した集合を返す。
  *
- * 各 collect 経路で `skipLeadingAnnotationLines` に渡す `markerSimpleNames` 引数のため、
- * 都度計算 (= 1 declaration 1 回呼び出し) で問題ない (marker 数は通常 数件 〜 十数件)。
+ * bug-005: alias import された marker は当該 file 内で `@<alias>` として書かれるため、
+ * simple name だけの集合では marker 行を識別できず capture に leak していた。 file text から
+ * [markerImportAliases] で alias を解析して追加することで、 `@Snip` (alias) 記法の marker 行も
+ * drop できるようにする。
+ *
+ * 各 collect 経路で `skipLeadingMarkerAnnotations` に渡す `markerSimpleNames` 引数のため、
+ * 都度計算 (= 1 declaration 1 回呼び出し、 alias 解析は file header 走査のみ) で問題ない
+ * (marker 数は通常 数件 〜 十数件)。
+ *
+ * @param fileText 当該 file の全文 (= import alias 解析用)
  */
-internal fun markerSimpleNames(): Set<String> =
-    CaptureCodeMarkerRegistry.markerFqns.mapTo(mutableSetOf()) { it.substringAfterLast('.') }
+internal fun markerSimpleNames(fileText: String): Set<String> {
+    val names = CaptureCodeMarkerRegistry.markerFqns.mapTo(mutableSetOf()) { it.substringAfterLast('.') }
+    names += markerImportAliases(fileText)
+    return names
+}

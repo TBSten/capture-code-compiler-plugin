@@ -8,12 +8,15 @@ import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesC
 import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesCall.warnIfNoMarkerFound.WarnIfNoMarkerFound
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
+import me.tbsten.capture.code.utils.ir.compilerMessageLocationOf
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
+import java.text.MessageFormat
 
 /**
  * Logic H: `capturedSources<T>()` 呼び出しを `listOf(T(...))` に書き換える logic。
@@ -30,9 +33,16 @@ import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
  * - call が `me.tbsten.capture.code.capturedSources` (CallableId 一致) かつ T 型引数が
  *   registered marker の場合のみ [BuildMarkerInstance] に dispatch して `listOf(T(...))` で
  *   置換する
- * - T が registered marker ではない (= 未登録の type argument) 場合は no-op (元の call をそのまま
- *   残す) → 実行時は runtime API の stub `listOf()` がそのまま返る
- * - module 全体 walk は [CompatContext.transformCallsInModule] (Phase 2 SPI) に委譲し、 IR
+ * - T が registered marker ではない (= 未登録の type argument) 場合:
+ *     - T の class が `@CaptureCode` meta annotation を持つ (= marker のはずなのに declaration が
+ *       今回の compilation unit に含まれていない) なら `CC_CAPTUREDSOURCES_MARKER_NOT_REGISTERED`
+ *       を **compile ERROR** として report し、 rewrite しない (bug-001)。 典型原因は stale な
+ *       incremental build か、 marker を別 module / compilation に置いた構成。 silent skip のままだと
+ *       runtime stub が class file に残って実行時に `IllegalStateException` になるため error に格上げ
+ *     - meta annotation を持たない T は FIR phase (Logic G,
+ *       `CC_CAPTUREDSOURCES_T_NOT_CAPTURE_CODE`) が既に error 済の経路なので no-op (元の call を
+ *       そのまま残す)
+ * - file 単位の call walk は [CompatContext.transformCallsInFile] (Phase 2 SPI) に委譲し、 IR
  *   transformer 基底 class の drift を吸収する
  *
  * ## 旧構造との関係 (Phase 4a 時点)
@@ -68,7 +78,7 @@ import org.jetbrains.kotlin.ir.util.fqNameWhenAvailable
  *   もしくは warning + silent skip (task-135 で `CC_CAPTUREDSOURCES_REWRITE_FAILED` /
  *   `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND` 化済)。
  * - `compat: CompatContext` は同 module の `CompatContextImpl` actual 実装で、
- *   `transformCallsInModule` (IR transformer base class drift)、 `getCallTypeArgument` (K2.4-RC
+ *   `transformCallsInFile` (IR transformer base class drift)、 `getCallTypeArgument` (K2.4-RC
  *   削除 API drift)、 `newIrCall` / `setCallTypeArgument` / `putCallValueArgument` /
  *   `newIrVararg` 等の SPI が正しく dispatch される。
  * - `config: CaptureCodePluginConfig` は `CaptureCodePluginConfigHolder` 経由で publish された
@@ -94,9 +104,11 @@ public class RewriteCapturedSourcesCall {
      * moduleFragment 全体を走査し、 各 `capturedSources<T>()` 呼び出しのうち T が registered marker
      * のものを `listOf(T(site1), T(site2), ...)` に置換する。
      *
-     * 1. [CompatContext.transformCallsInModule] 経由で全 `IrCall` を visit
+     * 1. `moduleFragment.files` を回し、 [CompatContext.transformCallsInFile] 経由で全 `IrCall` を visit
      * 2. 各 call について [isCapturedSourcesCall] で `me.tbsten.capture.code.capturedSources` 判定
-     * 3. type argument T を [markerFqnOf] で抽出 — registered marker なら FqN、 そうでなければ null
+     * 3. type argument T の FqN を抽出し [CaptureCodeMarkerRegistry] に照合 — 未登録かつ T が
+     *    `@CaptureCode` meta-annotated なら `CC_CAPTUREDSOURCES_MARKER_NOT_REGISTERED` を ERROR
+     *    report して skip (bug-001)、 meta annotation 無しなら silent skip (FIR Logic G が error 済)
      * 4. marker FqN ごとに [collectedSites] を filter し、 [BuildMarkerInstance] で `listOf(T(...))`
      *    の [IrExpression] を構築
      * 5. 構築結果を transformer に返して原 call を置換 (null return で no-op)
@@ -104,7 +116,7 @@ public class RewriteCapturedSourcesCall {
      * @param moduleFragment IR transform 対象の moduleFragment
      * @param pluginContext IrPluginContext (BuildMarkerInstance が marker class / constructor /
      *   listOf symbol を resolve するために使う)
-     * @param compat IR primitive (`transformCallsInModule`, `setCallTypeArgument` 等) を委譲する SPI
+     * @param compat IR primitive (`transformCallsInFile`, `setCallTypeArgument` 等) を委譲する SPI
      * @param config global Gradle DSL config (per-marker effective config は [CollectedSite] が保持)
      * @param collectedSites Phase 3a の [me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.CollectDeclarationSite]
      *   の戻り値。 module 全体から収集した site の snapshot
@@ -141,46 +153,74 @@ public class RewriteCapturedSourcesCall {
         // `MessageCollector.NONE` to BuildMarkerInstance on subsequent calls so
         // only the first invocation actually reports.
         val rewriteFailureWarnedMarkerFqns = mutableSetOf<String>()
+        // bug-001: dedupe `CC_CAPTUREDSOURCES_MARKER_NOT_REGISTERED` errors per marker FqN.
+        // Several `capturedSources<T>()` calls can reference the same unregistered marker,
+        // but one ERROR per marker is enough for the user to act on.
+        val unregisteredMarkerReportedFqns = mutableSetOf<String>()
 
-        compat.transformCallsInModule(moduleFragment) { call ->
-            if (!call.isCapturedSourcesCall()) return@transformCallsInModule null
-            val markerFqn = call.markerFqnOf(compat) ?: return@transformCallsInModule null
-            val sitesForMarker = collectedSites.filter { it.site.markerFqn == markerFqn }
-            // task-120-B Phase 7: warn once per marker FqN when opt-in flag is on
-            // and the current compilation has zero sites for that marker. The
-            // warning is emitted without a file location (the marker FqN in the
-            // message body identifies the target uniquely); plumbing IrFile down
-            // through `transformCallsInModule` would require additional compat
-            // SPI work and isn't justified for an opt-in diagnostic. Future work
-            // can attach (file, line, column) via a dedicated SPI when needed.
-            if (sitesForMarker.isEmpty() && warnedMarkerFqns.add(markerFqn)) {
-                warnIfNoMarkerFound(
+        // bug-001 follow-up: file 単位で transform を回すことで、 diagnostic に
+        // `file:line:column` を付けられるようにする (`IrCall` は parent pointer を
+        // 持たないため、 module 単位の transform では containing file を辿れない)。
+        for (file in moduleFragment.files) {
+            compat.transformCallsInFile(file) { call ->
+                if (!call.isCapturedSourcesCall()) return@transformCallsInFile null
+                val typeArg = compat.getCallTypeArgument(call, 0) ?: return@transformCallsInFile null
+                val markerFqn = typeArg.classFqName?.asString() ?: return@transformCallsInFile null
+                if (!CaptureCodeMarkerRegistry.isMarker(markerFqn)) {
+                    // bug-001: T が `@CaptureCode` meta annotation を持つ (= marker のはず) のに
+                    // registry に居ない = marker declaration が今回の compilation unit に含まれて
+                    // いない (典型: stale incremental build / 別 module・compilation の marker)。
+                    // silent skip すると runtime stub が class file に残って実行時に
+                    // `IllegalStateException` になるため、 compile ERROR に格上げして build を止める。
+                    // meta annotation を持たない T は FIR phase (Logic G) が既に error 済なので
+                    // 従来通り silent skip (= 二重 report を避ける)。
+                    if (typeArg.hasCaptureCodeMetaAnnotation() && unregisteredMarkerReportedFqns.add(markerFqn)) {
+                        val text = MessageFormat.format(
+                            CapturedSourcesErrors.MARKER_NOT_REGISTERED.message,
+                            markerFqn,
+                        )
+                        messageCollector.report(
+                            CompilerMessageSeverity.ERROR,
+                            text,
+                            compilerMessageLocationOf(file, call.startOffset),
+                        )
+                    }
+                    return@transformCallsInFile null
+                }
+                val sitesForMarker = collectedSites.filter { it.site.markerFqn == markerFqn }
+                // task-120-B Phase 7: warn once per marker FqN when opt-in flag is on
+                // and the current compilation has zero sites for that marker. The
+                // containing file comes from the per-file transform loop above, so the
+                // warning carries `file:line:column` for the offending call.
+                if (sitesForMarker.isEmpty() && warnedMarkerFqns.add(markerFqn)) {
+                    warnIfNoMarkerFound(
+                        call = call,
+                        markerFqn = markerFqn,
+                        siteCount = 0,
+                        config = config,
+                        file = file,
+                        messageCollector = messageCollector,
+                    )
+                }
+                val collectorForBuildMarker =
+                    if (rewriteFailureWarnedMarkerFqns.add(markerFqn)) messageCollector
+                    else MessageCollector.NONE
+                buildMarker(
                     call = call,
                     markerFqn = markerFqn,
-                    siteCount = 0,
+                    sites = sitesForMarker,
+                    pluginContext = pluginContext,
+                    compat = compat,
                     config = config,
-                    file = null,
-                    messageCollector = messageCollector,
+                    // task-135: forward the IR-phase MessageCollector so the previously
+                    // silent `?: return null` fall-back paths in BuildMarkerInstance can
+                    // emit `CC_CAPTUREDSOURCES_REWRITE_FAILED` / `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND`
+                    // warnings. Existing unit tests that don't go through the registrar
+                    // pass `MessageCollector.NONE` (= silent, non-breaking). Subsequent
+                    // calls for the same marker get `NONE` to deduplicate.
+                    messageCollector = collectorForBuildMarker,
                 )
             }
-            val collectorForBuildMarker =
-                if (rewriteFailureWarnedMarkerFqns.add(markerFqn)) messageCollector
-                else MessageCollector.NONE
-            buildMarker(
-                call = call,
-                markerFqn = markerFqn,
-                sites = sitesForMarker,
-                pluginContext = pluginContext,
-                compat = compat,
-                config = config,
-                // task-135: forward the IR-phase MessageCollector so the previously
-                // silent `?: return null` fall-back paths in BuildMarkerInstance can
-                // emit `CC_CAPTUREDSOURCES_REWRITE_FAILED` / `CC_CAPTUREDSOURCES_FILLER_NOT_FOUND`
-                // warnings. Existing unit tests that don't go through the registrar
-                // pass `MessageCollector.NONE` (= silent, non-breaking). Subsequent
-                // calls for the same marker get `NONE` to deduplicate.
-                messageCollector = collectorForBuildMarker,
-            )
         }
     }
 
@@ -205,18 +245,6 @@ public class RewriteCapturedSourcesCall {
      */
     private fun IrCall.isCapturedSourcesCall(): Boolean =
         symbol.owner.fqNameWhenAvailable?.asString() == CAPTURED_SOURCES_FQN
-
-    /**
-     * type argument 0 (= `capturedSources<T>()` の T) を取り出し、 [CaptureCodeMarkerRegistry] に
-     * 登録された marker FqN ならそれを返し、 そうでなければ null。
-     *
-     * `compat.getCallTypeArgument` (Phase 2 SPI) 経由で K2.4-RC 削除 API drift を吸収する。
-     */
-    private fun IrCall.markerFqnOf(compat: CompatContext): String? {
-        val typeArg = compat.getCallTypeArgument(this, 0) ?: return null
-        val fqn = typeArg.classFqName?.asString() ?: return null
-        return fqn.takeIf { CaptureCodeMarkerRegistry.isMarker(it) }
-    }
 
     private companion object {
         /**

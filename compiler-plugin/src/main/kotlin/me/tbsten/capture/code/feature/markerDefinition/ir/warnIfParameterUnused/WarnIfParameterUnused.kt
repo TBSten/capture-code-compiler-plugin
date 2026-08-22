@@ -5,13 +5,12 @@ import me.tbsten.capture.code.feature.capturedSources.ir.collectDeclarationSite.
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeFillerClassIds
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
 import me.tbsten.capture.code.feature.markerDefinition.MarkerDefinitionWarnings
+import me.tbsten.capture.code.feature.markerDefinition.referenceMarkerClass
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.util.constructors
-import org.jetbrains.kotlin.name.ClassId
-import org.jetbrains.kotlin.name.FqName
 import java.text.MessageFormat
 
 /**
@@ -25,7 +24,8 @@ import java.text.MessageFormat
  * concrete 化する。 検出 + warning 発火の責務分担は以下:
  *
  * - **marker class 走査**: [CaptureCodeMarkerRegistry.markerFqns] に登録された各 FQN を
- *   [IrPluginContext.referenceClass] で IR class symbol に解決し、 primary constructor の
+ *   [referenceMarkerClass] (nested marker の flatten FqN 対応) で IR class symbol に解決し、
+ *   primary constructor の
  *   value parameter を [CompatContext.valueParametersOf] で取得する。
  * - **filler 除外**: parameter の型が `Source` / `SourceLocation` / `CaptureKind` の場合は
  *   plugin 側で自動 fill されるため unused 判定対象外。
@@ -74,7 +74,7 @@ import java.text.MessageFormat
  *   の戻り値 (= 各 site が `CollectedSite` の不変条件を満たす)。 typical root cause: caller が
  *   hand-built site を渡している (= unit test 引数 typo)。
  * - `pluginContext: IrPluginContext` は IR phase で resolved。 marker class symbol が
- *   `referenceClass` で取得可能。 取得不能の場合は silent skip (= 既存 BuildMarkerInstance で
+ *   [referenceMarkerClass] で取得可能。 取得不能の場合は silent skip (= 既存 BuildMarkerInstance で
  *   `CC_CAPTUREDSOURCES_REWRITE_FAILED` 別途警告するため重ね報告しない)。
  * - `compat: CompatContext` は `valueParametersOf` / `getCallValueArgument` の SPI が正しく
  *   dispatch される (= K2.4-RC drift を吸収)。
@@ -115,9 +115,7 @@ public class WarnIfParameterUnused {
         )
 
         for (markerFqn in markerFqns) {
-            val markerSymbol = pluginContext.referenceClass(
-                ClassId.topLevel(FqName(markerFqn)),
-            ) ?: continue
+            val markerSymbol = pluginContext.referenceMarkerClass(markerFqn) ?: continue
             // primary constructor を取得 (annotation class は 1 つしか持てないので first で十分)。
             val constructor = markerSymbol.owner.constructors.firstOrNull { it.isPrimary }
                 ?: markerSymbol.owner.constructors.firstOrNull()

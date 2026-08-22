@@ -49,13 +49,13 @@ import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
  * Within each variant, the sample exercises:
  *   - `includeKdoc`        — KDoc line presence in captured source
  *   - `includeImports`     — `import` line presence in `@file:`-captured source
- *   - `includeAnnotationLines` — non-marker `@<x>` annotation line presence in file source.
- *     **Charter 3 observation**: for declaration-origin captures the marker `@<Name>` line
- *     is always stripped at the collector layer (`skipLeadingMarkerAnnotations`) regardless
- *     of this flag. The flag only controls leading **non-marker** annotation lines and the
- *     `@file:Marker` line in file-origin captures. The KDoc on
- *     `CaptureCodePluginConfigBridge.toDeclarationNormalizeOptions` calls this out as a
- *     known polish item.
+ *   - `includeAnnotationLines` — marker `@<Name>` line presence in declaration source and
+ *     `@file:Marker` line presence in file-origin source.
+ *     **bug-009 fix (2026-08)**: on the declaration path the collector now honors this flag:
+ *     `true` keeps the leading marker `@<Name>` line(s) in the capture, `false` (default)
+ *     strips them via `skipLeadingMarkerAnnotations`. Leading **non-marker** annotation
+ *     lines (`@Suppress` etc.) are semantically significant and stay in the capture
+ *     regardless of the flag.
  *   - `dedent`             — common leading indent stripping
  *   - `includeLineInfo`    — `SourceLocation.startLine` zero-vs-real value
  *
@@ -151,10 +151,10 @@ class DslOptionPairwiseTest : FunSpec({
     // includeAnnotationLines, dedent, includeLineInfo)
     //
     // The fixture also drops a non-marker annotation (`@Suppress("unused")`)
-    // before the marker so that `includeAnnotationLines` can flip the behaviour
-    // even on the declaration-origin path. The marker line itself is always
-    // stripped by `skipLeadingMarkerAnnotations` (task-129 BUG-A fix) and is
-    // therefore independent of `includeAnnotationLines`.
+    // before the marker. The marker line follows `includeAnnotationLines`
+    // (bug-009 fix: `true` keeps it, `false` strips it via
+    // `skipLeadingMarkerAnnotations`), while the non-marker line is always kept
+    // on the declaration path.
     // ------------------------------------------------------------------
     for ((name, config) in pairwise) {
         test("variant $name: declaration source reflects every option independently") {
@@ -209,23 +209,18 @@ class DslOptionPairwiseTest : FunSpec({
             } else {
                 src shouldNotContain "Pairwise variant $name doc"
             }
-            // **Charter 3 observation, recorded here as a regression guard**: the
-            // marker annotation line `@DeclMarker_X` is always stripped by the
-            // collector (`skipLeadingMarkerAnnotations`), independent of
-            // `includeAnnotationLines`. This holds in all 8 variants and is the
-            // "1 option's effect masked by another path" interaction that the
-            // pairwise tour set out to find.
-            src shouldNotContain "@DeclMarker_$name"
-            // includeAnnotationLines: when true the non-marker `@Suppress("unused")`
-            // line must remain, when false (= default) it must be stripped via
-            // `stripLeadingAnnotationLines` in the normalize chain. Note: on the
-            // declaration path the bridge currently hard-codes
-            // `stripLeadingAnnotationLines = false` (see
-            // CaptureCodePluginConfigBridge.toDeclarationNormalizeOptions), so even
-            // when the flag is **false** the non-marker annotation survives. This is
-            // an existing known polish item (declaration-origin annotation strip is
-            // not yet wired through the flag) and the assertion captures the
-            // **current** behaviour so a future fix forces a deliberate test update.
+            // includeAnnotationLines (bug-009 fix): when true the marker line
+            // `@DeclMarker_X` stays in the capture, when false (= default) it is
+            // stripped by `skipLeadingMarkerAnnotations` at the collector layer.
+            if (config.includeAnnotationLines) {
+                src shouldContain "@DeclMarker_$name"
+            } else {
+                src shouldNotContain "@DeclMarker_$name"
+            }
+            // The non-marker `@Suppress("unused")` line is semantically significant
+            // (cf. `@JvmInline`) and therefore stays in the declaration capture
+            // regardless of `includeAnnotationLines` (the flag only controls the
+            // marker lines; see CaptureCodePluginConfigBridge.toDeclarationNormalizeOptions).
             src shouldContain "@Suppress(\"unused\")"
             // dedent: when true the inner 4-space indent of `internal fun` should
             // collapse to 0 (the line starts with `internal`); when false the
@@ -521,11 +516,10 @@ class DslOptionPairwiseTest : FunSpec({
 
         // Override.Yes on includeKdoc → KDoc present even though global = false
         src shouldContain "Mirror doc"
-        // Override.Yes on includeAnnotationLines does **not** affect declaration-
-        // origin marker lines (`skipLeadingMarkerAnnotations` always strips them);
-        // see the file-level fixture below for the case where the override does
-        // change behaviour. The marker line must therefore stay stripped.
-        src shouldNotContain "@MirrorMarker"
+        // Override.Yes on includeAnnotationLines → the marker line stays in the
+        // declaration capture even though global = false (bug-009 fix: the
+        // collector skips marker-line stripping when the effective flag is true).
+        src shouldContain "@MirrorMarker"
         // Override.Yes on dedent → indent removed even though global = false
         src shouldContain "internal fun nested(): String {"
         src shouldNotContain "    internal fun nested"

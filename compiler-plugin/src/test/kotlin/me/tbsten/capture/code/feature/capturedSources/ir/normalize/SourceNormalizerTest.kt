@@ -370,6 +370,46 @@ class SourceNormalizerHelpersTest : StringSpec({
         dedentLines(listOf("    a", "  ", "    b")) shouldBe listOf("a", "", "b")
     }
 
+    // -----------------------------------------------------------------
+    // ignoreFirstLine (bug-006): 式起源用の 1 行目除外 dedent
+    // -----------------------------------------------------------------
+    "dedentLines(ignoreFirstLine): 行の途中から始まる式は 2 行目以降だけ dedent される" {
+        // property 初期化子のような行の途中から始まる式。 1 行目 (indent 0) を
+        // 最小幅計算に含めると minIndent = 0 になり 2 行目以降が崩れる (bug-006 の再現形)。
+        dedentLines(
+            listOf("run {", "        val a = 1", "        a", "    }"),
+            ignoreFirstLine = true,
+        ) shouldBe listOf("run {", "    val a = 1", "    a", "}")
+    }
+
+    "dedentLines(ignoreFirstLine): 1 行目にインデントが復元されている場合は従来と同じ結果になる" {
+        // 行頭開始式 (reattachOwnLeadingIndent 経路)。 1 行目の indent と残り行の最小幅が
+        // 一致するため、 ignoreFirstLine でも従来の全行 dedent と同一出力。
+        dedentLines(
+            listOf("        run {", "            val x = 1", "        }"),
+            ignoreFirstLine = true,
+        ) shouldBe dedentLines(listOf("        run {", "            val x = 1", "        }"))
+    }
+
+    "dedentLines(ignoreFirstLine): 1 行目は自身の indent の範囲を超えて削られない" {
+        // 1 行目 indent (2) < 残り行の最小幅 (4) のケース。 1 行目は 2 文字だけ削られる。
+        dedentLines(
+            listOf("  run {", "        val a = 1", "    }"),
+            ignoreFirstLine = true,
+        ) shouldBe listOf("run {", "    val a = 1", "}")
+    }
+
+    "dedentLines(ignoreFirstLine): 2 行目以降が全 blank なら従来どおり全行から計算する" {
+        dedentLines(
+            listOf("    expr", "   ", ""),
+            ignoreFirstLine = true,
+        ) shouldBe listOf("expr", "", "")
+    }
+
+    "dedentLines(ignoreFirstLine): 1 行入力ではフラグは無効で従来どおり dedent される" {
+        dedentLines(listOf("    val x = 1"), ignoreFirstLine = true) shouldBe listOf("val x = 1")
+    }
+
     "trimBlankEdgeLines: 前後 blank 行 drop / 中間維持" {
         trimBlankEdgeLines(listOf("", "a", "", "b", "")) shouldBe listOf("a", "", "b")
     }
@@ -426,51 +466,4 @@ class SourceNormalizerHelpersTest : StringSpec({
     }
 })
 
-/**
- * KDoc 用 pure helper のテスト。
- */
-class KDocLookupTest : StringSpec({
-    "findKDocExtendedStartOffset: KDoc が無ければ元の offset を返す" {
-        val text = "val x = 1"
-        findKDocExtendedStartOffset(text, 0) shouldBe 0
-    }
-
-    "findKDocExtendedStartOffset: 直前に単行 KDoc がある場合に拡張される" {
-        // "/** doc */\nval x = 1"
-        val text = "/** doc */\nval x = 1"
-        val declStart = text.indexOf("val")
-        findKDocExtendedStartOffset(text, declStart) shouldBe 0
-    }
-
-    "findKDocExtendedStartOffset: 直前に複数行 KDoc がある場合に拡張される" {
-        val text = "/**\n * line\n */\nfun foo() = 1"
-        val declStart = text.indexOf("fun")
-        findKDocExtendedStartOffset(text, declStart) shouldBe 0
-    }
-
-    "findKDocExtendedStartOffset: KDoc 様でも `/* ... */` (block comment) は拡張対象外" {
-        val text = "/* not kdoc */\nval x = 1"
-        val declStart = text.indexOf("val")
-        findKDocExtendedStartOffset(text, declStart) shouldBe declStart
-    }
-
-    "findKDocExtendedStartOffset: KDoc と宣言の間に空白行があっても拡張される" {
-        val text = "/** doc */\n\nval x = 1"
-        val declStart = text.indexOf("val")
-        findKDocExtendedStartOffset(text, declStart) shouldBe 0
-    }
-
-    "findKDocExtendedStartOffset: file 内部での 2 つ目の宣言の KDoc も拡張する" {
-        val text = "val a = 1\n/** doc */\nval b = 2"
-        val declStart = text.indexOf("val b")
-        findKDocExtendedStartOffset(text, declStart) shouldBe text.indexOf("/** doc")
-    }
-
-    "findKDocExtendedStartOffset: startOffset = 0 はそのまま" {
-        findKDocExtendedStartOffset("val x = 1", 0) shouldBe 0
-    }
-
-    "findKDocExtendedStartOffset: startOffset が text 範囲外なら元の offset 返却" {
-        findKDocExtendedStartOffset("val x = 1", 999) shouldBe 999
-    }
-})
+// findKDocExtendedStartOffset の pure function テストは KDocLookupTest.kt (同 package) に分離した。

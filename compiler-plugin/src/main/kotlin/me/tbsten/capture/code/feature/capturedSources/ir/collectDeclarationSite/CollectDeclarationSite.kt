@@ -286,16 +286,14 @@ public class CollectDeclarationSite {
                 return lineStart
             }
             val nameStart = cursor + 1
-            var nameEnd = nameStart
-            while (nameEnd < endOffset) {
-                val ch = text[nameEnd]
-                if (ch.isLetterOrDigit() || ch == '_') nameEnd++ else break
-            }
-            val simpleName = if (nameEnd > nameStart) text.substring(nameStart, nameEnd) else ""
+            // bug-005: `@example.Snippet` のような FQN 記法に対応するため、 `.` 区切りの
+            // qualified name として読み進め、 末尾 segment を simple name として照合する。
+            val nameScan = readQualifiedAnnotationName(text, nameStart, endOffset)
+            val simpleName = nameScan.simpleName
             if (simpleName !in markerSimpleNames) {
                 return lineStart
             }
-            cursor = nameEnd
+            cursor = nameScan.nameEnd
             if (cursor < endOffset && text[cursor] == '(') {
                 var depth = 0
                 while (cursor < endOffset) {
@@ -315,6 +313,13 @@ public class CollectDeclarationSite {
             }
             while (cursor < endOffset && (text[cursor] == ' ' || text[cursor] == '\t')) {
                 cursor++
+            }
+            // bug-010: 行末までの line comment (`// ...`) も annotation 行として吸収する
+            // ([skipLeadingMarkerAnnotations] と同じ挙動)。
+            if (cursor + 1 < endOffset && text[cursor] == '/' && text[cursor + 1] == '/') {
+                while (cursor < endOffset && text[cursor] != '\n') {
+                    cursor++
+                }
             }
             if (cursor < endOffset && text[cursor] == '\n') {
                 cursor++
@@ -343,7 +348,9 @@ public class CollectDeclarationSite {
      * extractDeclarationSource は [SkipMarkerResult.sourceStart] で substring した上で、
      * [SkipMarkerResult.markerRanges] の range を **降順** で drop すれば leak を防げる。
      *
-     * @param markerSimpleNames marker FqN の simple name 集合 (= class 名のみ抜き出したもの)
+     * @param markerSimpleNames marker FqN の simple name 集合 (= class 名のみ抜き出したもの)。
+     *   import alias で marker を書ける file では alias も含める ([markerSimpleNames] が
+     *   [markerImportAliases] を union して構築する)
      */
     public fun skipLeadingMarkerAnnotations(
         text: String,
@@ -380,16 +387,14 @@ public class CollectDeclarationSite {
                 }
                 break
             }
-            // 行頭が '@'。 simpleName を読む
+            // 行頭が '@'。 simpleName を読む。 bug-005: `@example.Snippet` のような FQN 記法に
+            // 対応するため、 `.` 区切りの qualified name として読み進め、 末尾 segment を
+            // simple name として照合する。
             val nameStart = lineContentStart + 1
-            var nameEnd = nameStart
-            while (nameEnd < endOffset) {
-                val ch = text[nameEnd]
-                if (ch.isLetterOrDigit() || ch == '_') nameEnd++ else break
-            }
-            val simpleName = if (nameEnd > nameStart) text.substring(nameStart, nameEnd) else ""
+            val nameScan = readQualifiedAnnotationName(text, nameStart, endOffset)
+            val simpleName = nameScan.simpleName
             // annotation argument `(...)` を skip (depth-balanced)
-            var afterArgs = nameEnd
+            var afterArgs = nameScan.nameEnd
             if (afterArgs < endOffset && text[afterArgs] == '(') {
                 var depth = 0
                 while (afterArgs < endOffset) {
@@ -420,6 +425,16 @@ public class CollectDeclarationSite {
                 (text[afterTrailing] == ' ' || text[afterTrailing] == '\t')
             ) {
                 afterTrailing++
+            }
+            // bug-010: annotation token の後が行末までの line comment (`// ...`) のみなら、
+            // コメントも annotation 行の一部として吸収する。 これをしないと marker 行 drop 時に
+            // `// ...` の残骸だけが capture 先頭に leak する (`@Marker // why` → `// why`)。
+            if (afterTrailing + 1 < endOffset &&
+                text[afterTrailing] == '/' && text[afterTrailing + 1] == '/'
+            ) {
+                while (afterTrailing < endOffset && text[afterTrailing] != '\n') {
+                    afterTrailing++
+                }
             }
             val lineEndAfterNewline = if (afterTrailing < endOffset && text[afterTrailing] == '\n') {
                 afterTrailing + 1

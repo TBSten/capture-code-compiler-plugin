@@ -51,6 +51,37 @@ public object MarkerAnnotationErrors {
     }
 
     /**
+     * `CC_MARKER_NOT_INTERNAL_OR_PRIVATE` — the `@CaptureCode`-meta marker
+     * annotation class is declared `public` (including the no-modifier default)
+     * or `protected`. Markers must be `internal` or `private` by design:
+     * capture is confined to a single compilation, so a marker visible to
+     * downstream modules invites `@Marker` usages there that are silently never
+     * captured (and `capturedSources<T>()` then fails at runtime with
+     * "CaptureCode compiler plugin is not applied").
+     * Argument `{0}` is the marker class FQN.
+     *
+     * bug-008: unlike the other entries in this catalogue, this error is
+     * reported through
+     * [me.tbsten.capture.code.compat.CaptureCodeMessageCollectorHolder.reportError]
+     * (MessageCollector, `ERROR` severity) instead of a `KtDiagnosticFactory*`,
+     * because adding a new factory would require touching every
+     * `compat-kXXX/CompatContextImpl.kt` diagnostics object. The `{0}`
+     * placeholder is expanded by the caller via `java.text.MessageFormat`
+     * (so the `''` doubled-quote escaping convention still applies).
+     */
+    public val NOT_INTERNAL_OR_PRIVATE: CaptureCodeCompilerPluginError = object : CaptureCodeCompilerPluginError {
+        override val id: String = "CC_MARKER_NOT_INTERNAL_OR_PRIVATE"
+        override val message: String =
+            "@CaptureCode marker annotation {0} must be ''internal'' or ''private''. " +
+                "Capture stays confined to a single module by design; a public or protected marker " +
+                "can be referenced from downstream modules where nothing is captured, making " +
+                "capturedSources<T>() fail at runtime.\n" +
+                "Suggested fix: declare the marker annotation as ''internal'' (or ''private'')."
+        override val reply: String? =
+            "Declare the marker annotation {0} as ''internal'' (or ''private'')."
+    }
+
+    /**
      * `CC_MARKER_PARAMETER_TYPE_INVALID` — a parameter on the marker annotation
      * has a type that is outside Kotlin's annotation parameter allow-list.
      * Argument `{0}` is the offending parameter's name.
