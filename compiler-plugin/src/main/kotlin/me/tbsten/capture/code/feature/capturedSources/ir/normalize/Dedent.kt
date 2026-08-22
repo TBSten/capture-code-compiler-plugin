@@ -14,13 +14,33 @@ package me.tbsten.capture.code.feature.capturedSources.ir.normalize
  *
  * Note: 1 行入力 (改行なし) でも素直に動く。先頭インデントがあれば dedent され、なければそのまま。
  *
+ * ## `ignoreFirstLine` (bug-006)
+ *
+ * 式起源の抽出 text は 1 行目が式そのもの (= 行の途中) から始まることがあり、 その場合の
+ * 1 行目は元 file のインデント情報を持たない (見かけ上 0 インデント)。 これを最小幅計算に
+ * 含めると `minIndent = 0` と判定されて 2 行目以降が元 file の絶対インデントのまま残る
+ * (`val v = @Marker() run { ... }` のような行の途中から始まる式で崩れる)。
+ *
+ * `ignoreFirstLine = true` かつ複数行のときは:
+ *
+ * - `minIndent` は **2 行目以降の非空行** から計算する (2 行目以降が全 blank なら従来どおり
+ *   全行から計算する)
+ * - 1 行目は自身の leading whitespace の範囲内でのみ dedent する
+ *   (= `min(minIndent, 1 行目の indent)` 文字を削除)。 行頭開始式で 1 行目にインデントが
+ *   復元されている場合 (`reattachOwnLeadingIndent` 経路) は残り行の最小幅と一致するため、
+ *   従来の出力と同一になる。 行の途中から始まる式 (indent 0) では 1 行目は不変
+ *
  * @param lines `splitToSequence("\n")` などで分割した行のリスト (改行文字は含まない)。
+ * @param ignoreFirstLine 最小インデント幅の計算から 1 行目を除外するか (式起源のみ true)。
  * @return 各行から共通インデントを取り除いた新しい行リスト。
  */
-public fun dedentLines(lines: List<String>): List<String> {
-    val minIndent = lines
+public fun dedentLines(lines: List<String>, ignoreFirstLine: Boolean = false): List<String> {
+    val excludeFirst = ignoreFirstLine && lines.size > 1
+    val minIndent = (if (excludeFirst) lines.subList(1, lines.size) else lines)
         .filter { it.isNotBlank() }
         .minOfOrNull { it.leadingWhitespaceWidth() }
+        // 2 行目以降が全 blank の場合は従来どおり全行 (= 実質 1 行目のみ) から計算する
+        ?: lines.filter { it.isNotBlank() }.minOfOrNull { it.leadingWhitespaceWidth() }
         ?: return lines.map { if (it.isBlank()) "" else it }
 
     if (minIndent == 0) {
@@ -28,9 +48,11 @@ public fun dedentLines(lines: List<String>): List<String> {
         return lines.map { if (it.isBlank()) "" else it }
     }
 
-    return lines.map { line ->
+    return lines.mapIndexed { index, line ->
         when {
             line.isBlank() -> ""
+            excludeFirst && index == 0 ->
+                line.substring(minOf(minIndent, line.leadingWhitespaceWidth()))
             else -> line.substring(minIndent)
         }
     }

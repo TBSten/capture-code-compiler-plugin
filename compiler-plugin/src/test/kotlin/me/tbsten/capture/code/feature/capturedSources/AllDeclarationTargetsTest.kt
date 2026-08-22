@@ -313,9 +313,9 @@ class AllDeclarationTargetsTest : FunSpec({
 
         val captured = loadCaptured(result)
         captured.size shouldBe 2
-        // 1 番目の property は IR 上の endOffset が `;` を含むため source に `;` が残る。
-        // 同一行 multi-property は珍しい形式なので、 trailing `;` の整形は将来の polish item とする。
-        captureSourceValue(captured[0] as Annotation) shouldBe "val mlP1 = 1;"
+        // 1 番目の property は IR 上の endOffset が `;` を含むが、 bug-010 修正で
+        // rawBody 末尾の `;` は capture 前に strip される。
+        captureSourceValue(captured[0] as Annotation) shouldBe "val mlP1 = 1"
         captureSourceValue(captured[1] as Annotation) shouldBe "val mlP2 = 2"
     }
 

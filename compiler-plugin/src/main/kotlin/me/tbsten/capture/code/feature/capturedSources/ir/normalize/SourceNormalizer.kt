@@ -76,7 +76,7 @@ public class NormalizeSource {
         }
 
         if (options.dedent) {
-            lines = dedentLines(lines)
+            lines = dedentLines(lines, ignoreFirstLine = options.dedentIgnoreFirstLine)
         }
 
         if (options.trimBlankEdges) {

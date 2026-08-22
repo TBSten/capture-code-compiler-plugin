@@ -11,6 +11,11 @@ package me.tbsten.capture.code.feature.capturedSources.ir.normalize
  * 担う (compat-kXXXX 各実装はそれを呼ぶ)。
  *
  * @property dedent 全行の最小インデント幅 (空白行を除く) を計算し、各行から削除する。
+ * @property dedentIgnoreFirstLine dedent の最小インデント幅計算から **1 行目を除外** し、
+ *                                  1 行目自体は自身の leading whitespace の範囲内でのみ削る
+ *                                  ([dedentLines] の `ignoreFirstLine` に対応)。 式起源では
+ *                                  1 行目が行の途中から始まり得てインデント情報を持たないため
+ *                                  true にする (bug-006)。 declaration / file 起源では false。
  * @property trimBlankEdges 先頭/末尾の空白行を drop する。中間の空白行は維持される。
  * @property stripPackageAndImport file 起源の正規化で `package` / `import` 宣言行を除外する。
  *                                  declaration 起源では原則 false を指定する。
@@ -25,6 +30,7 @@ package me.tbsten.capture.code.feature.capturedSources.ir.normalize
  */
 public data class NormalizeOptions(
     val dedent: Boolean = true,
+    val dedentIgnoreFirstLine: Boolean = false,
     val trimBlankEdges: Boolean = true,
     val stripPackageAndImport: Boolean = false,
     val stripLeadingAnnotationLines: Boolean = false,
@@ -49,9 +55,10 @@ public data class NormalizeOptions(
             stripKdoc = false,
         )
 
-        /** 式起源 (`@Marker (expr)`)。dedent + blank trim のみ。 */
+        /** 式起源 (`@Marker (expr)`)。dedent (1 行目は最小幅計算から除外) + blank trim のみ。 */
         public val EXPRESSION_DEFAULT: NormalizeOptions = NormalizeOptions(
             dedent = true,
+            dedentIgnoreFirstLine = true,
             trimBlankEdges = true,
             stripPackageAndImport = false,
             stripLeadingAnnotationLines = false,
