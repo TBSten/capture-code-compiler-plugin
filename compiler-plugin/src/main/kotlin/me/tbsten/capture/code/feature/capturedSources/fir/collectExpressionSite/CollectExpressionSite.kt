@@ -10,13 +10,7 @@ import org.jetbrains.kotlin.KtSourceElement
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
-import org.jetbrains.kotlin.fir.expressions.FirGetClassCall
-import org.jetbrains.kotlin.fir.expressions.FirPropertyAccessExpression
-import org.jetbrains.kotlin.fir.expressions.FirQualifiedAccessExpression
 import org.jetbrains.kotlin.fir.expressions.FirStatement
-import org.jetbrains.kotlin.fir.expressions.arguments
-import org.jetbrains.kotlin.fir.references.toResolvedCallableSymbol
-import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 
 /**
  * Logic B-fir: expression-site `@Marker(...)` annotation collector.
@@ -182,6 +176,7 @@ public class CollectExpressionSite {
             CaptureCodeFillerClassIds.SourceLocation.asFqNameString(),
             CaptureCodeFillerClassIds.CaptureKind.asFqNameString(),
         )
+        val convert = ConvertUserArgExpression()
         val result = linkedMapOf<String, UserArgValue>()
         for ((name, expr) in mapping) {
             // drift D13/D14: `FirExpression.resolvedType` + `ConeKotlinType.classId` を
@@ -191,52 +186,13 @@ public class CollectExpressionSite {
                 ?.let { compat.classIdOfType(it) }
                 ?.asSingleFqName()?.asString()
             if (typeFqn != null && typeFqn in fillerFqns) continue
-            // task-133: 旧 `Any?` 経路を sealed UserArgValue に統合。 各分岐で対応する
-            // UserArgValue subclass を組み立てる。 解決失敗時は `UserArgValue.NullValue`
-            // で null-safe に統合し、 caller (IR phase) で exhaustive when できるようにする。
-            val arg: UserArgValue = when {
-                // drift D1: `FirLiteralExpression<T>` (K2.0) vs `FirLiteralExpression` (K2.0.21+)。
-                // CompatContext 経由で literal value を取り出す。
-                compat.isLiteralExpression(expr) -> {
-                    // SPI は Any? を返す (circular dep 回避のため。 CompatContext.kt の
-                    // literalValueOrNull KDoc 参照)。 main 側で sealed UserArgValue に wrap。
-                    //
-                    // task-charter-5-userarg-numeric-coerce (2026-05-21): K2 FIR は integer
-                    // literal (e.g. `42`) を `FirLiteralExpression<Long>` (= IntegerLiteralType
-                    // が Long で represent) として持つことがあるため、 raw value だけで
-                    // wrapLiteralValue すると Int / Byte / Short の expected 型でも LongValue が
-                    // 構築され、 IR 再構築段階で integer slot に long を積む VerifyError を起こす。
-                    // expression の resolved type (= [typeFqn]) を hint として渡し、 Byte / Short /
-                    // Int の expected 型では Long raw を対応する numeric type に narrow する。
-                    val raw = compat.literalValueOrNull(expr)
-                    if (raw == null) UserArgValue.NullValue
-                    else UserArgValue.wrapLiteralValue(raw, expectedTypeFqn = typeFqn)
-                        ?: UserArgValue.NullValue
-                }
-                expr is FirGetClassCall -> {
-                    val firstArg = expr.arguments.firstOrNull()
-                    val classFqn = firstArg
-                        ?.let { compat.resolvedTypeOrNullOf(it) }
-                        ?.let { compat.classIdOfType(it) }
-                        ?.asSingleFqName()?.asString()
-                    if (classFqn != null) UserArgValue.ClassRef(classFqn) else UserArgValue.NullValue
-                }
-                expr is FirPropertyAccessExpression ->
-                    resolveEnumOrNull(expr)?.let(UserArgValue::EnumRef) ?: UserArgValue.NullValue
-                expr is FirQualifiedAccessExpression ->
-                    resolveEnumOrNull(expr)?.let(UserArgValue::EnumRef) ?: UserArgValue.NullValue
-                else -> UserArgValue.NullValue
-            }
-            result[name.asString()] = arg
+            // task-133: 旧 `Any?` 経路を sealed UserArgValue に統合。 bug-004: 変換 branch
+            // (literal / ClassRef / enum / unaryMinus 畳み込み / const val 畳み込み / 配列 /
+            // nested annotation) は [ConvertUserArgExpression] に切り出した。 変換不能な式は
+            // `UserArgValue.UnsupportedExpression` になり、 IR 側で実態に合った warning を
+            // 発火して default fallback する (silent 経路なし)。
+            result[name.asString()] = convert(expr, compat)
         }
         return result
-    }
-
-    private fun resolveEnumOrNull(expr: FirQualifiedAccessExpression): String? {
-        val resolved = expr.calleeReference.toResolvedCallableSymbol() as? FirCallableSymbol<*>
-            ?: return null
-        // task-075: 2.3.0 で `callableId` は nullable 化された (`CallableId?`)。 2.0–2.2.x で
-        // 同一の `!!` 相当の挙動を維持しつつ、 2.3.x で compile 通すために safe call にする。
-        return resolved.callableId?.asSingleFqName()?.asString()
     }
 }
