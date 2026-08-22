@@ -9,6 +9,7 @@ import me.tbsten.capture.code.feature.capturedSources.ir.rewriteCapturedSourcesC
 import me.tbsten.capture.code.feature.markerDefinition.CaptureCodeMarkerRegistry
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
+import me.tbsten.capture.code.utils.ir.compilerMessageLocationOf
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.expressions.IrCall
@@ -90,71 +91,87 @@ public class RewriteCapturedSourceCall {
         // noisy duplicate を防ぐため 2 回目以降は `MessageCollector.NONE` を渡す。
         val rewriteFailureWarnedMarkerFqns = mutableSetOf<String>()
 
-        compat.transformCallsInModule(moduleFragment) { call ->
-            if (!call.isCapturedSourceCall()) return@transformCallsInModule null
-            val typeArg = compat.getCallTypeArgument(call, 0) ?: return@transformCallsInModule null
-            val markerFqn = typeArg.classFqName?.asString() ?: return@transformCallsInModule null
-            if (!CaptureCodeMarkerRegistry.isMarker(markerFqn)) {
-                // bug-001: marker のはずの T が registry に居ない = declaration が今回の
-                // compilation unit に含まれていない (stale IC / 別 module 配置)。 silent skip だと
-                // runtime stub が残って実行時 IllegalStateException になるため ERROR に格上げする。
-                // 複数版 RewriteCapturedSourcesCall と対称。 dedupe は reportedFqns に相乗りして
-                // 「marker FqN ごとに最大 1 ERROR」 invariant を保つ。
-                if (typeArg.hasCaptureCodeMetaAnnotation() && reportedFqns.add(markerFqn)) {
-                    val text = MessageFormat.format(
-                        CapturedSourceCallErrors.MARKER_NOT_REGISTERED.message,
-                        markerFqn,
-                    )
-                    messageCollector.report(CompilerMessageSeverity.ERROR, text, null)
+        // bug-001 follow-up: file 単位で回して diagnostic に `file:line:column` を付ける
+        // (`IrCall` は parent pointer を持たず、 module 単位の transform では file を辿れない)。
+        for (file in moduleFragment.files) {
+            compat.transformCallsInFile(file) { call ->
+                if (!call.isCapturedSourceCall()) return@transformCallsInFile null
+                val typeArg = compat.getCallTypeArgument(call, 0) ?: return@transformCallsInFile null
+                val markerFqn = typeArg.classFqName?.asString() ?: return@transformCallsInFile null
+                if (!CaptureCodeMarkerRegistry.isMarker(markerFqn)) {
+                    // bug-001: marker のはずの T が registry に居ない = declaration が今回の
+                    // compilation unit に含まれていない (stale IC / 別 module 配置)。 silent skip だと
+                    // runtime stub が残って実行時 IllegalStateException になるため ERROR に格上げする。
+                    // 複数版 RewriteCapturedSourcesCall と対称。 dedupe は reportedFqns に相乗りして
+                    // 「marker FqN ごとに最大 1 ERROR」 invariant を保つ。
+                    if (typeArg.hasCaptureCodeMetaAnnotation() && reportedFqns.add(markerFqn)) {
+                        val text = MessageFormat.format(
+                            CapturedSourceCallErrors.MARKER_NOT_REGISTERED.message,
+                            markerFqn,
+                        )
+                        messageCollector.report(
+                            CompilerMessageSeverity.ERROR,
+                            text,
+                            compilerMessageLocationOf(file, call.startOffset),
+                        )
+                    }
+                    return@transformCallsInFile null
                 }
-                return@transformCallsInModule null
-            }
-            val sitesForMarker = collectedSites.filter { it.site.markerFqn == markerFqn }
+                val sitesForMarker = collectedSites.filter { it.site.markerFqn == markerFqn }
 
-            when (sitesForMarker.size) {
-                0 -> {
-                    if (reportedFqns.add(markerFqn)) {
-                        val text = MessageFormat.format(
-                            CapturedSourceCallErrors.NO_SITE.message,
-                            markerFqn,
+                when (sitesForMarker.size) {
+                    0 -> {
+                        if (reportedFqns.add(markerFqn)) {
+                            val text = MessageFormat.format(
+                                CapturedSourceCallErrors.NO_SITE.message,
+                                markerFqn,
+                            )
+                            messageCollector.report(
+                            CompilerMessageSeverity.ERROR,
+                            text,
+                            compilerMessageLocationOf(file, call.startOffset),
                         )
-                        messageCollector.report(CompilerMessageSeverity.ERROR, text, null)
-                    }
-                    null
-                }
-                1 -> {
-                    val collectorForBuildMarker =
-                        if (rewriteFailureWarnedMarkerFqns.add(markerFqn)) messageCollector
-                        else MessageCollector.NONE
-                    buildMarker.buildOneInstance(
-                        markerFqn = markerFqn,
-                        site = sitesForMarker.single(),
-                        pluginContext = pluginContext,
-                        compat = compat,
-                        config = config,
-                        messageCollector = collectorForBuildMarker,
-                    ) as IrExpression?
-                }
-                else -> {
-                    if (reportedFqns.add(markerFqn)) {
-                        val locations = sitesForMarker.joinToString(", ") { collected ->
-                            val fp = collected.site.filePath
-                            val ln = collected.site.startLine
-                            when {
-                                fp.isBlank() && ln == 0 -> "<unknown location>"
-                                fp.isBlank() -> "<unknown>:$ln"
-                                ln == 0 -> "$fp:<unknown line>"
-                                else -> "$fp:$ln"
-                            }
                         }
-                        val text = MessageFormat.format(
-                            CapturedSourceCallErrors.MULTIPLE_SITES.message,
-                            markerFqn,
-                            locations,
-                        )
-                        messageCollector.report(CompilerMessageSeverity.ERROR, text, null)
+                        null
                     }
-                    null
+                    1 -> {
+                        val collectorForBuildMarker =
+                            if (rewriteFailureWarnedMarkerFqns.add(markerFqn)) messageCollector
+                            else MessageCollector.NONE
+                        buildMarker.buildOneInstance(
+                            markerFqn = markerFqn,
+                            site = sitesForMarker.single(),
+                            pluginContext = pluginContext,
+                            compat = compat,
+                            config = config,
+                            messageCollector = collectorForBuildMarker,
+                        ) as IrExpression?
+                    }
+                    else -> {
+                        if (reportedFqns.add(markerFqn)) {
+                            val locations = sitesForMarker.joinToString(", ") { collected ->
+                                val fp = collected.site.filePath
+                                val ln = collected.site.startLine
+                                when {
+                                    fp.isBlank() && ln == 0 -> "<unknown location>"
+                                    fp.isBlank() -> "<unknown>:$ln"
+                                    ln == 0 -> "$fp:<unknown line>"
+                                    else -> "$fp:$ln"
+                                }
+                            }
+                            val text = MessageFormat.format(
+                                CapturedSourceCallErrors.MULTIPLE_SITES.message,
+                                markerFqn,
+                                locations,
+                            )
+                            messageCollector.report(
+                            CompilerMessageSeverity.ERROR,
+                            text,
+                            compilerMessageLocationOf(file, call.startOffset),
+                        )
+                        }
+                        null
+                    }
                 }
             }
         }

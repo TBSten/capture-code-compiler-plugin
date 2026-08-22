@@ -28,7 +28,7 @@ Kotlin version.
 
 The [`CompatContext`](src/main/kotlin/me/tbsten/capture/code/compat/CompatContext.kt)
 interface defines the contract for version-specific operations. The current
-SPI hosts **30 methods** (the exhaustive list lives in `CompatContext.kt`
+SPI hosts **31 methods** (the exhaustive list lives in `CompatContext.kt`
 itself — regenerate with
 `grep -oE 'public fun [a-zA-Z]+' compat/src/main/.../CompatContext.kt`):
 
@@ -43,7 +43,7 @@ itself — regenerate with
 - **IR primitive (added in task-120-B Phase 2):**
   `walkIrTree(...)`,
   `walkIrFileDeclarations(file, onClass, onSimpleFunction, onProperty, onTypeAlias)`,
-  `transformCallsInModule(...)`,
+  `transformCallsInModule(...)` / `transformCallsInFile(...)`,
   `loadFileText(file)`,
   `putCallValueArgument` / `getCallValueArgument`,
   `setCallTypeArgument` / `getCallTypeArgument`,

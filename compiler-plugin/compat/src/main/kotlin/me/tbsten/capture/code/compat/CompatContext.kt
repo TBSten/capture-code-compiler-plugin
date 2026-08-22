@@ -456,6 +456,26 @@ public interface CompatContext {
     )
 
     /**
+     * Per-file variant of [transformCallsInModule]: transforms every `IrCall`
+     * in [file] via [onCall], with the same callback contract.
+     *
+     * Callers that need the containing [IrFile] — to resolve a source path /
+     * line / column for a diagnostic, for instance — iterate
+     * `moduleFragment.files` themselves and call this instead, so the file is
+     * in scope inside the callback. `transformCallsInModule` cannot provide it
+     * because the callback only receives the `IrCall`, and an `IrCall` has no
+     * parent pointer to walk up from.
+     *
+     * Used by `RewriteCapturedSourcesCall` / `RewriteCapturedSourceCall` so
+     * that `CC_CAPTUREDSOURCES_MARKER_NOT_REGISTERED` and friends carry a
+     * `file:line:column` location.
+     */
+    public fun transformCallsInFile(
+        file: IrFile,
+        onCall: (IrCall) -> IrExpression?,
+    )
+
+    /**
      * Sets the value argument at [index] on [call]. Equivalent to the legacy
      * `call.putValueArgument(index, value)` extension.
      *

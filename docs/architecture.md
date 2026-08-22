@@ -185,7 +185,7 @@ fleet of version-specific implementations:
 The SPI is **low-level on purpose** (option 2 in the task-117 decision):
 each known drift point is exposed as one method so the main module can
 keep its 2.0.0 baseline bytecode while still working on later runtimes.
-As of task-120-B Phase 2 the SPI hosts **23 methods**:
+The SPI hosts **31 methods** (`CompatContext.kt` is the source of truth):
 
 Existing FIR / config / drift methods (12):
 
@@ -211,8 +211,12 @@ Existing FIR / config / drift methods (12):
   `ReportError` / `ReportWarning` helpers narrow the result before
   calling `reporter.reportOn(...)`. Added in task-121.
 
-IR primitive methods (11, added in task-120-B Phase 2 to allow the IR
-walker / rewriter / filler / userargs to live in the main module):
+IR primitive methods (added in task-120-B Phase 2 to allow the IR
+walker / rewriter / filler / userargs to live in the main module).
+`transformCallsInFile(file, onCall)` is the per-file counterpart of
+`transformCallsInModule` and exists so IR-phase diagnostics can attach a
+`file:line:column` location — an `IrCall` has no parent pointer, so the
+containing `IrFile` has to come from the caller's loop:
 
 - `acceptIrVisitor(moduleFragment, visitor)` — `IrElementVisitorVoid` →
   `IrVisitorVoid` base class drift (2.4.x).

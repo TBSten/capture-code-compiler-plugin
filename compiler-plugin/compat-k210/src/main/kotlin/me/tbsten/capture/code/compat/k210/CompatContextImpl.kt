@@ -244,6 +244,13 @@ public class CompatContextImpl : CompatContext {
         moduleFragment.transformChildrenVoid(K210CallTransformer(onCall))
     }
 
+    override fun transformCallsInFile(
+        file: IrFile,
+        onCall: (IrCall) -> IrExpression?,
+    ) {
+        file.transformChildrenVoid(K210CallTransformer(onCall))
+    }
+
     override fun putCallValueArgument(
         call: IrFunctionAccessExpression,
         index: Int,

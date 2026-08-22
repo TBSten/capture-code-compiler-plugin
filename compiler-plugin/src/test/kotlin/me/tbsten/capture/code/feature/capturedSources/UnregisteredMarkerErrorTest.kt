@@ -109,6 +109,35 @@ class UnregisteredMarkerErrorTest : FunSpec({
         result.messages shouldContain "run a clean build"
     }
 
+    test("marker not registered の error は呼び出し元の file 名と行番号を指す") {
+        val markerResult = compileWithoutPlugin(externalMarkerSource)
+        markerResult.exitCode shouldBe KotlinCompilation.ExitCode.OK
+
+        val result = compileWithPlugin(
+            SourceFile.kotlin(
+                "LocatedCaller.kt",
+                """
+                package example
+
+                import example.lib.ExternalMarker
+                import me.tbsten.capture.code.capturedSources
+
+                internal object Main {
+                    // 呼び出しは 8 行目 (package 行を 1 行目として数える)
+                    fun captured(): List<ExternalMarker> = capturedSources<ExternalMarker>()
+                }
+                """.trimIndent(),
+            ),
+            classpath = listOf(markerResult.outputDirectory),
+        )
+
+        result.exitCode shouldBe KotlinCompilation.ExitCode.COMPILATION_ERROR
+        // location が付いていれば kctfork の message は `e: file://<path>/LocatedCaller.kt:8:44 ...`
+        // の形になる。 file 名と行番号が両方出ていることを確認する (絶対 path は環境依存なので見ない)。
+        val errorLine = result.messages.lines().first { it.contains("its declaration is not part of") }
+        errorLine shouldContain "LocatedCaller.kt:8"
+    }
+
     test("別 compilation でコンパイル済みの marker を capturedSource (単数版) に渡しても compile error になる") {
         val markerResult = compileWithoutPlugin(externalMarkerSource)
         markerResult.exitCode shouldBe KotlinCompilation.ExitCode.OK

@@ -27,5 +27,5 @@ task-118 以降、 **domain SSoT (feature/ 配下の CallableId / NormalizeOptio
 ## 参考
 
 - `compiler-plugin/README.md` — compiler-plugin module の構造解説 + How It Works (main 側 IR chain 図)
-- `compiler-plugin/compat/README.md` — compat layer の SPI 解説 (23 method) + 新 Kotlin バージョン追加手順
+- `compiler-plugin/compat/README.md` — compat layer の SPI 解説 (31 method) + 新 Kotlin バージョン追加手順
 - `docs/architecture.md` — プロジェクト全体のアーキテクチャ俯瞰 + task-120-B Phase 1-7 経緯
